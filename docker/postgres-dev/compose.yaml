@@ -1,0 +1,21 @@
+x-common-svc: &common
+  env_file: "../../.env"
+services:
+  pg:
+    <<: *common
+    image: postgres:17
+    ports:
+      - 5432:5432
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  pgadmin4:
+    <<: *common
+    image: dpage/pgadmin4:8.13.0
+    ports:
+      - 5050:80
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+      - ./servers.json:/pgadmin4/servers.json:ro
+volumes:
+  pgdata:
+  pgadmin:
