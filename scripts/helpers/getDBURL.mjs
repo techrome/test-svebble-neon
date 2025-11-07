@@ -1,12 +1,12 @@
 import "dotenv/config";
 import { isDev } from "@@/scripts/helpers/isDev.mjs";
 
-const prodUrl = process.env.PRODUCTION_DB_URL;
-const prodUrlPrimary = process.env.PRODUCTION_DB_URL_PRIMARY;
+const prodUrl = process.env.DATABASE_URL;
+const prodUrlPrimary = process.env.DATABASE_URL_UNPOOLED;
 
 if (!isDev && !prodUrl) {
   console.warn(
-    "Production environment detected but no PRODUCTION_DB_URL was set. Falling back to development db url"
+    "Production environment detected but no DATABASE_URL was set. Falling back to development db url"
   );
 }
 
