@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { isDev } from "@@/scripts/helpers/isDev.mjs";
+import { isDev } from "./isDev.mjs";
 
 const prodUrl = process.env.DATABASE_URL;
 const prodUrlPrimary = process.env.DATABASE_URL_UNPOOLED;
