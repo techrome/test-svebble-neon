@@ -24,8 +24,14 @@ jobs:
         uses: actions/setup-node@v6.0.0
         with:
           node-version: "22.17.1"
-          cache: "npm"
+      - name: Cache node_modules
+        id: nm-cache
+        uses: actions/cache@v4.3.0
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-22.17.1-${{ hashFiles('package-lock.json') }}
       - name: Install deps
+        if: steps.nm-cache.outputs.cache-hit != 'true'
         run: npm ci
       - name: Run DB migrations
         run: npm run db:m-prod
