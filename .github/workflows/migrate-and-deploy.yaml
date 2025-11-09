@@ -1,22 +1,37 @@
-name: Migrate DB
+name: Migrate DB and deploy to Vercel
 
 on:
   push:
     branches:
       - master
-    paths:
-      - "drizzle/**"
   workflow_dispatch: {}
 
-concurrency:
-  group: migrate-prod
-  cancel-in-progress: false
-
 jobs:
+  check-changes:
+    runs-on: ubuntu-22.04
+    outputs:
+      directory-modified: ${{ steps.directory-modified.outputs.db }}
+    steps:
+      - uses: actions/checkout@v5.0.0
+        with:
+          fetch-depth: 0
+      - id: directory-modified
+        uses: dorny/paths-filter@v3.0.2
+        with:
+          base: ${{ github.ref_name }}
+          filters: |
+            db:
+              - 'drizzle/**'
+
   migrate:
+    needs: check-changes
+    if: needs.check-changes.outputs.directory-modified == 'true'
     runs-on: ubuntu-22.04
     permissions:
       contents: read
+    concurrency:
+      group: migrate-prod
+      cancel-in-progress: false
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5.0.0
@@ -39,3 +54,11 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+
+  deploy:
+    needs: [check-changes, migrate]
+    if: success() || needs.migrate.result == 'skipped'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Trigger Vercel production deploy
+        run: curl -fsS "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
