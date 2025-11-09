@@ -105,7 +105,7 @@ const Comments = () => {
 const HomePage = () => {
   return (
     <div>
-      <h1>Hello!!!</h1>
+      <h1>Hi</h1>
       <LoadingBoundary>
         <GlobalData />
         <LoadingBoundary>
