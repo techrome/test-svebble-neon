@@ -1,4 +1,7 @@
 {
+  "tailwindCSS.experimental.classRegex": [
+    ["className\\s*:\\s*['\"]([^'\"]*)['\"]"]
+  ],
   "prettier.prettierPath": "./node_modules/prettier",
   "prettier.requireConfig": true,
   "typescript.preferences.importModuleSpecifier": "non-relative",
