@@ -1,5 +1,6 @@
-import type { AppType } from "next/app";
+import type { AppProps } from "next/app";
 import Head from "next/head";
+import { EmotionCache } from "@emotion/cache";
 import {
   AppCacheProvider,
   createEmotionCache,
@@ -27,7 +28,11 @@ const theme = createTheme({
 
 const clientCache = createEmotionCache({ enableCssLayer: true, key: "my-mui" });
 
-const App: AppType = ({ Component, pageProps, emotionCache = clientCache }) => {
+const App = ({
+  Component,
+  pageProps,
+  emotionCache = clientCache,
+}: AppProps & { emotionCache: EmotionCache }) => {
   return (
     <AppCacheProvider emotionCache={emotionCache}>
       {/* <GlobalStyles styles="@layer theme, base, mui, components, utilities;" /> */}
