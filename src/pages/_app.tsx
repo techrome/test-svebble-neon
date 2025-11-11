@@ -1,14 +1,16 @@
 import type { AppProps } from "next/app";
 import Head from "next/head";
-import { EmotionCache } from "@emotion/cache";
-import { AppCacheProvider } from "@mui/material-nextjs/v16-pagesRouter";
-import GlobalStyles from "@mui/material/GlobalStyles";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
+import {
+  ThemeProvider,
+  createTheme,
+  StyledEngineProvider,
+} from "@mui/material/styles";
 import { Roboto } from "next/font/google";
+
 import { trpc } from "@/trpc/client";
 
 import "@/styles/global.css";
-import { createEmotionCache } from "@/utils/createEmotionCache";
+import CssBaseline from "@mui/material/CssBaseline";
 
 const roboto = Roboto({
   weight: ["300", "400", "500", "700"],
@@ -21,28 +23,29 @@ const theme = createTheme({
   typography: {
     fontFamily: "var(--font-roboto)",
   },
-  cssVariables: true,
+  cssVariables: { colorSchemeSelector: "class" },
+  colorSchemes: {
+    dark: true,
+    light: true,
+  },
+  modularCssLayers: "@layer theme, base, mui, components, utilities;",
 });
 
-const clientCache = createEmotionCache();
-
-const App = ({
-  Component,
-  pageProps,
-  emotionCache = clientCache,
-}: AppProps & { emotionCache: EmotionCache }) => {
+const App = ({ Component, pageProps }: AppProps) => {
   return (
-    <AppCacheProvider emotionCache={emotionCache}>
-      <GlobalStyles styles="@layer theme, base, mui, components, utilities;" />
+    <>
       <Head>
         <meta name="viewport" content="initial-scale=1, width=device-width" />
       </Head>
-      <ThemeProvider theme={theme}>
-        <main className={roboto.variable}>
-          <Component {...pageProps} />
-        </main>
-      </ThemeProvider>
-    </AppCacheProvider>
+      <StyledEngineProvider injectFirst>
+        <ThemeProvider theme={theme}>
+          <CssBaseline />
+          <main className={roboto.variable}>
+            <Component {...pageProps} />
+          </main>
+        </ThemeProvider>
+      </StyledEngineProvider>
+    </>
   );
 };
 

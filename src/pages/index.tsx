@@ -10,6 +10,7 @@ import {
 } from "@/utils/loadingBoundaryContext";
 import { prepareDefaultData } from "@/utils/prepareDefaultData";
 import CommentsList from "@/components/CommentsList/CommentsList";
+import { useColorScheme } from "@mui/material/styles";
 
 const LoadingBoundary = ({ children }: { children: React.ReactNode }) => {
   const [queryKeys, setQueryKeys] = React.useState<QueryKeys>({});
@@ -103,9 +104,18 @@ const Comments = () => {
 };
 
 const HomePage = () => {
+  const { mode, setMode } = useColorScheme();
   return (
     <div>
       <h1>Hi</h1>
+      <Button
+        className="border"
+        onClick={() => {
+          setMode(mode === "light" ? "dark" : "light");
+        }}
+      >
+        Toggle color mode
+      </Button>
       <LoadingBoundary>
         <GlobalData />
         <LoadingBoundary>
