@@ -73,6 +73,7 @@ const Comment = ({ comment }: CommentProps) => {
 
       {isEdit ? (
         <Button
+          className="border"
           onClick={() => {
             setEditInfo(comment);
             setIsEdit(false);

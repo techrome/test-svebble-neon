@@ -10,6 +10,7 @@ import { Roboto } from "next/font/google";
 import { trpc } from "@/trpc/client";
 
 import "@/styles/global.css";
+import CssBaseline from "@mui/material/CssBaseline";
 
 const roboto = Roboto({
   weight: ["300", "400", "500", "700"],
@@ -22,7 +23,11 @@ const theme = createTheme({
   typography: {
     fontFamily: "var(--font-roboto)",
   },
-  cssVariables: true,
+  cssVariables: { colorSchemeSelector: "class" },
+  colorSchemes: {
+    dark: true,
+    light: true,
+  },
   modularCssLayers: "@layer theme, base, mui, components, utilities;",
 });
 
@@ -34,6 +39,7 @@ const App = ({ Component, pageProps }: AppProps) => {
       </Head>
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={theme}>
+          <CssBaseline />
           <main className={roboto.variable}>
             <Component {...pageProps} />
           </main>
