@@ -10,8 +10,8 @@ import {
   DocumentHeadTags,
   documentGetInitialProps,
   DocumentHeadTagsProps,
-  createEmotionCache,
 } from "@mui/material-nextjs/v16-pagesRouter";
+import { createEmotionCache } from "@/utils/createEmotionCache";
 
 const Document = (props: DocumentProps & DocumentHeadTagsProps) => {
   return (
@@ -29,7 +29,7 @@ const Document = (props: DocumentProps & DocumentHeadTagsProps) => {
 
 Document.getInitialProps = async (ctx: DocumentContext) => {
   const finalProps = await documentGetInitialProps(ctx, {
-    emotionCache: createEmotionCache({ enableCssLayer: true, key: "my-mui" }),
+    emotionCache: createEmotionCache(),
   });
   return finalProps;
 };

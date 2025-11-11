@@ -1,16 +1,13 @@
 import type { AppProps } from "next/app";
 import Head from "next/head";
 import { EmotionCache } from "@emotion/cache";
-import {
-  AppCacheProvider,
-  createEmotionCache,
-} from "@mui/material-nextjs/v16-pagesRouter";
-import GlobalStyles from "@mui/material/GlobalStyles";
+import { AppCacheProvider } from "@mui/material-nextjs/v16-pagesRouter";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { Roboto } from "next/font/google";
 import { trpc } from "@/trpc/client";
 
 import "@/styles/global.css";
+import { createEmotionCache } from "@/utils/createEmotionCache";
 
 const roboto = Roboto({
   weight: ["300", "400", "500", "700"],
@@ -26,7 +23,7 @@ const theme = createTheme({
   cssVariables: true,
 });
 
-const clientCache = createEmotionCache({ enableCssLayer: true, key: "my-mui" });
+const clientCache = createEmotionCache();
 
 const App = ({
   Component,
@@ -35,7 +32,6 @@ const App = ({
 }: AppProps & { emotionCache: EmotionCache }) => {
   return (
     <AppCacheProvider emotionCache={emotionCache}>
-      {/* <GlobalStyles styles="@layer theme, base, mui, components, utilities;" /> */}
       <Head>
         <meta name="viewport" content="initial-scale=1, width=device-width" />
       </Head>
