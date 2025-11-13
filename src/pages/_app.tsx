@@ -4,13 +4,17 @@ import {
   ThemeProvider,
   createTheme,
   StyledEngineProvider,
+  responsiveFontSizes,
 } from "@mui/material/styles";
 import { Roboto } from "next/font/google";
+import clsx from "clsx";
 
 import { trpc } from "@/trpc/client";
 
 import "@/styles/global.css";
 import CssBaseline from "@mui/material/CssBaseline";
+import Navbar from "@/components/Navbar/Navbar";
+import { Box } from "@mui/material";
 
 const roboto = Roboto({
   weight: ["300", "400", "500", "700"],
@@ -19,17 +23,42 @@ const roboto = Roboto({
   variable: "--font-roboto",
 });
 
-const theme = createTheme({
+declare module "@mui/system" {
+  interface BreakpointOverrides {
+    xs: false;
+    sm: true; // 40rem  (640px @ 16px root)
+    md: true; // 48rem  (768px)
+    lg: true; // 64rem  (1024px)
+    xl: true; // 80rem  (1280px)
+    "2xl": true; // 96rem  (1536px)
+  }
+}
+
+let theme = createTheme({
   typography: {
     fontFamily: "var(--font-roboto)",
   },
+  breakpoints: {
+    // copying the tailwind breakpoints
+    unit: "rem",
+    values: {
+      sm: 40,
+      md: 48,
+      lg: 64,
+      xl: 80,
+      "2xl": 96,
+    },
+  },
+  spacing: (factor: number) => `${0.25 * factor}rem`,
   cssVariables: { colorSchemeSelector: "class" },
   colorSchemes: {
-    dark: true,
     light: true,
+    dark: true,
   },
   modularCssLayers: "@layer theme, base, mui, components, utilities;",
 });
+
+theme = responsiveFontSizes(theme);
 
 const App = ({ Component, pageProps }: AppProps) => {
   return (
@@ -40,9 +69,12 @@ const App = ({ Component, pageProps }: AppProps) => {
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={theme}>
           <CssBaseline />
-          <main className={roboto.variable}>
-            <Component {...pageProps} />
-          </main>
+          <Box className={clsx("flex flex-col", roboto.variable)}>
+            <Navbar />
+            <main>
+              <Component {...pageProps} />
+            </main>
+          </Box>
         </ThemeProvider>
       </StyledEngineProvider>
     </>
