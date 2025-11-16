@@ -8,13 +8,15 @@ import {
 } from "@mui/material/styles";
 import { Roboto } from "next/font/google";
 import clsx from "clsx";
+import CssBaseline from "@mui/material/CssBaseline";
+import { Box } from "@mui/material";
 
 import { trpc } from "@/trpc/client";
-
-import "@/styles/global.css";
-import CssBaseline from "@mui/material/CssBaseline";
 import Navbar from "@/components/Navbar/Navbar";
-import { Box } from "@mui/material";
+import TopLoader from "@/components/TopLoader/TopLoader";
+
+import "@/styles/tailwind-init.css";
+import "@/styles/global.scss";
 
 const roboto = Roboto({
   weight: ["300", "400", "500", "700"],
@@ -55,7 +57,7 @@ let theme = createTheme({
     light: true,
     dark: true,
   },
-  modularCssLayers: "@layer theme, base, mui, components, utilities;",
+  modularCssLayers: "@layer base, mui, components, utilities;",
 });
 
 theme = responsiveFontSizes(theme);
@@ -69,9 +71,10 @@ const App = ({ Component, pageProps }: AppProps) => {
       <StyledEngineProvider injectFirst>
         <ThemeProvider theme={theme}>
           <CssBaseline />
+          <TopLoader />
           <Box className={clsx("flex flex-col", roboto.variable)}>
             <Navbar />
-            <main>
+            <main className="p-4">
               <Component {...pageProps} />
             </main>
           </Box>

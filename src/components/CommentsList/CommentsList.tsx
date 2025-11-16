@@ -46,7 +46,7 @@ const Comment = ({ comment }: CommentProps) => {
             }}
           />
           <Button
-            className="border"
+            variant="outlined"
             onClick={() => {
               commentUpdateMutation.mutate(editInfo);
             }}
@@ -60,7 +60,7 @@ const Comment = ({ comment }: CommentProps) => {
           <h5>{comment.text}</h5>
 
           <Button
-            className="border"
+            variant="outlined"
             onClick={() => {
               setEditInfo(comment);
               setIsEdit(true);
@@ -73,7 +73,7 @@ const Comment = ({ comment }: CommentProps) => {
 
       {isEdit ? (
         <Button
-          className="border"
+          variant="outlined"
           onClick={() => {
             setEditInfo(comment);
             setIsEdit(false);
@@ -83,7 +83,7 @@ const Comment = ({ comment }: CommentProps) => {
         </Button>
       ) : (
         <Button
-          className="border"
+          variant="outlined"
           onClick={() => {
             commentsDeleteMutation.mutate({ id: comment.id });
           }}

@@ -1,29 +1,15 @@
 import React from "react";
 import { GetStaticProps } from "next";
 import Button from "@mui/material/Button";
+import clsx from "clsx";
 
 import { trpc } from "@/trpc/client";
 import useMyQuery from "@/utils/useMyQuery";
-import {
-  LoadingBoundaryContext,
-  QueryKeys,
-} from "@/utils/loadingBoundaryContext";
 import { prepareDefaultData } from "@/utils/prepareDefaultData";
 import CommentsList from "@/components/CommentsList/CommentsList";
 import { useColorScheme } from "@mui/material/styles";
-
-const LoadingBoundary = ({ children }: { children: React.ReactNode }) => {
-  const [queryKeys, setQueryKeys] = React.useState<QueryKeys>({});
-  const hasActiveQueries = Object.keys(queryKeys).length > 0;
-
-  return (
-    <LoadingBoundaryContext.Provider value={{ queryKeys, setQueryKeys }}>
-      <div style={{ ...(hasActiveQueries ? { border: "1px solid red" } : {}) }}>
-        {children}
-      </div>
-    </LoadingBoundaryContext.Provider>
-  );
-};
+import Link from "@/components/Link/Link";
+import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 
 const GlobalData = () => {
   const globalData = useMyQuery(
@@ -35,7 +21,7 @@ const GlobalData = () => {
   }
 
   return (
-    <div>
+    <div className={clsx("p-4", "border")}>
       <h1>{globalData.data.links.join(", ")}</h1>
       <em>
         Global created at {new Date(globalData.dataUpdatedAt).toISOString()}
@@ -68,7 +54,7 @@ const Comments = () => {
     <div>
       <div className="mb-5">
         <Button
-          className="border"
+          variant="outlined"
           onClick={() => {
             commentDeleteAllMutation.mutate();
           }}
@@ -86,7 +72,7 @@ const Comments = () => {
           }}
         />
         <Button
-          className="border"
+          variant="outlined"
           onClick={() => {
             commentCreateMutation.mutate({ text: newComment });
           }}
@@ -108,19 +94,42 @@ const HomePage = () => {
   return (
     <div>
       <h1>Hi</h1>
-      <Button
-        className="border"
-        onClick={() => {
-          setMode(mode === "light" ? "dark" : "light");
-        }}
-      >
-        Toggle color mode
-      </Button>
-      <LoadingBoundary>
-        <GlobalData />
+      <div className="flex gap-3">
+        <Button
+          variant="outlined"
+          onClick={() => {
+            setMode(mode === "light" ? "dark" : "light");
+          }}
+        >
+          Toggle color mode
+        </Button>
+        <Button variant="contained">Test</Button>
+        <Link href="/about">
+          <Button variant="contained" color="secondary">
+            Test 2
+          </Button>
+        </Link>
+        <Button variant="contained" color="error">
+          Error
+        </Button>
+        <Button variant="contained" color="info">
+          Info
+        </Button>
+        <Button variant="contained" color="warning">
+          Warning
+        </Button>
+        <Button variant="contained" color="success">
+          Success
+        </Button>
+      </div>
+      <div className="flex gap-4 mt-4">
         <LoadingBoundary>
-          <Comments />
+          <GlobalData />
         </LoadingBoundary>
+      </div>
+
+      <LoadingBoundary>
+        <Comments />
       </LoadingBoundary>
     </div>
   );
