@@ -1,3 +1,14 @@
+@import "./tailwind-init.css";
+
+.under-navbar-1 {
+  @apply top-16;
+  z-index: var(--mui-zIndex-appBar);
+}
+
+.word-break-word {
+  word-break: break-word;
+}
+
 #nprogress {
   pointer-events: none;
   position: relative;

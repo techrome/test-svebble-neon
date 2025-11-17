@@ -2,7 +2,7 @@ import React from "react";
 
 import {
   LoadingBoundaryContext,
-  QueryKeys,
+  type QueryKeys,
 } from "@/utils/loadingBoundaryContext";
 import AnimationWrapper from "./AnimationWrapper";
 

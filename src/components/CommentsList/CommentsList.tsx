@@ -1,7 +1,6 @@
 import React from "react";
 import Button from "@mui/material/Button";
-import AutoSizer from "react-virtualized-auto-sizer";
-import { FixedSizeList } from "react-window";
+import { Virtuoso } from "react-virtuoso";
 
 import { trpc } from "@/trpc/client";
 import useMyQuery from "@/utils/useMyQuery";
@@ -32,7 +31,7 @@ const Comment = ({ comment }: CommentProps) => {
   });
 
   return (
-    <div key={comment.id} className="mt-2 flex gap-3">
+    <div key={comment.id} className="mt-2 flex flex-wrap gap-3">
       {isEdit ? (
         <>
           <input
@@ -57,7 +56,7 @@ const Comment = ({ comment }: CommentProps) => {
         </>
       ) : (
         <>
-          <h5>{comment.text}</h5>
+          <h5 className="word-break-word">{comment.text}</h5>
 
           <Button
             variant="outlined"
@@ -101,34 +100,18 @@ const CommentsList = () => {
     trpc.commentsGet.useQuery(undefined, { staleTime: 15000 })
   );
   return (
-    <div className="mt-5 w-full h-[500px]">
+    <div className="mt-5 w-full">
       {comments.status !== "success" ? (
         <h5>Loading comments...</h5>
       ) : (
-        <AutoSizer>
-          {({ height, width }) => (
-            <FixedSizeList
-              className="list"
-              itemData={comments.data}
-              height={height}
-              width={width}
-              itemCount={comments.data.length}
-              itemSize={60}
-              itemKey={(index, data) => {
-                return data[index].id;
-              }}
-            >
-              {({ data, index, style }) => {
-                const comment = data[index];
-                return (
-                  <div style={style} key={comment.id}>
-                    <Comment comment={comment} />
-                  </div>
-                );
-              }}
-            </FixedSizeList>
-          )}
-        </AutoSizer>
+        <Virtuoso
+          useWindowScroll
+          //style={{ height: "500px" }}
+          data={comments.data}
+          itemContent={(_, comment) => {
+            return <Comment comment={comment} />;
+          }}
+        ></Virtuoso>
       )}
     </div>
   );

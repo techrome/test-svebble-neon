@@ -1,5 +1,5 @@
 import React from "react";
-import { GetStaticProps } from "next";
+import { type GetStaticProps } from "next";
 import Button from "@mui/material/Button";
 import clsx from "clsx";
 
@@ -10,6 +10,9 @@ import CommentsList from "@/components/CommentsList/CommentsList";
 import { useColorScheme } from "@mui/material/styles";
 import Link from "@/components/Link/Link";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
+import { Box } from "@mui/material";
+import { useAppSelector, useAppDispatch } from "@/redux/hooks";
+import { setModalState } from "@/redux/slices/overlays";
 
 const GlobalData = () => {
   const globalData = useMyQuery(
@@ -37,6 +40,12 @@ const Comments = () => {
 
   const utils = trpc.useUtils();
 
+  const commentCreateSpamMutation = trpc.commentCreateSpam.useMutation({
+    onSuccess: () => {
+      utils.commentsGet.invalidate();
+    },
+  });
+
   const commentCreateMutation = trpc.commentCreate.useMutation({
     onSuccess: () => {
       setNewComment("");
@@ -63,7 +72,12 @@ const Comments = () => {
           Delete All Comments
         </Button>
       </div>
-      <div className="flex gap-3">
+      <Box
+        className="pt-2 flex gap-3 sticky under-navbar-1 flex-wrap"
+        sx={{
+          backgroundColor: (theme) => theme.vars?.palette.background.default,
+        }}
+      >
         <input
           className="border block p-3 w-52"
           value={newComment}
@@ -80,7 +94,25 @@ const Comments = () => {
         >
           Add Comment
         </Button>
-      </div>
+        <Button
+          variant="outlined"
+          onClick={() => {
+            commentCreateSpamMutation.mutate({ isBulk: true });
+          }}
+          disabled={commentCreateSpamMutation.isPending}
+        >
+          Add Spam Comments In Bulk
+        </Button>
+        <Button
+          variant="outlined"
+          onClick={() => {
+            commentCreateSpamMutation.mutate();
+          }}
+          disabled={commentCreateSpamMutation.isPending}
+        >
+          Add Spam Comments One By One
+        </Button>
+      </Box>
 
       <LoadingBoundary>
         <CommentsList />
@@ -91,10 +123,13 @@ const Comments = () => {
 
 const HomePage = () => {
   const { mode, setMode } = useColorScheme();
+  const dispatch = useAppDispatch();
+  const modalState = useAppSelector((state) => state.overlays.modal);
+
   return (
     <div>
       <h1>Hi</h1>
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap">
         <Button
           variant="outlined"
           onClick={() => {
@@ -106,11 +141,19 @@ const HomePage = () => {
         <Button variant="contained">Test</Button>
         <Link href="/about">
           <Button variant="contained" color="secondary">
-            Test 2
+            About page
           </Button>
         </Link>
-        <Button variant="contained" color="error">
-          Error
+        <Button
+          variant="contained"
+          color="error"
+          onClick={() => {
+            dispatch(
+              setModalState({ content: Math.random(), isOpen: true, props: {} })
+            );
+          }}
+        >
+          {modalState.content}
         </Button>
         <Button variant="contained" color="info">
           Info

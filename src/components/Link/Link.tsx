@@ -1,8 +1,8 @@
 import React from "react";
-import NextLink, { LinkProps as NextLinkProps } from "next/link";
+import NextLink, { type LinkProps as NextLinkProps } from "next/link";
 import {
   Link as MuiLink,
-  LinkProps as MuiLinksProps,
+  type LinkProps as MuiLinksProps,
   useTheme,
 } from "@mui/material";
 
