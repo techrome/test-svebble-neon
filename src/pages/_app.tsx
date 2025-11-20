@@ -4,14 +4,16 @@ import { ThemeProvider, StyledEngineProvider } from "@mui/material/styles";
 import clsx from "clsx";
 import CssBaseline from "@mui/material/CssBaseline";
 import { Box } from "@mui/material";
-import dynamic from "next/dynamic";
 import { Provider as ReduxProvider } from "react-redux";
 
 import { trpc } from "@/trpc/client";
 import Navbar from "@/components/Navbar/Navbar";
 import TopLoader from "@/components/TopLoader/TopLoader";
-import { roboto, theme } from "@/utils/theme";
+import { theme } from "@/utils/theme";
 import { store } from "@/redux";
+import GlobalModal from "@/components/Overlays/GlobalModal";
+import GlobalDrawer from "@/components/Overlays/GlobalDrawer";
+import { Section } from "@/components/Containers/Section";
 
 import "@/styles/global.scss";
 
@@ -26,11 +28,13 @@ const App = ({ Component, pageProps }: AppProps) => {
           <ThemeProvider theme={theme}>
             <CssBaseline />
             <TopLoader />
-            <Box className={clsx("flex flex-col", roboto.variable)}>
+            <Box className={clsx("flex flex-col")}>
               <Navbar />
-              <main className="p-4">
+              <Section>
                 <Component {...pageProps} />
-              </main>
+              </Section>
+              <GlobalModal />
+              <GlobalDrawer />
             </Box>
           </ThemeProvider>
         </StyledEngineProvider>

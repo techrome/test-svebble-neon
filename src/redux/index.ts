@@ -6,6 +6,13 @@ export const store = configureStore({
   reducer: {
     overlays: overlaysReducer,
   },
+  middleware: (getDefaultMiddleware) =>
+    getDefaultMiddleware({
+      serializableCheck: {
+        ignoredActions: ["overlays/setModalState", "overlays/setDrawerState"],
+        ignoredPaths: ["overlays.modal.content", "overlays.drawer.content"],
+      },
+    }),
   devTools: isDev,
 });
 

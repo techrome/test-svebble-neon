@@ -1,7 +1,7 @@
 @import "./tailwind-init.css";
 
-.under-navbar-1 {
-  @apply top-16;
+.under-navbar {
+  @apply top-16 sm:top-[74px];
   z-index: var(--mui-zIndex-appBar);
 }
 
@@ -60,7 +60,7 @@
   .dash-frame-stroke {
     --dash-color: transparent;
     fill: none;
-    transition: 0.3s;
+    transition: 0.25s;
     x: 3px;
     y: 3px;
     width: calc(100% - 6px);
@@ -110,6 +110,26 @@
       stroke-dashoffset: -192px;
       stroke-opacity: 0.3;
       filter: drop-shadow(0 0 0 transparent);
+    }
+  }
+}
+
+.logo {
+  text-decoration: none;
+  & > * {
+    @apply font-medium border rounded border-transparent py-2 px-2 sm:px-3;
+    transition: 0.25s;
+    &:hover {
+      border-color: var(--mui-palette-primary-main);
+      box-shadow: var(--mui-shadows-3);
+      background-color: rgba(
+        var(--mui-palette-primary-mainChannel) /
+          calc(var(--mui-palette-action-hoverOpacity))
+      );
+      color: var(--mui-palette-primary-main);
+      &:active {
+        transform: scale(0.95);
+      }
     }
   }
 }

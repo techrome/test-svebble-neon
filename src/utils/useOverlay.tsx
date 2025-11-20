@@ -1,0 +1,119 @@
+import React from "react";
+import { ActionCreatorWithPayload } from "@reduxjs/toolkit";
+
+import Modal, { type ModalProps } from "@/components/Overlays/Modal";
+import {
+  setDrawerState,
+  setModalState,
+  type Overlay,
+} from "@/redux/slices/overlays";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
+import { RootState } from "@/redux";
+import Drawer, { type DrawerProps } from "@/components/Overlays/Drawer";
+
+const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
+  selector: (state: RootState) => Overlay<Props>,
+  setStateAction: ActionCreatorWithPayload<Partial<Overlay<Props>>>
+) => {
+  const dispatch = useAppDispatch();
+  const overlay = useAppSelector(selector);
+
+  const openOverlay = ({ content, props }: Omit<Overlay<Props>, "isOpen">) => {
+    dispatch(
+      setStateAction({
+        isOpen: true,
+        content,
+        props,
+      })
+    );
+  };
+
+  const closeOverlay = () => {
+    dispatch(setStateAction({ isOpen: false }));
+  };
+
+  const clearOverlay = () => {
+    dispatch(
+      setStateAction({
+        content: null,
+        props: {},
+      })
+    );
+  };
+
+  return {
+    isOpen: overlay.isOpen,
+    openOverlay,
+    closeOverlay,
+    clearOverlay,
+    state: overlay,
+  };
+};
+
+export const useGlobalModal = () => {
+  const { clearOverlay, closeOverlay, isOpen, openOverlay, state } =
+    useGlobalOverlayBase<ModalProps>(
+      (state) => state.overlays.modal,
+      setModalState
+    );
+
+  return {
+    isOpen: isOpen,
+    openModal: openOverlay,
+    closeModal: closeOverlay,
+    clearModal: clearOverlay,
+    modalState: state,
+  };
+};
+
+export const useLocalModal = () => {
+  const [isOpen, setIsOpen] = React.useState<boolean>(false);
+
+  const openModal = () => {
+    setIsOpen(true);
+  };
+  const closeModal = () => {
+    setIsOpen(false);
+  };
+
+  return {
+    isOpen,
+    openModal,
+    closeModal,
+    Modal,
+  };
+};
+
+export const useGlobalDrawer = () => {
+  const { clearOverlay, closeOverlay, isOpen, openOverlay, state } =
+    useGlobalOverlayBase<DrawerProps>(
+      (state) => state.overlays.drawer,
+      setDrawerState
+    );
+
+  return {
+    isOpen: isOpen,
+    openDrawer: openOverlay,
+    closeDrawer: closeOverlay,
+    clearDrawer: clearOverlay,
+    drawerState: state,
+  };
+};
+
+export const useLocalDrawer = () => {
+  const [isOpen, setIsOpen] = React.useState<boolean>(false);
+
+  const openDrawer = () => {
+    setIsOpen(true);
+  };
+  const closeDrawer = () => {
+    setIsOpen(false);
+  };
+
+  return {
+    isOpen,
+    openDrawer,
+    closeDrawer,
+    Drawer,
+  };
+};

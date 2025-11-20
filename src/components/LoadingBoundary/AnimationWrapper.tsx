@@ -62,7 +62,6 @@ const useChildMutationObserver = (
     const parentObserver = new MutationObserver((mutations) => {
       for (const m of mutations) {
         if (m.type === "childList") {
-          // children added/removed/reordered
           attachChildObserver();
           onChange(container);
           break;
