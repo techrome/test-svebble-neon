@@ -1,7 +1,7 @@
 import React from "react";
 
 import Modal from "@/components/Overlays/Modal";
-import { useGlobalModal } from "@/utils/useModal";
+import { useGlobalModal } from "@/utils/useOverlay";
 
 const GlobalModal = () => {
   const { closeModal, isOpen, clearModal, modalState } = useGlobalModal();

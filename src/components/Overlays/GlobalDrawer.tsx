@@ -1,7 +1,7 @@
 import React from "react";
 
 import Drawer from "@/components/Overlays/Drawer";
-import { useGlobalDrawer } from "@/utils/useModal";
+import { useGlobalDrawer } from "@/utils/useOverlay";
 
 const GlobalDrawer = () => {
   const { closeDrawer, isOpen, clearDrawer, drawerState } = useGlobalDrawer();

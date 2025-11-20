@@ -16,7 +16,7 @@ import {
   useGlobalModal,
   useLocalDrawer,
   useLocalModal,
-} from "@/utils/useModal";
+} from "@/utils/useOverlay";
 import {
   HorizontalStack,
   VerticalStack,

@@ -1,7 +1,7 @@
 import React from "react";
 import { AppBar, Toolbar, IconButton, Typography, Button } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
-import { useGlobalDrawer } from "@/utils/useModal";
+import { useGlobalDrawer } from "@/utils/useOverlay";
 import { Section } from "@/components/Containers/Section";
 import Link from "@/components/Link/Link";
 
