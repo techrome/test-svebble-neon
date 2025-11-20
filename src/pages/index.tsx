@@ -11,8 +11,16 @@ import { useColorScheme } from "@mui/material/styles";
 import Link from "@/components/Link/Link";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { Box } from "@mui/material";
-import { useAppSelector, useAppDispatch } from "@/redux/hooks";
-import { setModalState } from "@/redux/slices/overlays";
+import {
+  useGlobalDrawer,
+  useGlobalModal,
+  useLocalDrawer,
+  useLocalModal,
+} from "@/utils/useModal";
+import {
+  HorizontalStack,
+  VerticalStack,
+} from "@/components/Containers/Section";
 
 const GlobalData = () => {
   const globalData = useMyQuery(
@@ -73,7 +81,7 @@ const Comments = () => {
         </Button>
       </div>
       <Box
-        className="pt-2 flex gap-3 sticky under-navbar-1 flex-wrap"
+        className="pt-2 flex gap-3 sticky under-navbar flex-wrap"
         sx={{
           backgroundColor: (theme) => theme.vars?.palette.background.default,
         }}
@@ -123,13 +131,15 @@ const Comments = () => {
 
 const HomePage = () => {
   const { mode, setMode } = useColorScheme();
-  const dispatch = useAppDispatch();
-  const modalState = useAppSelector((state) => state.overlays.modal);
+  const localModal = useLocalModal();
+  const { closeModal, openModal } = useGlobalModal();
+  const localDrawer = useLocalDrawer();
+  const { openDrawer, closeDrawer } = useGlobalDrawer();
 
   return (
-    <div>
+    <VerticalStack>
       <h1>Hi</h1>
-      <div className="flex gap-3 flex-wrap">
+      <HorizontalStack>
         <Button
           variant="outlined"
           onClick={() => {
@@ -148,33 +158,88 @@ const HomePage = () => {
           variant="contained"
           color="error"
           onClick={() => {
-            dispatch(
-              setModalState({ content: Math.random(), isOpen: true, props: {} })
-            );
+            localModal.openModal();
           }}
         >
-          {modalState.content}
+          Open local modal
         </Button>
-        <Button variant="contained" color="info">
-          Info
+        <localModal.Modal
+          isOpen={localModal.isOpen}
+          onClose={localModal.closeModal}
+          title="Authentication"
+        >
+          <Button
+            variant="contained"
+            color="info"
+            onClick={localModal.closeModal}
+          >
+            OK
+          </Button>
+        </localModal.Modal>
+        <Button
+          variant="contained"
+          color="info"
+          onClick={() => {
+            openModal({
+              content: (
+                <Button variant="contained" color="info" onClick={closeModal}>
+                  OK
+                </Button>
+              ),
+              props: { title: "Test" },
+            });
+          }}
+        >
+          Open global modal
         </Button>
-        <Button variant="contained" color="warning">
-          Warning
+        <Button
+          variant="contained"
+          color="warning"
+          onClick={() => {
+            localDrawer.openDrawer();
+          }}
+        >
+          Open local drawer
         </Button>
-        <Button variant="contained" color="success">
-          Success
+        <localDrawer.Drawer
+          isOpen={localDrawer.isOpen}
+          onClose={localDrawer.closeDrawer}
+          title="Authentication"
+        >
+          <Button
+            variant="contained"
+            color="info"
+            onClick={localDrawer.closeDrawer}
+          >
+            OK local
+          </Button>
+        </localDrawer.Drawer>
+        <Button
+          variant="contained"
+          color="success"
+          onClick={() => {
+            openDrawer({
+              content: (
+                <Button variant="contained" color="info" onClick={closeDrawer}>
+                  OK
+                </Button>
+              ),
+              props: { title: "Test" },
+            });
+          }}
+        >
+          Open global drawer
         </Button>
-      </div>
-      <div className="flex gap-4 mt-4">
-        <LoadingBoundary>
-          <GlobalData />
-        </LoadingBoundary>
-      </div>
+      </HorizontalStack>
+
+      <LoadingBoundary>
+        <GlobalData />
+      </LoadingBoundary>
 
       <LoadingBoundary>
         <Comments />
       </LoadingBoundary>
-    </div>
+    </VerticalStack>
   );
 };
 
