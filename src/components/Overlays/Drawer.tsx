@@ -45,7 +45,7 @@ const Drawer = ({
       {...muiDrawerProps}
     >
       <DialogTitle
-        className="flex justify-between items-center p-2 sm:p-3"
+        className="flex justify-between items-center p-2 sm:p-3 border border-transparent"
         {...dialogTitleProps}
       >
         <span>{title}</span>

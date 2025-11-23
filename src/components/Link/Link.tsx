@@ -3,16 +3,17 @@ import NextLink, { type LinkProps as NextLinkProps } from "next/link";
 import {
   Link as MuiLink,
   type LinkProps as MuiLinksProps,
-  useTheme,
 } from "@mui/material";
+import { AppRoute } from "@/utils/routes";
 
 type Props = {
   children: React.ReactNode;
-} & Omit<MuiLinksProps, "component"> &
-  NextLinkProps;
+} & Omit<MuiLinksProps, "component" | "href"> &
+  Omit<NextLinkProps, "href"> & {
+    href: AppRoute;
+  };
 
 const Link = ({ children, ...props }: Props) => {
-  const theme = useTheme();
   return (
     <MuiLink component={NextLink} {...props}>
       {children}

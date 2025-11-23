@@ -1,6 +1,6 @@
 import React from "react";
 import { type GetStaticProps } from "next";
-import Button from "@mui/material/Button";
+import Button from "@/components/Button/Button";
 import clsx from "clsx";
 
 import { trpc } from "@/trpc/client";
@@ -17,10 +17,8 @@ import {
   useLocalDrawer,
   useLocalModal,
 } from "@/utils/useOverlay";
-import {
-  HorizontalStack,
-  VerticalStack,
-} from "@/components/Containers/Section";
+import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
+import { ROUTES } from "@/utils/routes";
 
 const GlobalData = () => {
   const globalData = useMyQuery(
@@ -148,8 +146,10 @@ const HomePage = () => {
         >
           Toggle color mode
         </Button>
-        <Button variant="contained">Test</Button>
-        <Link href="/about">
+        <Link href={ROUTES.test}>
+          <Button variant="contained">Not found</Button>
+        </Link>
+        <Link href={ROUTES.about}>
           <Button variant="contained" color="secondary">
             About page
           </Button>

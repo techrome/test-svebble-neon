@@ -13,7 +13,7 @@ import { theme } from "@/utils/theme";
 import { store } from "@/redux";
 import GlobalModal from "@/components/Overlays/GlobalModal";
 import GlobalDrawer from "@/components/Overlays/GlobalDrawer";
-import { Section } from "@/components/Containers/Section";
+import { Section } from "@/components/Layout/Containers";
 
 import "@/styles/global.scss";
 
@@ -28,9 +28,9 @@ const App = ({ Component, pageProps }: AppProps) => {
           <ThemeProvider theme={theme}>
             <CssBaseline />
             <TopLoader />
-            <Box className={clsx("flex flex-col")}>
+            <Box className={clsx("flex flex-col min-h-screen")}>
               <Navbar />
-              <Section>
+              <Section addClassName="flex-1 flex flex-col">
                 <Component {...pageProps} />
               </Section>
               <GlobalModal />
