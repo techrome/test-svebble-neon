@@ -45,4 +45,6 @@ let _theme = createTheme({
 
 _theme = responsiveFontSizes(_theme);
 
+export type Breakpoints = (typeof theme.breakpoints.keys)[number];
+
 export const theme = _theme;

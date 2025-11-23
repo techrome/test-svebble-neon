@@ -18,28 +18,31 @@ const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
   const dispatch = useAppDispatch();
   const overlay = useAppSelector(selector);
 
-  const openOverlay = ({ content, props }: Omit<Overlay<Props>, "isOpen">) => {
-    dispatch(
-      setStateAction({
-        isOpen: true,
-        content,
-        props,
-      })
-    );
-  };
+  const openOverlay = React.useCallback(
+    ({ content, props }: Omit<Overlay<Props>, "isOpen">) => {
+      dispatch(
+        setStateAction({
+          isOpen: true,
+          content,
+          props,
+        })
+      );
+    },
+    [dispatch, setStateAction]
+  );
 
-  const closeOverlay = () => {
+  const closeOverlay = React.useCallback(() => {
     dispatch(setStateAction({ isOpen: false }));
-  };
+  }, [dispatch, setStateAction]);
 
-  const clearOverlay = () => {
+  const clearOverlay = React.useCallback(() => {
     dispatch(
       setStateAction({
         content: null,
         props: {},
       })
     );
-  };
+  }, [dispatch, setStateAction]);
 
   return {
     isOpen: overlay.isOpen,
