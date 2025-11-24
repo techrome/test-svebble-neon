@@ -2,42 +2,25 @@ import { useEffect } from "react";
 import Router from "next/router";
 import NProgress from "nprogress";
 
-const DELAY_MS = 200;
+const DELAY_MS = 300;
 
 const TopLoader = () => {
   useEffect(() => {
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let loading = false;
+    let timer: ReturnType<typeof setTimeout> | undefined = undefined;
 
     NProgress.configure({
       showSpinner: false,
     });
 
     const start = () => {
-      if (loading) {
-        return;
-      }
-      loading = true;
-
-      timer = setTimeout(() => {
-        if (!loading) {
-          return;
-        }
-        NProgress.start();
-      }, DELAY_MS);
+      clearTimeout(timer);
+      timer = setTimeout(NProgress.start, DELAY_MS);
     };
 
     const done = () => {
-      loading = false;
-
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-
-      if (NProgress.isStarted()) {
-        NProgress.done(true);
-      }
+      clearTimeout(timer);
+      timer = undefined;
+      NProgress.done();
     };
 
     Router.events.on("routeChangeStart", start);

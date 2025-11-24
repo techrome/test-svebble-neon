@@ -20,8 +20,14 @@ declare module "@mui/system" {
 }
 
 let _theme = createTheme({
+  components: {
+    MuiTooltip: {
+      styleOverrides: { tooltip: { maxWidth: "450px" } },
+    },
+  },
   typography: {
     fontFamily: "var(--font-roboto)",
+    allVariants: { wordBreak: "break-word" },
   },
   breakpoints: {
     // copying the tailwind breakpoints

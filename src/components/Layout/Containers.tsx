@@ -21,13 +21,15 @@ const switchingStackBreakpoints = {
   lg: "lg:flex-row lg:flex-wrap",
 } as const satisfies LayoutBreakpoints;
 
+const defaultPadding = "p-2 sm:p-3";
+
 export const Section = ({
   children,
   addClassName,
   ...props
 }: BaseSectionProps) => {
   return (
-    <div className={clsx("w-full p-2 sm:p-3", addClassName)} {...props}>
+    <div className={clsx("w-full", defaultPadding, addClassName)} {...props}>
       {children}
     </div>
   );
@@ -41,18 +43,22 @@ const spacingMapping = {
 
 type StackProps = {
   spacing?: keyof typeof spacingMapping;
+  withPadding?: boolean;
+  fullWidth?: boolean;
 } & BaseSectionProps;
 
 export const VerticalStack = ({
   children,
   addClassName,
   spacing = "sm",
+  withPadding,
   ...props
 }: StackProps) => {
   return (
     <div
       className={clsx(
         `w-full flex flex-col ${spacingMapping[spacing]}`,
+        withPadding && defaultPadding,
         addClassName
       )}
       {...props}
@@ -66,12 +72,16 @@ export const HorizontalStack = ({
   children,
   addClassName,
   spacing = "sm",
+  withPadding,
+  fullWidth,
   ...props
 }: StackProps) => {
   return (
     <div
       className={clsx(
-        `w-full flex flex-wrap ${spacingMapping[spacing]}`,
+        `max-w-full flex flex-wrap ${spacingMapping[spacing]}`,
+        withPadding && defaultPadding,
+        fullWidth && "w-full",
         addClassName
       )}
       {...props}

@@ -19,11 +19,7 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 
 import { useGlobalDrawer } from "@/utils/useOverlay";
-import {
-  HorizontalStack,
-  Section,
-  VerticalStack,
-} from "@/components/Layout/Containers";
+import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
 import Link from "@/components/Link/Link";
 import Button from "@/components/Button/Button";
 import Label from "@/components/Label/Label";
@@ -34,82 +30,81 @@ import { Divider } from "@/components/Layout/Dividers";
 const DrawerContent = () => {
   const { mode, setMode } = useColorScheme();
   const modeLabelId = useId();
+
   return (
-    <Section addClassName="pt-4">
-      <VerticalStack spacing="md">
-        <Box>
-          <Label id={modeLabelId}>Mode</Label>
-          <ToggleButtonGroup
-            value={mode}
-            exclusive
-            onChange={(ev, newMode) => {
-              setMode(newMode || mode);
-            }}
-            aria-label="mode"
-            aria-describedby={modeLabelId}
-            className="flex"
-          >
-            {[
-              {
-                value: "system",
-                label: "System",
-                ariaLabel: "system mode",
-                Icon: SettingsBrightnessIcon,
-              },
-              {
-                value: "light",
-                label: "Light",
-                ariaLabel: "light mode",
-                Icon: LightModeIcon,
-              },
-              {
-                value: "dark",
-                label: "Dark",
-                ariaLabel: "dark mode",
-                Icon: DarkModeIcon,
-              },
-            ].map((info, i) => (
-              <ToggleButton
-                className="flex-1"
-                key={i}
-                value={info.value}
-                aria-label={info.ariaLabel}
-              >
-                <HorizontalStack addClassName="justify-center">
-                  <info.Icon />
-                  {info.label}
-                </HorizontalStack>
-              </ToggleButton>
-            ))}
-          </ToggleButtonGroup>
-        </Box>
-        <Divider />
-        <List disablePadding>
+    <VerticalStack withPadding addClassName="flex-1 overflow-y-auto">
+      <Box>
+        <Label id={modeLabelId}>Mode</Label>
+        <ToggleButtonGroup
+          value={mode}
+          exclusive
+          onChange={(ev, newMode) => {
+            setMode(newMode || mode);
+          }}
+          aria-label="mode"
+          aria-describedby={modeLabelId}
+          className="flex"
+        >
           {[
             {
-              label: "About Us",
-              url: ROUTES.about,
+              value: "system",
+              label: "System",
+              ariaLabel: "system mode",
+              Icon: SettingsBrightnessIcon,
             },
             {
-              label: "Terms and Conditions",
-              url: ROUTES.terms,
+              value: "light",
+              label: "Light",
+              ariaLabel: "light mode",
+              Icon: LightModeIcon,
             },
             {
-              label: "Privacy Policy",
-              url: ROUTES.privacyPolicy,
+              value: "dark",
+              label: "Dark",
+              ariaLabel: "dark mode",
+              Icon: DarkModeIcon,
             },
           ].map((info, i) => (
-            <ListItem key={i} disablePadding>
-              <Link href={info.url} className="w-full">
-                <ListItemButton>
-                  <ListItemText primary={info.label} className="text-left" />
-                </ListItemButton>
-              </Link>
-            </ListItem>
+            <ToggleButton
+              className="flex-1"
+              key={i}
+              value={info.value}
+              aria-label={info.ariaLabel}
+            >
+              <HorizontalStack addClassName="justify-center">
+                <info.Icon />
+                {info.label}
+              </HorizontalStack>
+            </ToggleButton>
           ))}
-        </List>
-      </VerticalStack>
-    </Section>
+        </ToggleButtonGroup>
+      </Box>
+      <Divider className="mt-auto" />
+      <List disablePadding>
+        {[
+          {
+            label: "About Us",
+            url: ROUTES.about,
+          },
+          {
+            label: "Terms and Conditions",
+            url: ROUTES.terms,
+          },
+          {
+            label: "Privacy Policy",
+            url: ROUTES.privacyPolicy,
+          },
+        ].map((info, i) => (
+          <ListItem key={i} disablePadding>
+            <Link href={info.url} className="w-full">
+              <ListItemButton>
+                <ListItemText primary={info.label} className="text-left" />
+              </ListItemButton>
+            </Link>
+          </ListItem>
+        ))}
+      </List>
+    </VerticalStack>
   );
 };
 
