@@ -31,7 +31,7 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>(
         severity={props.variant}
         {...eventHandlers}
       >
-        {Boolean(hasDuration) && (
+        {hasDuration && (
           <SnackProgressBar
             durationMs={props.durationMs!}
             isRunning={isRunning}
