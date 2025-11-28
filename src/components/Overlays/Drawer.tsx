@@ -3,11 +3,11 @@ import {
   DialogTitle,
   DialogTitleProps,
   Divider,
-  IconButton,
   SwipeableDrawer,
   SwipeableDrawerProps,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import IconButton from "@/components/Button/IconButton";
 
 export type DrawerProps = {
   isOpen: boolean;

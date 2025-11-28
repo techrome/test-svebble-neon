@@ -1,5 +1,9 @@
 @import "./tailwind-init.css";
 
+@theme {
+  --default-transition-duration: 250ms;
+}
+
 .under-navbar {
   @apply top-16 sm:top-[74px];
   z-index: var(--mui-zIndex-appBar);
@@ -7,6 +11,48 @@
 
 .word-break-word {
   word-break: break-word;
+}
+
+.notistack-Snackbar {
+  @apply sm:w-sm!;
+}
+.notistack-SnackbarContainer {
+  max-height: initial !important;
+}
+
+.snackbar-progress-wrapper {
+  position: absolute;
+  width: 100%;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.snackbar-progress {
+  position: absolute;
+  inset-inline: 0;
+  bottom: -3px;
+  height: 3px;
+  transform-origin: left center;
+
+  animation-name: snackbar-progress-deplete;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+
+  background-color: currentColor;
+}
+
+.snackbar-progress-rtl {
+  transform-origin: right center;
+}
+
+@keyframes snackbar-progress-deplete {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 
 #nprogress {
@@ -117,8 +163,7 @@
 .logo {
   text-decoration: none;
   & > * {
-    @apply font-medium border rounded border-transparent py-2 px-2 sm:px-3;
-    transition: 0.25s;
+    @apply font-medium border rounded border-transparent py-2 px-2 sm:px-3 transition-all;
     &:hover {
       border-color: var(--mui-palette-primary-main);
       box-shadow: var(--mui-shadows-3);

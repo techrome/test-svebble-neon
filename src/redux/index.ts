@@ -1,10 +1,12 @@
 import { configureStore } from "@reduxjs/toolkit";
-import overlaysReducer from "./slices/overlays";
+import overlays from "./slices/overlays";
+import snackbars from "./slices/snackbars";
 import { isDev } from "@/utils/isDev";
 
 export const store = configureStore({
   reducer: {
-    overlays: overlaysReducer,
+    overlays,
+    snackbars,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

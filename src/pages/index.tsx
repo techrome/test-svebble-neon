@@ -7,7 +7,6 @@ import { trpc } from "@/trpc/client";
 import useMyQuery from "@/utils/useMyQuery";
 import { prepareDefaultData } from "@/utils/prepareDefaultData";
 import CommentsList from "@/components/CommentsList/CommentsList";
-import { useColorScheme } from "@mui/material/styles";
 import Link from "@/components/Link/Link";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { Box } from "@mui/material";
@@ -19,6 +18,7 @@ import {
 } from "@/utils/useOverlay";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
 import { ROUTES } from "@/utils/routes";
+import { useAppSnackbar } from "@/utils/snackbar";
 
 const GlobalData = () => {
   const globalData = useMyQuery(
@@ -128,12 +128,11 @@ const Comments = () => {
 };
 
 const HomePage = () => {
-  const { mode, setMode } = useColorScheme();
   const localModal = useLocalModal();
   const { closeModal, openModal } = useGlobalModal();
   const localDrawer = useLocalDrawer();
   const { openDrawer, closeDrawer } = useGlobalDrawer();
-
+  const { addAppSnackbar } = useAppSnackbar();
   return (
     <VerticalStack>
       <h1>Hi</h1>
@@ -141,14 +140,48 @@ const HomePage = () => {
         <Button
           variant="outlined"
           onClick={() => {
-            setMode(mode === "light" ? "dark" : "light");
+            addAppSnackbar({
+              message: "Notification message",
+              details:
+                "asdhkasdkahsd hasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhdddd",
+              persist: true,
+              autoHideDuration: 5000,
+            });
           }}
         >
-          Toggle color mode
+          Show info
         </Button>
-        <Link href={ROUTES.test}>
-          <Button variant="contained">Not found</Button>
-        </Link>
+        <Button
+          variant="outlined"
+          onClick={() => {
+            addAppSnackbar({
+              message: "Notification message",
+              severity: "error",
+              // details: "Ok",
+              autoHideDuration: 0,
+            });
+          }}
+        >
+          Show error
+        </Button>
+        <Button
+          variant="contained"
+          onClick={() => {
+            (["info", "warning", "success", "error"] as const).forEach(
+              (variant) => {
+                addAppSnackbar({
+                  message: "Notification message",
+                  severity: variant,
+                  details:
+                    "asdhkasdkahsd hasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhdddd",
+                  autoHideDuration: 120000,
+                });
+              }
+            );
+          }}
+        >
+          All colors
+        </Button>
         <Link href={ROUTES.about}>
           <Button variant="contained" color="secondary">
             About page
