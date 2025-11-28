@@ -6,6 +6,7 @@ import CssBaseline from "@mui/material/CssBaseline";
 import { Box } from "@mui/material";
 import { Provider as ReduxProvider } from "react-redux";
 import { ErrorBoundary } from "react-error-boundary";
+import { SnackbarProvider } from "notistack";
 
 import { trpc } from "@/trpc/client";
 import Navbar from "@/components/Navbar/Navbar";
@@ -16,8 +17,10 @@ import GlobalModal from "@/components/Overlays/GlobalModal";
 import GlobalDrawer from "@/components/Overlays/GlobalDrawer";
 import { Section } from "@/components/Layout/Containers";
 import ErrorBoundaryFallback from "@/components/GlobalError/ErrorBoundaryFallback";
+import Snackbar from "@/components/Snackbar/Snackbar";
 
 import "@/styles/global.scss";
+import { SnackbarListener } from "@/utils/snackbar";
 
 const App = ({ Component, pageProps }: AppProps) => {
   return (
@@ -29,17 +32,31 @@ const App = ({ Component, pageProps }: AppProps) => {
         <StyledEngineProvider injectFirst>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <ErrorBoundary FallbackComponent={ErrorBoundaryFallback}>
-              <TopLoader />
-              <Box className={clsx("flex flex-col min-h-screen")}>
-                <Navbar />
-                <Section addClassName="flex-1 flex flex-col">
-                  <Component {...pageProps} />
-                </Section>
-                <GlobalModal />
-                <GlobalDrawer />
-              </Box>
-            </ErrorBoundary>
+            <SnackbarProvider
+              maxSnack={6}
+              Components={{
+                error: Snackbar,
+                info: Snackbar,
+                success: Snackbar,
+                warning: Snackbar,
+              }}
+              transitionDuration={{
+                exit: 150,
+              }}
+            >
+              <SnackbarListener />
+              <ErrorBoundary FallbackComponent={ErrorBoundaryFallback}>
+                <TopLoader />
+                <Box className={clsx("flex flex-col min-h-screen")}>
+                  <Navbar />
+                  <Section addClassName="flex-1 flex flex-col">
+                    <Component {...pageProps} />
+                  </Section>
+                  <GlobalModal />
+                  <GlobalDrawer />
+                </Box>
+              </ErrorBoundary>
+            </SnackbarProvider>
           </ThemeProvider>
         </StyledEngineProvider>
       </ReduxProvider>

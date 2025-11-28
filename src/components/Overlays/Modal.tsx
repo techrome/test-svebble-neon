@@ -3,12 +3,12 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  IconButton,
   DialogProps,
   DialogTitleProps,
   DialogContentProps,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import IconButton from "@/components/Button/IconButton";
 
 export type ModalProps = {
   isOpen: boolean;

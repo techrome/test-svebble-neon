@@ -20,11 +20,6 @@ declare module "@mui/system" {
 }
 
 let _theme = createTheme({
-  components: {
-    MuiTooltip: {
-      styleOverrides: { tooltip: { maxWidth: "450px" } },
-    },
-  },
   typography: {
     fontFamily: "var(--font-roboto)",
     allVariants: { wordBreak: "break-word" },
@@ -48,6 +43,22 @@ let _theme = createTheme({
   },
   modularCssLayers: "@layer base, mui, components, utilities;",
 });
+
+_theme = {
+  ..._theme,
+  components: {
+    MuiTooltip: {
+      styleOverrides: { tooltip: { maxWidth: "450px" } },
+    },
+    MuiAlert: {
+      styleOverrides: {
+        root: { position: "relative" },
+        message: { flex: "1" },
+        icon: { marginTop: _theme.spacing(2) },
+      },
+    },
+  },
+};
 
 _theme = responsiveFontSizes(_theme);
 
