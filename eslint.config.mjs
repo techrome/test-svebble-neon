@@ -6,6 +6,6 @@ export default defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    rules: { "prefer-const": "off" },
+    rules: { "prefer-const": "off", "react/display-name": "off" },
   },
 ]);
