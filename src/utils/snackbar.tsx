@@ -1,5 +1,5 @@
 import React from "react";
-import { useSnackbar } from "notistack";
+import { SnackbarKey, useSnackbar } from "notistack";
 
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
@@ -8,12 +8,14 @@ import {
   dismissSnackbar,
   SnackbarId,
   SnackbarPayload,
+  dismissAllSnackbars,
 } from "@/redux/slices/snackbars";
 
 declare module "notistack" {
   interface OptionsObject {
     details?: string;
     durationMs?: number | undefined;
+    createdAt?: string;
   }
   interface VariantOverrides {
     default: false;
@@ -27,20 +29,27 @@ export const SnackbarListener = () => {
   const displayedItemKeysRef = React.useRef<SnackbarId[]>([]);
 
   React.useEffect(() => {
+    const handleSnackbarExit = (key: SnackbarKey) => {
+      dispatch(deleteSnackbar(key));
+      displayedItemKeysRef.current = displayedItemKeysRef.current.filter(
+        (x) => x !== key
+      );
+    };
     items.forEach((snack) => {
       if (displayedItemKeysRef.current.includes(snack.id)) {
         if (snack.dismissed) {
           closeSnackbar(snack.id);
+          handleSnackbarExit(snack.id);
         }
         return;
       }
 
       enqueueSnackbar({
-        variant: snack.severity,
+        variant: snack.variant,
         key: snack.id,
         message: snack.message,
         details: snack.details,
-        durationMs: snack.autoHideDuration,
+        durationMs: snack.durationMs,
         persist: true,
         onClose(event, reason, key) {
           if (key) {
@@ -48,10 +57,7 @@ export const SnackbarListener = () => {
           }
         },
         onExited(node, key) {
-          dispatch(deleteSnackbar(key));
-          displayedItemKeysRef.current = displayedItemKeysRef.current.filter(
-            (x) => x !== key
-          );
+          handleSnackbarExit(key);
         },
       });
 
@@ -68,6 +74,9 @@ export const useAppSnackbar = () => {
   const addAppSnackbar = (data: SnackbarPayload) => {
     dispatch(addSnackbar(data));
   };
+  const dismissAllAppSnackbars = () => {
+    dispatch(dismissAllSnackbars());
+  };
 
-  return { addAppSnackbar };
+  return { addAppSnackbar, dismissAllAppSnackbars };
 };

@@ -13,6 +13,8 @@ const Tooltip = ({ children, ...props }: TooltipProps) => {
       placement="top"
       arrow
       enterDelay={300}
+      enterTouchDelay={100}
+      leaveTouchDelay={4000}
       {...props}
       title={<Typography variant="body1">{props.title}</Typography>}
     >
