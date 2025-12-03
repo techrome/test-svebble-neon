@@ -8,8 +8,9 @@ import React from "react";
 import { Breakpoints } from "@/utils/theme";
 
 type BaseSectionProps = {
-  children: React.ReactNode;
+  children?: React.ReactNode;
   addClassName?: string;
+  fullWidth?: boolean;
 } & React.ComponentProps<"div">;
 
 type ContainerProps = MuiContainerProps;
@@ -21,21 +22,25 @@ const switchingStackBreakpoints = {
   lg: "lg:flex-row lg:flex-wrap",
 } as const satisfies LayoutBreakpoints;
 
-const defaultPadding = "p-2 sm:p-3";
+export const defaultPadding = "p-2 sm:p-3";
 
 export const Section = ({
   children,
   addClassName,
+  fullWidth = true,
   ...props
 }: BaseSectionProps) => {
   return (
-    <div className={clsx("w-full", defaultPadding, addClassName)} {...props}>
+    <div
+      className={clsx(fullWidth && "w-full", defaultPadding, addClassName)}
+      {...props}
+    >
       {children}
     </div>
   );
 };
 
-const spacingMapping = {
+export const spacingMapping = {
   sm: "gap-2 sm:gap-3",
   md: "gap-4 sm:gap-6",
   lg: "gap-8 sm:gap-12",
@@ -47,26 +52,32 @@ type StackProps = {
   fullWidth?: boolean;
 } & BaseSectionProps;
 
-export const VerticalStack = ({
-  children,
-  addClassName,
-  spacing = "sm",
-  withPadding,
-  ...props
-}: StackProps) => {
-  return (
-    <div
-      className={clsx(
-        `w-full flex flex-col ${spacingMapping[spacing]}`,
-        withPadding && defaultPadding,
-        addClassName
-      )}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-};
+export const VerticalStack = React.forwardRef<HTMLDivElement, StackProps>(
+  (
+    {
+      children,
+      addClassName,
+      spacing = "sm",
+      withPadding,
+      ...props
+    }: StackProps,
+    ref
+  ) => {
+    return (
+      <div
+        ref={ref}
+        className={clsx(
+          `w-full flex flex-col ${spacingMapping[spacing]}`,
+          withPadding && defaultPadding,
+          addClassName
+        )}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  }
+);
 
 export const HorizontalStack = ({
   children,

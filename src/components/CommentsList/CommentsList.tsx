@@ -111,7 +111,7 @@ const CommentsList = () => {
           itemContent={(_, comment) => {
             return <Comment comment={comment} />;
           }}
-        ></Virtuoso>
+        />
       )}
     </div>
   );

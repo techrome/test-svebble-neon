@@ -17,16 +17,32 @@ import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import NotificationsIcon from "@mui/icons-material/Notifications";
+import { useRouter } from "next/router";
+import { Virtuoso } from "react-virtuoso";
+import { motion } from "motion/react";
 
 import { useGlobalDrawer } from "@/utils/useOverlay";
-import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
+import {
+  HorizontalStack,
+  Section,
+  VerticalStack,
+} from "@/components/Layout/Containers";
 import Link from "@/components/Link/Link";
 import Label from "@/components/Label/Label";
 import { ROUTES } from "@/utils/routes";
-import { useRouter } from "next/router";
 import { Divider } from "@/components/Layout/Dividers";
 import IconButton from "@/components/Button/IconButton";
 import Popover from "@/components/Popover/Popover";
+import { useAppSelector } from "@/redux/hooks";
+import Snackbar from "@/components/Snackbar/Snackbar";
+import Tabs from "@/components/Tabs/Tabs";
+
+const MotionItem = React.forwardRef<
+  React.ComponentRef<typeof motion.div>,
+  React.ComponentPropsWithoutRef<typeof motion.div>
+>((props, ref) => (
+  <motion.div ref={ref} layout transition={{ duration: 0.2 }} {...props} />
+));
 
 const DrawerContent = () => {
   const { mode, setMode } = useColorScheme();
@@ -108,13 +124,24 @@ const DrawerContent = () => {
     </VerticalStack>
   );
 };
+const notificationTabsMapping = {
+  normal: "normal",
+  important: "important",
+  system: "system",
+};
+type NotificationTabs = keyof typeof notificationTabsMapping;
 
 const Navbar = () => {
   const { openDrawer, closeDrawer } = useGlobalDrawer();
   const router = useRouter();
   const notificationsId = useId();
-  const [notifcationsAnchorEl, setNotificationsAnchorEl] =
+  const [notificationsAnchorEl, setNotificationsAnchorEl] =
     React.useState<HTMLButtonElement | null>(null);
+  const [selectedNotificationsTab, setSelectedNotificationsTab] =
+    React.useState<NotificationTabs>("normal");
+  const systemNotifications = useAppSelector(
+    (state) => state.snackbars.systemNotifications
+  );
 
   useEffect(() => {
     router.events.on("routeChangeComplete", closeDrawer);
@@ -125,7 +152,7 @@ const Navbar = () => {
     };
   }, [router.events, closeDrawer]);
 
-  const notificationsOpen = Boolean(notifcationsAnchorEl);
+  const notificationsOpen = Boolean(notificationsAnchorEl);
   const notificationsPopoverId = notificationsOpen
     ? notificationsId
     : undefined;
@@ -152,7 +179,7 @@ const Navbar = () => {
           <Popover
             open={notificationsOpen}
             id={notificationsPopoverId}
-            anchorEl={notifcationsAnchorEl}
+            anchorEl={notificationsAnchorEl}
             onClose={() => {
               setNotificationsAnchorEl(null);
             }}
@@ -160,8 +187,54 @@ const Navbar = () => {
               vertical: "bottom",
               horizontal: "left",
             }}
+            transitionDuration={0}
           >
-            Some notifications
+            <Section fullWidth={false} addClassName="w-[500px] max-w-full">
+              <Label>Notifications</Label>
+              <Tabs
+                value={selectedNotificationsTab}
+                onChange={(e, value) => {
+                  setSelectedNotificationsTab(value);
+                }}
+                variant="fullWidth"
+                tabs={[
+                  {
+                    value: notificationTabsMapping.normal,
+                    label: notificationTabsMapping.normal,
+                    panel: "Normal panel",
+                  },
+                  {
+                    value: notificationTabsMapping.important,
+                    label: notificationTabsMapping.important,
+                    panel: "Imporant panel",
+                  },
+                  {
+                    value: notificationTabsMapping.system,
+                    label: notificationTabsMapping.system,
+                    panel: (
+                      <Virtuoso
+                        style={{ height: "500px", width: "100%" }}
+                        increaseViewportBy={{ bottom: 150, top: 150 }}
+                        data={systemNotifications}
+                        components={{
+                          List: VerticalStack,
+                          Item: MotionItem,
+                        }}
+                        computeItemKey={(_, item) => item.id}
+                        itemContent={(_, systemNotification) => {
+                          return (
+                            <Snackbar
+                              isSystemNotification
+                              {...systemNotification}
+                            />
+                          );
+                        }}
+                      />
+                    ),
+                  },
+                ]}
+              />
+            </Section>
           </Popover>
           <IconButton
             size="large"

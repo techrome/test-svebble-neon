@@ -132,7 +132,7 @@ const HomePage = () => {
   const { closeModal, openModal } = useGlobalModal();
   const localDrawer = useLocalDrawer();
   const { openDrawer, closeDrawer } = useGlobalDrawer();
-  const { addAppSnackbar } = useAppSnackbar();
+  const { addAppSnackbar, dismissAllAppSnackbars } = useAppSnackbar();
   return (
     <VerticalStack>
       <h1>Hi</h1>
@@ -145,7 +145,7 @@ const HomePage = () => {
               details:
                 "asdhkasdkahsd hasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhdddd",
               persist: true,
-              autoHideDuration: 5000,
+              durationMs: 5000,
             });
           }}
         >
@@ -156,9 +156,9 @@ const HomePage = () => {
           onClick={() => {
             addAppSnackbar({
               message: "Notification message",
-              severity: "error",
+              variant: "error",
               // details: "Ok",
-              autoHideDuration: 0,
+              durationMs: 0,
             });
           }}
         >
@@ -171,10 +171,10 @@ const HomePage = () => {
               (variant) => {
                 addAppSnackbar({
                   message: "Notification message",
-                  severity: variant,
+                  variant: variant,
                   details:
                     "asdhkasdkahsd hasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhddddhasjkdhasjkhdjakshdjksahdjahsdjhasjdhjsahdasdsdajdhasjdhajdhajsdhajsdhjasdhjasddhdddd",
-                  autoHideDuration: 120000,
+                  durationMs: 120000,
                 });
               }
             );
@@ -182,11 +182,15 @@ const HomePage = () => {
         >
           All colors
         </Button>
-        <Link href={ROUTES.about}>
-          <Button variant="contained" color="secondary">
-            About page
-          </Button>
-        </Link>
+        <Button
+          variant="contained"
+          color="secondary"
+          onClick={() => {
+            dismissAllAppSnackbars();
+          }}
+        >
+          Clear snackbars
+        </Button>
         <Button
           variant="contained"
           color="error"
