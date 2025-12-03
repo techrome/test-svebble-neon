@@ -1,3 +1,2 @@
-# Let Git *auto-detect* text vs binary, but where it detects text,
-# always store LF in the repo and write LF in the working tree
+# Force LF everywhere where applicable for consistency
 * text=auto eol=lf
