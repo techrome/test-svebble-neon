@@ -11,11 +11,11 @@ export const roboto = Roboto({
 declare module "@mui/system" {
   interface BreakpointOverrides {
     xs: false;
-    sm: true; // 40rem  (640px @ 16px root)
-    md: true; // 48rem  (768px)
-    lg: true; // 64rem  (1024px)
-    xl: true; // 80rem  (1280px)
-    "2xl": true; // 96rem  (1536px)
+    sm: true;
+    md: true;
+    lg: true;
+    xl: true;
+    "2xl": true;
   }
 }
 
@@ -23,17 +23,6 @@ let _theme = createTheme({
   typography: {
     fontFamily: "var(--font-roboto)",
     allVariants: { wordBreak: "break-word" },
-  },
-  breakpoints: {
-    // copying the tailwind breakpoints
-    unit: "rem",
-    values: {
-      sm: 40,
-      md: 48,
-      lg: 64,
-      xl: 80,
-      "2xl": 96,
-    },
   },
   spacing: (factor: number) => `${0.25 * factor}rem`,
   cssVariables: { colorSchemeSelector: "class" },
@@ -52,7 +41,20 @@ _theme = {
     },
     MuiAlert: {
       styleOverrides: {
-        root: { position: "relative" },
+        root: ({ ownerState }) => {
+          let common = { position: "relative" } as const;
+          if (ownerState.variant !== "standard") {
+            return common;
+          }
+
+          const textColor =
+            _theme.vars?.palette.text.primary ?? _theme.palette.text.primary;
+
+          return {
+            ...common,
+            color: textColor,
+          };
+        },
         message: { flex: "1" },
         icon: { marginTop: _theme.spacing(2) },
       },
