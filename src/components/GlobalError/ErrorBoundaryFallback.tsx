@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Typography } from "@mui/material";
-import { FallbackProps } from "react-error-boundary";
+import { type FallbackProps } from "react-error-boundary";
 import ErrorIcon from "@mui/icons-material/Error";
 import InfoIcon from "@mui/icons-material/Info";
 

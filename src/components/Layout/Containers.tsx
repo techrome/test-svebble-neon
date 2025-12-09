@@ -1,6 +1,6 @@
 import {
   Container as MuiContainer,
-  ContainerProps as MuiContainerProps,
+  type ContainerProps as MuiContainerProps,
 } from "@mui/material";
 import clsx from "clsx";
 import React from "react";
