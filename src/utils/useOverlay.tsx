@@ -10,6 +10,8 @@ import {
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { RootState } from "@/redux";
 import Drawer, { type DrawerProps } from "@/components/Overlays/Drawer";
+import Popover from "@/components/Popover/Popover";
+import { PartialFor } from "@/utils/types";
 
 const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
   selector: (state: RootState) => Overlay<Props>,
@@ -118,5 +120,66 @@ export const useLocalDrawer = () => {
     openDrawer,
     closeDrawer,
     Drawer,
+  };
+};
+
+type PopoverInitialProps = PartialFor<
+  React.ComponentPropsWithoutRef<typeof Popover>,
+  "open"
+>;
+
+export const useLocalPopover = () => {
+  const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
+  const id = React.useId();
+  const isOpen = Boolean(anchorEl);
+  // using refs for performance. just keep this in mind whenever you use the hook
+  // (e.g. don't wrap the ReadyPopover in React.memo unless you know what you're doing)
+  const initialPropsRef = React.useRef<PopoverInitialProps>({});
+  const readyPopoverComponentRef =
+    React.useRef<React.FC<PopoverInitialProps> | null>(null);
+
+  const openPopover = (e: React.SyntheticEvent<HTMLElement>) => {
+    setAnchorEl(e.currentTarget);
+  };
+  const closePopover = () => {
+    setAnchorEl(null);
+  };
+
+  // eslint-disable-next-line
+  initialPropsRef.current = {
+    open: isOpen,
+    id: id,
+    anchorEl: anchorEl,
+    onClose: closePopover,
+  };
+
+  // eslint-disable-next-line
+  if (!readyPopoverComponentRef.current) {
+    readyPopoverComponentRef.current = ({
+      children,
+      ...props
+    }: PopoverInitialProps) => {
+      return (
+        <Popover
+          open={initialPropsRef.current.open!}
+          id={initialPropsRef.current.id}
+          anchorEl={initialPropsRef.current.anchorEl}
+          onClose={initialPropsRef.current.onClose}
+          {...props}
+        >
+          {children}
+        </Popover>
+      );
+    };
+  }
+
+  return {
+    isOpen,
+    openPopover,
+    closePopover,
+    id,
+    Popover,
+    // eslint-disable-next-line
+    ReadyPopover: readyPopoverComponentRef.current,
   };
 };
