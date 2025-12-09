@@ -1,5 +1,6 @@
 import { Roboto } from "next/font/google";
 import { createTheme, responsiveFontSizes } from "@mui/material/styles";
+import type {} from "@mui/x-date-pickers/themeAugmentation";
 
 export const roboto = Roboto({
   weight: ["300", "400", "500", "700"],
@@ -8,29 +9,18 @@ export const roboto = Roboto({
   variable: "--font-roboto",
 });
 
-declare module "@mui/system" {
-  interface BreakpointOverrides {
-    xs: false;
-    sm: true;
-    md: true;
-    lg: true;
-    xl: true;
-    "2xl": true;
-  }
-}
-
 let _theme = createTheme({
   typography: {
     fontFamily: "var(--font-roboto)",
     allVariants: { wordBreak: "break-word" },
   },
-  spacing: (factor: number) => `${0.25 * factor}rem`,
   cssVariables: { colorSchemeSelector: "class" },
   colorSchemes: {
     light: true,
     dark: true,
   },
-  modularCssLayers: "@layer base, mui, components, utilities;",
+  modularCssLayers:
+    "@layer global, base, mui, custom, components, utilities, sx, properties;",
 });
 
 _theme = {
@@ -56,7 +46,7 @@ _theme = {
           };
         },
         message: { flex: "1" },
-        icon: { marginTop: _theme.spacing(2) },
+        icon: { marginTop: _theme.spacing(1.5) },
       },
     },
   },
