@@ -8,7 +8,7 @@ type Props = MuiBadgeProps;
 
 const Badge = ({ children, ...props }: Props) => {
   return (
-    <MuiBadge max={999} color="primary" {...props}>
+    <MuiBadge max={999} color="warning" {...props}>
       {children}
     </MuiBadge>
   );

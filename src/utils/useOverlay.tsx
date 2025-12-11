@@ -157,6 +157,7 @@ export const useLocalPopover = () => {
   if (!readyPopoverComponentRef.current) {
     readyPopoverComponentRef.current = ({
       children,
+      onClose,
       ...props
     }: PopoverInitialProps) => {
       return (
@@ -164,7 +165,10 @@ export const useLocalPopover = () => {
           open={initialPropsRef.current.open!}
           id={initialPropsRef.current.id}
           anchorEl={initialPropsRef.current.anchorEl}
-          onClose={initialPropsRef.current.onClose}
+          onClose={(...args) => {
+            initialPropsRef.current?.onClose?.(...args);
+            onClose?.(...args);
+          }}
           {...props}
         >
           {children}

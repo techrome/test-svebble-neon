@@ -11,17 +11,29 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
+  useMediaQuery,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import NotificationsIcon from "@mui/icons-material/Notifications";
+import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
+import FilterListIcon from "@mui/icons-material/FilterList";
 import { useRouter } from "next/router";
 import { Virtuoso } from "react-virtuoso";
 import { motion } from "motion/react";
+import {
+  SubmitHandler,
+  useForm,
+  UseFormReturn,
+  useWatch,
+} from "react-hook-form";
+import Fuse from "fuse.js";
+import { type Dayjs } from "dayjs";
+import z from "zod";
 
-import { useGlobalDrawer } from "@/utils/useOverlay";
+import { useGlobalDrawer, useLocalPopover } from "@/utils/useOverlay";
 import {
   HorizontalStack,
   Section,
@@ -32,10 +44,25 @@ import Label from "@/components/Label/Label";
 import { ROUTES } from "@/utils/routes";
 import { Divider } from "@/components/Layout/Dividers";
 import IconButton from "@/components/Button/IconButton";
-import Popover from "@/components/Popover/Popover";
-import { useAppSelector } from "@/redux/hooks";
+import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import Snackbar from "@/components/Snackbar/Snackbar";
 import Tabs from "@/components/Tabs/Tabs";
+import {
+  deleteAllSystemNotifications,
+  readAllSystemNotifications,
+  type Snackbar as SnackbarType,
+} from "@/redux/slices/snackbars";
+import Tooltip from "@/components/Tooltip/Tooltip";
+import Input from "@/components/Fields/Input";
+import Badge from "@/components/Badge/Badge";
+import Button from "@/components/Button/Button";
+import DatePicker from "@/components/Fields/Datepicker";
+import { countMeaningfulValues } from "@/utils/countMeaningfulValues";
+import TimePicker from "@/components/Fields/TimePicker";
+import DateTimePicker from "@/components/Fields/DateTimePicker";
+import { logger } from "@/utils/logger";
+import { normalizeText } from "@/utils/stringUtils";
+import dayjs from "@/utils/dayjs";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -126,22 +153,346 @@ const DrawerContent = () => {
 };
 const notificationTabsMapping = {
   normal: "normal",
-  important: "important",
+  news: "news",
   system: "system",
 };
 type NotificationTabs = keyof typeof notificationTabsMapping;
 
-const Navbar = () => {
-  const { openDrawer, closeDrawer } = useGlobalDrawer();
-  const router = useRouter();
-  const notificationsId = useId();
-  const [notificationsAnchorEl, setNotificationsAnchorEl] =
-    React.useState<HTMLButtonElement | null>(null);
-  const [selectedNotificationsTab, setSelectedNotificationsTab] =
-    React.useState<NotificationTabs>("normal");
+type FilterValues = {
+  searchText: string;
+  startDate: Dayjs | null;
+  endDate: Dayjs | null;
+};
+
+const emptyFilter: FilterValues = {
+  searchText: "",
+  startDate: null,
+  endDate: null,
+};
+
+// const zDayjs = z.custom<Dayjs>(value => dayjs.isDayjs(value) && value.isValid(), {message:"Invalid date"})
+
+// const filterSchema = z.object<Record<keyof FilterValues, any>>({
+//   startDate: zDayjs.nullable(),
+//   endDate: zDayjs.nullable(),
+//   searchText:z.string().optional(),
+// }).superRefine((data, ctx) => {
+// const {startDate,endDate} = data;
+
+// })
+
+const FilterForm = ({
+  onSubmit,
+  onClear,
+  formState,
+}: {
+  onSubmit: SubmitHandler<FilterValues>;
+  onClear: React.EventHandler<React.SyntheticEvent>;
+  formState: UseFormReturn<FilterValues>;
+}) => {
+  const [startDate, endDate] = useWatch({
+    control: formState.control,
+    name: ["startDate", "endDate"],
+  });
+  logger.log({ startDate, endDate });
+  return (
+    <Section addClassName="w-sm max-w-full">
+      <form onSubmit={formState.handleSubmit(onSubmit)} noValidate>
+        <Label>Filter notifications</Label>
+        <VerticalStack>
+          <Input
+            control={formState.control}
+            name="searchText"
+            label="Search Text"
+            type="text"
+            fullWidth
+            autoFocus
+            endAccessory="clear"
+            //rules={{validate:(value)=>{}}}
+          />
+          <DatePicker
+            control={formState.control}
+            name="startDate"
+            label="From time"
+            // maxDateTime={endDate || undefined}
+            // rules={{
+            //   validate: (value) => {
+            //     const end = formState.getValues("endDate");
+            //     // if(!value || !end) {return true;}
+            //     // return dayjs(value).isAfter(end)
+            //    return value?.isAfter
+            //   },
+            // }}
+          />
+          <TimePicker
+            control={formState.control}
+            name="endDate"
+            label="To time"
+
+            // minDateTime={startDate}
+          />
+          <HorizontalStack addClassName="w-full justify-between">
+            <Button type="button" variant="outlined" onClick={onClear}>
+              Clear
+            </Button>
+            <Button type="submit" variant="contained" color="primary">
+              Apply
+            </Button>
+          </HorizontalStack>
+        </VerticalStack>
+      </form>
+    </Section>
+  );
+};
+
+const SearchOutsideForm = ({
+  formState,
+  handleSubmit,
+  filterPopover,
+  onDebouncedValue,
+}: {
+  formState: UseFormReturn<FilterValues>;
+  handleSubmit: SubmitHandler<FilterValues>;
+  filterPopover: ReturnType<typeof useLocalPopover>;
+  onDebouncedValue: (val: string) => void;
+}) => {
+  const [searchText] = useWatch({
+    control: formState.control,
+    name: ["searchText"],
+  });
+
+  React.useEffect(() => {
+    if (filterPopover.isOpen) {
+      return;
+    }
+    if (!searchText) {
+      onDebouncedValue(searchText);
+      return;
+    }
+    const timeoutId = setTimeout(() => {
+      onDebouncedValue(searchText);
+    }, 300);
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [searchText, filterPopover.isOpen]);
+
+  return (
+    <form onSubmit={formState.handleSubmit(handleSubmit)}>
+      <Input
+        control={formState.control}
+        name="searchText"
+        label="Search Text"
+        type="text"
+        withHelperText={false}
+        className="w-3xs"
+        endAccessory="clear"
+      />
+    </form>
+  );
+};
+
+const SystemNotifications = () => {
+  const [filter, setFilter] = React.useState<FilterValues>(emptyFilter);
+
   const systemNotifications = useAppSelector(
     (state) => state.snackbars.systemNotifications
   );
+  const dispatch = useAppDispatch();
+  const filterPopover = useLocalPopover();
+
+  const isLargeScreen = useMediaQuery((theme) => theme.breakpoints.up("sm"));
+
+  const filterFormState = useForm<FilterValues>({
+    defaultValues: emptyFilter,
+  });
+  const fuse = React.useMemo(
+    () =>
+      new Fuse(systemNotifications, {
+        keys: [
+          "message",
+          "details",
+          "variant",
+        ] satisfies (keyof SnackbarType)[],
+        ignoreLocation: true,
+        includeScore: false,
+      }),
+    [systemNotifications]
+  );
+
+  const filteredNotifications = React.useMemo(() => {
+    let result: SnackbarType[] = systemNotifications;
+    const searchText = normalizeText(filter.searchText);
+    if (searchText) {
+      const searchResult = fuse.search(searchText);
+      result = searchResult.map((r) => r.item);
+    }
+    // if(filter.)
+    return result;
+  }, [fuse, systemNotifications, filter]);
+
+  const activeFilterCount = React.useMemo(
+    () => countMeaningfulValues(filter),
+    [filter]
+  );
+
+  const handleFilterSubmit: SubmitHandler<FilterValues> = (values) => {
+    setFilter(values);
+    filterPopover.closePopover();
+  };
+
+  const handleClearFilter = () => {
+    setFilter(emptyFilter);
+    filterFormState.reset();
+    filterPopover.closePopover();
+  };
+
+  React.useEffect(() => {
+    dispatch(readAllSystemNotifications());
+  }, []);
+
+  return (
+    <Box>
+      <HorizontalStack addClassName="py-2 justify-between">
+        <HorizontalStack addClassName="items-center">
+          <Typography variant="body1">
+            {filteredNotifications.length === systemNotifications.length ? (
+              ""
+            ) : (
+              <>
+                Found{" "}
+                <Typography
+                  variant="body1"
+                  component="span"
+                  color="warning"
+                  className="font-bold"
+                >
+                  {filteredNotifications.length}
+                </Typography>{" "}
+                of{" "}
+              </>
+            )}
+            {systemNotifications.length} notifications
+          </Typography>
+          <Tooltip title="Delete all notifications">
+            <IconButton
+              size="large"
+              color="inherit"
+              aria-label="delete all notifications"
+              disabled={systemNotifications.length === 0}
+              onClick={() => {
+                dispatch(deleteAllSystemNotifications());
+              }}
+            >
+              <DeleteSweepIcon />
+            </IconButton>
+          </Tooltip>
+        </HorizontalStack>
+        <HorizontalStack addClassName="items-center">
+          {isLargeScreen && (
+            <SearchOutsideForm
+              filterPopover={filterPopover}
+              formState={filterFormState}
+              handleSubmit={handleFilterSubmit}
+              onDebouncedValue={(searchText) => {
+                setFilter((prev) => ({
+                  ...prev,
+                  searchText,
+                }));
+              }}
+            />
+          )}
+          <Tooltip title="Filter notifications">
+            <IconButton
+              size="large"
+              color="inherit"
+              aria-label="filter notifications"
+              onClick={filterPopover.openPopover}
+            >
+              <Badge badgeContent={activeFilterCount}>
+                <FilterListIcon />
+              </Badge>
+            </IconButton>
+          </Tooltip>
+        </HorizontalStack>
+      </HorizontalStack>
+      <Virtuoso
+        style={{ height: "500px", width: "100%" }}
+        increaseViewportBy={{ bottom: 150, top: 150 }}
+        data={filteredNotifications}
+        components={{
+          List: VerticalStack,
+          Item: MotionItem,
+        }}
+        computeItemKey={(_, item) => item.id}
+        itemContent={(_, systemNotification) => {
+          return <Snackbar isSystemNotification {...systemNotification} />;
+        }}
+      />
+      <filterPopover.ReadyPopover
+        onClose={() => {
+          filterFormState.reset(filter, { keepDefaultValues: true });
+        }}
+      >
+        <FilterForm
+          formState={filterFormState}
+          onSubmit={handleFilterSubmit}
+          onClear={handleClearFilter}
+        />
+      </filterPopover.ReadyPopover>
+    </Box>
+  );
+};
+
+const NotificationsContent = () => {
+  const [selectedNotificationsTab, setSelectedNotificationsTab] =
+    React.useState<NotificationTabs>("normal");
+  const unreadSystemNotificationsCount = useAppSelector(
+    (state) =>
+      state.snackbars.systemNotifications.filter((snack) => !snack.isRead)
+        .length
+  );
+
+  return (
+    <Section fullWidth={false} addClassName="w-2xl max-w-full">
+      <Label>Notifications</Label>
+      <Tabs
+        value={selectedNotificationsTab}
+        onChange={(e, value) => {
+          setSelectedNotificationsTab(value);
+        }}
+        variant="fullWidth"
+        tabs={[
+          {
+            value: notificationTabsMapping.normal,
+            label: notificationTabsMapping.normal,
+            panel: "Normal panel",
+          },
+          {
+            value: notificationTabsMapping.news,
+            label: notificationTabsMapping.news,
+            panel: "Imporant panel",
+          },
+          {
+            value: notificationTabsMapping.system,
+            label: (
+              <Badge badgeContent={unreadSystemNotificationsCount}>
+                <div className="p-1">{notificationTabsMapping.system}</div>
+              </Badge>
+            ),
+            panel: <SystemNotifications />,
+          },
+        ]}
+      />
+    </Section>
+  );
+};
+
+const Navbar = () => {
+  const { openDrawer, closeDrawer } = useGlobalDrawer();
+  const router = useRouter();
+
+  const notificationsPopover = useLocalPopover();
 
   useEffect(() => {
     router.events.on("routeChangeComplete", closeDrawer);
@@ -151,11 +502,6 @@ const Navbar = () => {
       router.events.off("hashChangeComplete", closeDrawer);
     };
   }, [router.events, closeDrawer]);
-
-  const notificationsOpen = Boolean(notificationsAnchorEl);
-  const notificationsPopoverId = notificationsOpen
-    ? notificationsId
-    : undefined;
 
   return (
     <AppBar position="sticky" color="default">
@@ -170,72 +516,16 @@ const Navbar = () => {
             size="large"
             color="inherit"
             aria-label="notifications"
-            onClick={(e) => {
-              setNotificationsAnchorEl(e.currentTarget);
-            }}
+            onClick={notificationsPopover.openPopover}
           >
-            <NotificationsIcon />
+            <Badge badgeContent={0}>
+              <NotificationsIcon />
+            </Badge>
           </IconButton>
-          <Popover
-            open={notificationsOpen}
-            id={notificationsPopoverId}
-            anchorEl={notificationsAnchorEl}
-            onClose={() => {
-              setNotificationsAnchorEl(null);
-            }}
-            anchorOrigin={{
-              vertical: "bottom",
-              horizontal: "left",
-            }}
-            transitionDuration={0}
-          >
-            <Section fullWidth={false} addClassName="w-[500px] max-w-full">
-              <Label>Notifications</Label>
-              <Tabs
-                value={selectedNotificationsTab}
-                onChange={(e, value) => {
-                  setSelectedNotificationsTab(value);
-                }}
-                variant="fullWidth"
-                tabs={[
-                  {
-                    value: notificationTabsMapping.normal,
-                    label: notificationTabsMapping.normal,
-                    panel: "Normal panel",
-                  },
-                  {
-                    value: notificationTabsMapping.important,
-                    label: notificationTabsMapping.important,
-                    panel: "Imporant panel",
-                  },
-                  {
-                    value: notificationTabsMapping.system,
-                    label: notificationTabsMapping.system,
-                    panel: (
-                      <Virtuoso
-                        style={{ height: "500px", width: "100%" }}
-                        increaseViewportBy={{ bottom: 150, top: 150 }}
-                        data={systemNotifications}
-                        components={{
-                          List: VerticalStack,
-                          Item: MotionItem,
-                        }}
-                        computeItemKey={(_, item) => item.id}
-                        itemContent={(_, systemNotification) => {
-                          return (
-                            <Snackbar
-                              isSystemNotification
-                              {...systemNotification}
-                            />
-                          );
-                        }}
-                      />
-                    ),
-                  },
-                ]}
-              />
-            </Section>
-          </Popover>
+          <notificationsPopover.ReadyPopover transitionDuration={0}>
+            <NotificationsContent />
+          </notificationsPopover.ReadyPopover>
+
           <IconButton
             size="large"
             color="inherit"
