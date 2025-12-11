@@ -1,11 +1,8 @@
 import React from "react";
 import { TextField, type TextFieldProps } from "@mui/material";
 import {
-  type Control,
   type FieldPath,
   type FieldValues,
-  type Path,
-  type RegisterOptions,
   useController,
   UseControllerReturn,
 } from "react-hook-form";
@@ -13,16 +10,12 @@ import clsx from "clsx";
 import ClearIcon from "@mui/icons-material/Clear";
 
 import IconButton from "@/components/Button/IconButton";
+import { BasePropsBuilder } from "@/components/Fields/BasePicker";
 
-type Props<TFV extends FieldValues, TName extends FieldPath<TFV>> = Omit<
-  TextFieldProps,
-  "name"
-> & {
-  name: TName;
-  control: Control<TFV>;
-  rules?: RegisterOptions<TFV, TName>;
-  withHelperText?: boolean;
-};
+type Props<
+  TFV extends FieldValues,
+  TName extends FieldPath<TFV>,
+> = BasePropsBuilder<TextFieldProps, TFV, TName>;
 
 type AccessoryContext<
   TFV extends FieldValues,
@@ -30,7 +23,7 @@ type AccessoryContext<
 > = Props<TFV, TName> & {
   additionalProps: TextFieldProps;
   setAdditionalProps: React.Dispatch<React.SetStateAction<TextFieldProps>>;
-  controller: UseControllerReturn<TFV, Path<TFV>>;
+  controller: UseControllerReturn<TFV, TName>;
 };
 
 type AccessoryCustomRenderer = <
@@ -40,9 +33,7 @@ type AccessoryCustomRenderer = <
   ctx: AccessoryContext<TFV, TName>
 ) => React.ReactNode;
 
-const ClearButton = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
-  props: AccessoryContext<TFV, TName>
-) => {
+const ClearButton: AccessoryCustomRenderer = (props) => {
   return props.controller.field.value ? (
     <IconButton
       size="small"
