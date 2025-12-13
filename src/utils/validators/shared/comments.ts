@@ -1,4 +1,4 @@
-import { z } from "zod";
+import z from "zod";
 
 const commentTextSchema = z.string().min(1).max(255);
 const idSchema = z.string().nonempty();
