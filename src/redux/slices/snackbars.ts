@@ -72,7 +72,9 @@ export const snackbarsSlice = createSlice({
       }
     },
     dismissAllSnackbars: (state) => {
-      state.items.forEach((snack) => (snack.dismissed = true));
+      state.items.forEach((snack) => {
+        snack.dismissed = true;
+      });
     },
     deleteSnackbar: (state, action: PayloadAction<SnackbarId>) => {
       state.items = state.items.filter((snack) => snack.id !== action.payload);
