@@ -71,6 +71,13 @@
       "when": 1766081404213,
       "tag": "0009_greedy_butterfly",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1766083266667,
+      "tag": "0010_silly_dragon_lord",
+      "breakpoints": true
     }
   ]
 }
