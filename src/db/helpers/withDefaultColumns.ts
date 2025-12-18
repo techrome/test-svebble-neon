@@ -1,7 +1,8 @@
-import { uuid, timestamp } from "drizzle-orm/pg-core";
+import { uuid, timestamp, date } from "drizzle-orm/pg-core";
 
 const idColumn = () => uuid().primaryKey().defaultRandom();
 const timestampColumn = () => timestamp().notNull().defaultNow();
+const dateColumn = () => date().notNull().defaultNow();
 
 const defaultColumns = {
   id: {
@@ -15,6 +16,10 @@ const defaultColumns = {
   updated_at: {
     default: true,
     getColumn: () => timestampColumn(),
+  },
+  day: {
+    default: true,
+    getColumn: () => dateColumn(),
   },
 } as const satisfies Record<
   string,
