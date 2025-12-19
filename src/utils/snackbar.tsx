@@ -13,7 +13,8 @@ import {
 
 declare module "notistack" {
   interface OptionsObject {
-    details?: string;
+    details?: React.ReactNode;
+    detailsStringified?: string;
     durationMs?: number | undefined;
     createdAt?: string;
   }

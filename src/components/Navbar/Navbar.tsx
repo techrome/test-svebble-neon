@@ -32,6 +32,7 @@ import {
 import Fuse from "fuse.js";
 import { type Dayjs } from "dayjs";
 import z from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 
 import { useGlobalDrawer, useLocalPopover } from "@/utils/useOverlay";
 import {
@@ -56,13 +57,15 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import Input from "@/components/Fields/Input";
 import Badge from "@/components/Badge/Badge";
 import Button from "@/components/Button/Button";
-import DatePicker from "@/components/Fields/Datepicker";
 import { countMeaningfulValues } from "@/utils/countMeaningfulValues";
-import TimePicker from "@/components/Fields/TimePicker";
 import DateTimePicker from "@/components/Fields/DateTimePicker";
 import { logger } from "@/utils/logger";
 import { normalizeText } from "@/utils/stringUtils";
 import dayjs from "@/utils/dayjs";
+import { Text } from "@/utils/validators/helpers/text";
+import { sameWithinMinute } from "@/utils/timeUtils";
+import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
+import { zDayjs } from "@/utils/validators/helpers/custom";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -158,28 +161,57 @@ const notificationTabsMapping = {
 };
 type NotificationTabs = keyof typeof notificationTabsMapping;
 
-type FilterValues = {
-  searchText: string;
-  startDate: Dayjs | null;
-  endDate: Dayjs | null;
-};
+const timePresets = [
+  {
+    id: "1",
+    label: "Last 5 minutes",
+    getTime: (now) => now.subtract(5, "minutes"),
+  },
+  {
+    id: "2",
+    label: "Last 30 minutes",
+    getTime: (now) => now.subtract(30, "minutes"),
+  },
+  {
+    id: "3",
+    label: "Last hour",
+    getTime: (now) => now.subtract(1, "hour"),
+  },
+  {
+    id: "4",
+    label: "Last 2 hours",
+    getTime: (now) => now.subtract(2, "hours"),
+  },
+  {
+    id: "5",
+    label: "Last 24 hours",
+    getTime: (now) => now.subtract(24, "hours"),
+  },
+] satisfies { id: string; label: string; getTime: (now: Dayjs) => Dayjs }[];
+
+const filterSchemaForm = z
+  .object({
+    searchText: Text.Handle,
+    startDate: zDayjs.nullable(),
+    endDate: zDayjs.nullable(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.startDate && v.endDate && v.endDate.isBefore(v.startDate)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["endDate"],
+        message: "End date must be after start date",
+      });
+    }
+  });
+
+type FilterValues = z.infer<typeof filterSchemaForm>;
 
 const emptyFilter: FilterValues = {
   searchText: "",
   startDate: null,
   endDate: null,
 };
-
-// const zDayjs = z.custom<Dayjs>(value => dayjs.isDayjs(value) && value.isValid(), {message:"Invalid date"})
-
-// const filterSchema = z.object<Record<keyof FilterValues, any>>({
-//   startDate: zDayjs.nullable(),
-//   endDate: zDayjs.nullable(),
-//   searchText:z.string().optional(),
-// }).superRefine((data, ctx) => {
-// const {startDate,endDate} = data;
-
-// })
 
 const FilterForm = ({
   onSubmit,
@@ -195,6 +227,9 @@ const FilterForm = ({
     name: ["startDate", "endDate"],
   });
   logger.log({ startDate, endDate });
+
+  const now = dayjs();
+
   return (
     <Section addClassName="w-sm max-w-full">
       <form onSubmit={formState.handleSubmit(onSubmit)} noValidate>
@@ -208,29 +243,43 @@ const FilterForm = ({
             fullWidth
             autoFocus
             endAccessory="clear"
-            //rules={{validate:(value)=>{}}}
           />
-          <DatePicker
+          <DateTimePicker
             control={formState.control}
             name="startDate"
             label="From time"
-            // maxDateTime={endDate || undefined}
-            // rules={{
-            //   validate: (value) => {
-            //     const end = formState.getValues("endDate");
-            //     // if(!value || !end) {return true;}
-            //     // return dayjs(value).isAfter(end)
-            //    return value?.isAfter
-            //   },
-            // }}
+            maxDateTime={endDate || undefined}
           />
-          <TimePicker
+          <DateTimePicker
             control={formState.control}
             name="endDate"
             label="To time"
-
-            // minDateTime={startDate}
+            minDateTime={startDate || undefined}
           />
+          <div className="mb-5">
+            <Label>Time presets</Label>
+            <HorizontalStack>
+              {timePresets.map((preset) => (
+                <Button
+                  key={preset.id}
+                  variant={
+                    startDate &&
+                    sameWithinMinute(preset.getTime(now), startDate)
+                      ? "contained"
+                      : "outlined"
+                  }
+                  onClick={() => {
+                    formState.setValue("startDate", preset.getTime(dayjs()));
+                    formState.setValue("endDate", null, {
+                      shouldValidate: true,
+                    });
+                  }}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </HorizontalStack>
+          </div>
           <HorizontalStack addClassName="w-full justify-between">
             <Button type="button" variant="outlined" onClick={onClear}>
               Clear
@@ -305,13 +354,14 @@ const SystemNotifications = () => {
 
   const filterFormState = useForm<FilterValues>({
     defaultValues: emptyFilter,
+    resolver: zodResolver(filterSchemaForm),
   });
   const fuse = React.useMemo(
     () =>
       new Fuse(systemNotifications, {
         keys: [
           "message",
-          "details",
+          "detailsStringified",
           "variant",
         ] satisfies (keyof SnackbarType)[],
         ignoreLocation: true,
@@ -327,7 +377,16 @@ const SystemNotifications = () => {
       const searchResult = fuse.search(searchText);
       result = searchResult.map((r) => r.item);
     }
-    // if(filter.)
+    if (filter.startDate) {
+      result = result.filter((item) =>
+        dayjs(item.createdAt).isAfter(filter.startDate)
+      );
+    }
+    if (filter.endDate) {
+      result = result.filter((item) =>
+        dayjs(item.createdAt).isBefore(filter.endDate)
+      );
+    }
     return result;
   }, [fuse, systemNotifications, filter]);
 
@@ -360,7 +419,6 @@ const SystemNotifications = () => {
               ""
             ) : (
               <>
-                Found{" "}
                 <Typography
                   variant="body1"
                   component="span"
@@ -369,7 +427,7 @@ const SystemNotifications = () => {
                 >
                   {filteredNotifications.length}
                 </Typography>{" "}
-                of{" "}
+                out of{" "}
               </>
             )}
             {systemNotifications.length} notifications
@@ -394,11 +452,14 @@ const SystemNotifications = () => {
               filterPopover={filterPopover}
               formState={filterFormState}
               handleSubmit={handleFilterSubmit}
-              onDebouncedValue={(searchText) => {
-                setFilter((prev) => ({
-                  ...prev,
-                  searchText,
-                }));
+              onDebouncedValue={async (searchText) => {
+                const isValid = await filterFormState.trigger("searchText");
+                if (isValid) {
+                  setFilter((prev) => ({
+                    ...prev,
+                    searchText,
+                  }));
+                }
               }}
             />
           )}
@@ -454,37 +515,39 @@ const NotificationsContent = () => {
   );
 
   return (
-    <Section fullWidth={false} addClassName="w-2xl max-w-full">
-      <Label>Notifications</Label>
-      <Tabs
-        value={selectedNotificationsTab}
-        onChange={(e, value) => {
-          setSelectedNotificationsTab(value);
-        }}
-        variant="fullWidth"
-        tabs={[
-          {
-            value: notificationTabsMapping.normal,
-            label: notificationTabsMapping.normal,
-            panel: "Normal panel",
-          },
-          {
-            value: notificationTabsMapping.news,
-            label: notificationTabsMapping.news,
-            panel: "Imporant panel",
-          },
-          {
-            value: notificationTabsMapping.system,
-            label: (
-              <Badge badgeContent={unreadSystemNotificationsCount}>
-                <div className="p-1">{notificationTabsMapping.system}</div>
-              </Badge>
-            ),
-            panel: <SystemNotifications />,
-          },
-        ]}
-      />
-    </Section>
+    <LoadingBoundary>
+      <Section fullWidth={false} addClassName="w-2xl max-w-full">
+        <Label>Notifications</Label>
+        <Tabs
+          value={selectedNotificationsTab}
+          onChange={(e, value) => {
+            setSelectedNotificationsTab(value);
+          }}
+          variant="fullWidth"
+          tabs={[
+            {
+              value: notificationTabsMapping.normal,
+              label: notificationTabsMapping.normal,
+              panel: "Normal panel",
+            },
+            {
+              value: notificationTabsMapping.news,
+              label: notificationTabsMapping.news,
+              panel: "Imporant panel",
+            },
+            {
+              value: notificationTabsMapping.system,
+              label: (
+                <Badge badgeContent={unreadSystemNotificationsCount}>
+                  <div className="p-1">{notificationTabsMapping.system}</div>
+                </Badge>
+              ),
+              panel: <SystemNotifications />,
+            },
+          ]}
+        />
+      </Section>
+    </LoadingBoundary>
   );
 };
 

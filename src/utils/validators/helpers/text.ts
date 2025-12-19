@@ -1,6 +1,6 @@
 import z from "zod";
 
-const TEXT_LIMITS = {
+export const TEXT_LIMITS = {
   handle: 32,
   title: 80,
   short: 255,

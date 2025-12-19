@@ -1,6 +1,7 @@
+import { Text, TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import z from "zod";
 
-const commentTextSchema = z.string().min(1).max(255);
+const commentTextSchema = Text.Short.min(1);
 const idSchema = z.string().nonempty();
 
 export const commentsCreate = z.object({

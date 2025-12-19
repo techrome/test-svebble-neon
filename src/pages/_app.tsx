@@ -24,6 +24,7 @@ import Snackbar from "@/components/Snackbar/Snackbar";
 import { SnackbarListener } from "@/utils/snackbar";
 
 import "@/styles/global.scss";
+import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 
 const App = ({ Component, pageProps }: AppProps) => {
   return (
@@ -54,14 +55,16 @@ const App = ({ Component, pageProps }: AppProps) => {
                 <SnackbarListener />
                 <ErrorBoundary FallbackComponent={ErrorBoundaryFallback}>
                   <TopLoader />
-                  <Box className={clsx("flex flex-col min-h-screen")}>
-                    <Navbar />
-                    <Section addClassName="flex-1 flex flex-col">
-                      <Component {...pageProps} />
-                    </Section>
-                    <GlobalModal />
-                    <GlobalDrawer />
-                  </Box>
+                  <LoadingBoundary>
+                    <Box className={clsx("flex flex-col min-h-screen")}>
+                      <Navbar />
+                      <Section addClassName="flex-1 flex flex-col">
+                        <Component {...pageProps} />
+                      </Section>
+                      <GlobalModal />
+                      <GlobalDrawer />
+                    </Box>
+                  </LoadingBoundary>
                 </ErrorBoundary>
               </LocalizationProvider>
             </SnackbarProvider>

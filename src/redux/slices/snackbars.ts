@@ -1,3 +1,4 @@
+import React from "react";
 import { createSlice, nanoid, type PayloadAction } from "@reduxjs/toolkit";
 import dayjs from "@/utils/dayjs";
 import isNumber from "lodash/isNumber";
@@ -5,6 +6,7 @@ import isBoolean from "lodash/isBoolean";
 
 import { PartialFor } from "@/utils/types";
 import { toISOString } from "@/utils/timeUtils";
+import { reactNodeToText } from "@/utils/reactNodeToText";
 
 export type SnackbarId = string | number;
 
@@ -12,7 +14,8 @@ export type Snackbar = {
   id: SnackbarId;
   variant: "info" | "success" | "warning" | "error";
   message: string;
-  details?: string;
+  details?: React.ReactNode;
+  detailsStringified?: string;
   dismissed: boolean;
   createdAt: string;
   isRead: boolean;
@@ -21,7 +24,7 @@ export type Snackbar = {
 };
 
 export type SnackbarPayload = PartialFor<
-  Omit<Snackbar, "createdAt" | "dismissed" | "isRead">,
+  Omit<Snackbar, "createdAt" | "dismissed" | "isRead" | "detailsStringified">,
   "id" | "variant" | "persist"
 >;
 
@@ -54,6 +57,7 @@ export const snackbarsSlice = createSlice({
           ? action.payload.persist
           : true,
         isRead: false,
+        detailsStringified: reactNodeToText(action.payload.details),
         ...action.payload,
       } satisfies Snackbar;
       state.items.push(newSnackbar);
