@@ -17,5 +17,5 @@ const getTimeDiff = (
   diff: number
 ) => Math.abs(a.diff(b, unit, true)) <= diff;
 
-export const sameWithinMinute = (a: Dayjs, b: Dayjs) =>
+export const isWithinMinute = (a: Dayjs, b: Dayjs) =>
   getTimeDiff(a, b, "minute", 1);

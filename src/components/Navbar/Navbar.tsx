@@ -63,7 +63,7 @@ import { logger } from "@/utils/logger";
 import { normalizeText } from "@/utils/stringUtils";
 import dayjs from "@/utils/dayjs";
 import { Text } from "@/utils/validators/helpers/text";
-import { sameWithinMinute } from "@/utils/timeUtils";
+import { isWithinMinute } from "@/utils/timeUtils";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { zDayjs } from "@/utils/validators/helpers/custom";
 
@@ -263,8 +263,7 @@ const FilterForm = ({
                 <Button
                   key={preset.id}
                   variant={
-                    startDate &&
-                    sameWithinMinute(preset.getTime(now), startDate)
+                    startDate && isWithinMinute(preset.getTime(now), startDate)
                       ? "contained"
                       : "outlined"
                   }
