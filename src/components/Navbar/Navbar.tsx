@@ -191,7 +191,7 @@ const timePresets = [
 
 const filterSchemaForm = z
   .object({
-    searchText: Text.Handle,
+    searchText: Text.Long,
     startDate: zDayjs.nullable(),
     endDate: zDayjs.nullable(),
   })
