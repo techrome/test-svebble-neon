@@ -3,14 +3,13 @@ import Button from "@/components/Button/Button";
 import { Virtuoso } from "react-virtuoso";
 
 import { trpc } from "@/trpc/client";
-import useMyQuery from "@/utils/useMyQuery";
+import useAppQuery from "@/utils/useAppQuery";
+import { RouterOutput } from "@/trpc/client";
 
 type CommentProps = {
-  comment: {
-    text: string;
-    id: string;
-  };
+  comment: RouterOutput["commentsGet"][number];
 };
+
 const Comment = ({ comment }: CommentProps) => {
   const [isEdit, setIsEdit] = React.useState(false);
   const [editInfo, setEditInfo] = React.useState(comment);
@@ -96,7 +95,7 @@ const Comment = ({ comment }: CommentProps) => {
 };
 
 const CommentsList = () => {
-  const comments = useMyQuery(
+  const comments = useAppQuery(
     trpc.commentsGet.useQuery(undefined, { staleTime: 15000 })
   );
   return (

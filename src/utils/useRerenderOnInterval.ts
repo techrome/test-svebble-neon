@@ -36,10 +36,10 @@ const subscribe = (onStoreChange: () => void) => {
   };
 };
 
+const getSnapshot = () => tick;
+
+// using React.useSyncExternalStore so that many subscribing components could read the same value
+// and re-render at the same time without creating hook timer for each of them
 export const useRerenderOnInterval = () => {
-  return React.useSyncExternalStore(
-    (onStoreChange) => subscribe(onStoreChange),
-    () => tick,
-    () => tick
-  );
+  return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 };

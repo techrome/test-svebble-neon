@@ -55,7 +55,7 @@ export function useSnackbarProgressTimer(
     };
   }, [pauseOnWindowBlur, shouldAutoRun, play, pause]);
 
-  const eventHandlers: Pick<
+  let eventHandlers: Pick<
     React.DOMAttributes<HTMLDivElement>,
     "onMouseEnter" | "onMouseLeave"
   > = {};

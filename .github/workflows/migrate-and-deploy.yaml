@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  check-changes:
+  check_needs_migration:
     runs-on: ubuntu-22.04
     outputs:
       directory-modified: ${{ steps.directory-modified.outputs.db }}
@@ -23,9 +23,23 @@ jobs:
             db:
               - 'drizzle/**'
 
+  check_migrations_are_committed:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: ./.github/actions/setup-node-steps
+      - name: Ensure migrations are committed
+        run: |
+          npm run db:g
+
+          if [ -n "$(git status --porcelain -- drizzle)" ]; then
+            echo "[Custom Error]: Schema changed but migrations are not committed. Run db:g and commit the drizzle/ changes."
+            exit 1
+          fi
+
   migrate:
-    needs: check-changes
-    if: needs.check-changes.outputs.directory-modified == 'true'
+    needs: [check_needs_migration, check_migrations_are_committed]
+    if: needs.check_needs_migration.outputs.directory-modified == 'true'
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -33,22 +47,8 @@ jobs:
       group: migrate-prod
       cancel-in-progress: false
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v5.0.0
-      - name: Setup node
-        id: setup-node
-        uses: actions/setup-node@v6.0.0
-        with:
-          node-version: "22.17.1"
-      - name: Cache node_modules
-        id: nm-cache
-        uses: actions/cache@v4.3.0
-        with:
-          path: node_modules
-          key: ${{ runner.os }}-node-${{ steps.setup-node.outputs.node-version }}-${{ hashFiles('package-lock.json') }}
-      - name: Install deps
-        if: steps.nm-cache.outputs.cache-hit != 'true'
-        run: npm ci
+      - uses: actions/checkout@v5.0.0
+      - uses: ./.github/actions/setup-node-steps
       - name: Run DB migrations
         run: npm run db:m-prod
         env:
@@ -56,8 +56,8 @@ jobs:
           DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
 
   deploy:
-    needs: [check-changes, migrate]
-    if: success() || needs.migrate.result == 'skipped'
+    needs: [check_needs_migration, check_migrations_are_committed, migrate]
+    if: success() || (needs.migrate.result == 'skipped' && needs.check_migrations_are_committed.result == 'success')
     runs-on: ubuntu-22.04
     steps:
       - name: Trigger Vercel production deploy

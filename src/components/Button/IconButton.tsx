@@ -1,7 +1,7 @@
 import React from "react";
 import {
   IconButton as MuiIconButton,
-  IconButtonProps as MuiIconButtonProps,
+  type IconButtonProps as MuiIconButtonProps,
 } from "@mui/material";
 
 type Props = MuiIconButtonProps;

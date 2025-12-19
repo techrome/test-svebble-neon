@@ -1,9 +1,12 @@
+import React from "react";
 import { createSlice, nanoid, type PayloadAction } from "@reduxjs/toolkit";
 import dayjs from "@/utils/dayjs";
 import isNumber from "lodash/isNumber";
 import isBoolean from "lodash/isBoolean";
 
 import { PartialFor } from "@/utils/types";
+import { toISOString } from "@/utils/timeUtils";
+import { reactNodeToText } from "@/utils/reactNodeToText";
 
 export type SnackbarId = string | number;
 
@@ -11,15 +14,17 @@ export type Snackbar = {
   id: SnackbarId;
   variant: "info" | "success" | "warning" | "error";
   message: string;
-  details?: string;
+  details?: React.ReactNode;
+  detailsStringified?: string;
   dismissed: boolean;
   createdAt: string;
+  isRead: boolean;
   durationMs?: number | undefined;
   persist: boolean;
 };
 
 export type SnackbarPayload = PartialFor<
-  Omit<Snackbar, "createdAt" | "dismissed">,
+  Omit<Snackbar, "createdAt" | "dismissed" | "isRead" | "detailsStringified">,
   "id" | "variant" | "persist"
 >;
 
@@ -28,7 +33,7 @@ export type SnackbarState = {
   systemNotifications: Snackbar[];
 };
 
-const maxSystemNotifications = 250;
+const maxSystemNotifications = 1000;
 
 const initialState: SnackbarState = {
   items: [],
@@ -42,7 +47,7 @@ export const snackbarsSlice = createSlice({
     addSnackbar: (state, action: PayloadAction<SnackbarPayload>) => {
       const newSnackbar = {
         id: action.payload.id || nanoid(),
-        createdAt: dayjs().toISOString(),
+        createdAt: toISOString(dayjs()),
         dismissed: false,
         variant: action.payload.variant || "info",
         durationMs: isNumber(action.payload.durationMs)
@@ -51,6 +56,8 @@ export const snackbarsSlice = createSlice({
         persist: isBoolean(action.payload.persist)
           ? action.payload.persist
           : true,
+        isRead: false,
+        detailsStringified: reactNodeToText(action.payload.details),
         ...action.payload,
       } satisfies Snackbar;
       state.items.push(newSnackbar);
@@ -69,7 +76,9 @@ export const snackbarsSlice = createSlice({
       }
     },
     dismissAllSnackbars: (state) => {
-      state.items.forEach((snack) => (snack.dismissed = true));
+      state.items.forEach((snack) => {
+        snack.dismissed = true;
+      });
     },
     deleteSnackbar: (state, action: PayloadAction<SnackbarId>) => {
       state.items = state.items.filter((snack) => snack.id !== action.payload);
@@ -85,6 +94,11 @@ export const snackbarsSlice = createSlice({
     deleteAllSystemNotifications: (state) => {
       state.systemNotifications = [];
     },
+    readAllSystemNotifications: (state) => {
+      state.systemNotifications.forEach((snack) => {
+        snack.isRead = true;
+      });
+    },
   },
 });
 
@@ -96,6 +110,7 @@ export const {
   dismissAllSnackbars,
   deleteSystemNotification,
   deleteAllSystemNotifications,
+  readAllSystemNotifications,
 } = snackbarsSlice.actions;
 
 export default snackbarsSlice.reducer;

@@ -7,6 +7,9 @@ import { Box } from "@mui/material";
 import { Provider as ReduxProvider } from "react-redux";
 import { ErrorBoundary } from "react-error-boundary";
 import { SnackbarProvider } from "notistack";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import "dayjs/locale/en-gb";
 
 import { trpc } from "@/trpc/client";
 import Navbar from "@/components/Navbar/Navbar";
@@ -18,9 +21,10 @@ import GlobalDrawer from "@/components/Overlays/GlobalDrawer";
 import { Section } from "@/components/Layout/Containers";
 import ErrorBoundaryFallback from "@/components/GlobalError/ErrorBoundaryFallback";
 import Snackbar from "@/components/Snackbar/Snackbar";
+import { SnackbarListener } from "@/utils/snackbar";
 
 import "@/styles/global.scss";
-import { SnackbarListener } from "@/utils/snackbar";
+import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 
 const App = ({ Component, pageProps }: AppProps) => {
   return (
@@ -44,18 +48,25 @@ const App = ({ Component, pageProps }: AppProps) => {
                 exit: 150,
               }}
             >
-              <SnackbarListener />
-              <ErrorBoundary FallbackComponent={ErrorBoundaryFallback}>
-                <TopLoader />
-                <Box className={clsx("flex flex-col min-h-screen")}>
-                  <Navbar />
-                  <Section addClassName="flex-1 flex flex-col">
-                    <Component {...pageProps} />
-                  </Section>
-                  <GlobalModal />
-                  <GlobalDrawer />
-                </Box>
-              </ErrorBoundary>
+              <LocalizationProvider
+                dateAdapter={AdapterDayjs}
+                adapterLocale="en-gb"
+              >
+                <SnackbarListener />
+                <ErrorBoundary FallbackComponent={ErrorBoundaryFallback}>
+                  <TopLoader />
+                  <LoadingBoundary>
+                    <Box className={clsx("flex flex-col min-h-screen")}>
+                      <Navbar />
+                      <Section addClassName="flex-1 flex flex-col">
+                        <Component {...pageProps} />
+                      </Section>
+                      <GlobalModal />
+                      <GlobalDrawer />
+                    </Box>
+                  </LoadingBoundary>
+                </ErrorBoundary>
+              </LocalizationProvider>
             </SnackbarProvider>
           </ThemeProvider>
         </StyledEngineProvider>

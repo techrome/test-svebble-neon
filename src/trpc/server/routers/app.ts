@@ -1,4 +1,4 @@
-import { z } from "zod";
+import z from "zod";
 import { eq, desc } from "drizzle-orm";
 
 import { procedure, router } from "@/trpc/server";

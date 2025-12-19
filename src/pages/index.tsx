@@ -4,7 +4,7 @@ import Button from "@/components/Button/Button";
 import clsx from "clsx";
 
 import { trpc } from "@/trpc/client";
-import useMyQuery from "@/utils/useMyQuery";
+import useAppQuery from "@/utils/useAppQuery";
 import { prepareDefaultData } from "@/utils/prepareDefaultData";
 import CommentsList from "@/components/CommentsList/CommentsList";
 import Link from "@/components/Link/Link";
@@ -21,7 +21,7 @@ import { ROUTES } from "@/utils/routes";
 import { useAppSnackbar } from "@/utils/snackbar";
 
 const GlobalData = () => {
-  const globalData = useMyQuery(
+  const globalData = useAppQuery(
     trpc.globalData.useQuery(undefined, { staleTime: 30000 })
   );
 
@@ -133,6 +133,7 @@ const HomePage = () => {
   const localDrawer = useLocalDrawer();
   const { openDrawer, closeDrawer } = useGlobalDrawer();
   const { addAppSnackbar, dismissAllAppSnackbars } = useAppSnackbar();
+
   return (
     <VerticalStack>
       <h1>Hi</h1>

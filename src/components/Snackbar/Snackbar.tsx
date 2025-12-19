@@ -12,7 +12,10 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import { useSnackbarProgressTimer } from "@/components/Snackbar/useSnackbarProgressTimer";
 import { SnackProgressBar } from "@/components/Snackbar/SnackbarProgress";
 import { useAppDispatch } from "@/redux/hooks";
-import { deleteSystemNotification } from "@/redux/slices/snackbars";
+import {
+  deleteSystemNotification,
+  type Snackbar as SnackbarType,
+} from "@/redux/slices/snackbars";
 import dayjs from "@/utils/dayjs";
 import { dateTimeFormatFullDisplay } from "@/utils/dateFormats";
 import { useRerenderOnInterval } from "@/utils/useRerenderOnInterval";
@@ -22,10 +25,11 @@ type SnackbarProps = {
 } & Omit<CustomContentProps, "key">;
 type SystemNotificationProps = {
   isSystemNotification: true;
-} & Omit<
-  CustomContentProps,
-  "style" | "anchorOrigin" | "hideIconVariant" | "iconVariant" | "key"
->;
+} & SnackbarType &
+  Omit<
+    CustomContentProps,
+    "style" | "anchorOrigin" | "hideIconVariant" | "iconVariant" | "key"
+  >;
 type Props = SnackbarProps | SystemNotificationProps;
 
 const AutoRefreshingTime = ({ createdAt }: Pick<Props, "createdAt">) => {
@@ -56,6 +60,11 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
       ref={ref}
       variant="standard"
       severity={props.variant}
+      className={
+        props.isSystemNotification && !props.isRead
+          ? "border border-(--mui-palette-warning-main)"
+          : ""
+      }
       {...eventHandlers}
     >
       {hasDuration && (
@@ -123,8 +132,10 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
       </HorizontalStack>
       {hasDetails && (
         <Collapse in={expanded} unmountOnExit>
-          <Box className="mt-2 pr-3 max-w-full max-h-[200px] overflow-y-auto">
-            <Typography variant="body2">{props.details}</Typography>
+          <Box className="mt-2 pr-3 max-w-full max-h-[250px] overflow-y-auto">
+            <Typography variant="body2" component="span">
+              {props.details}
+            </Typography>
           </Box>
         </Collapse>
       )}

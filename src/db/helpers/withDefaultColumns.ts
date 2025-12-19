@@ -1,7 +1,8 @@
 import { uuid, timestamp } from "drizzle-orm/pg-core";
 
 const idColumn = () => uuid().primaryKey().defaultRandom();
-const timestampColumn = () => timestamp().notNull().defaultNow();
+const timestampColumn = () =>
+  timestamp({ withTimezone: true }).notNull().defaultNow();
 
 const defaultColumns = {
   id: {
