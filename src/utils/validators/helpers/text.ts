@@ -8,21 +8,27 @@ export const TEXT_LIMITS = {
 } as const;
 
 type TextProfile = keyof typeof TEXT_LIMITS;
+type TextOptions = { shouldTrim?: boolean; required?: boolean };
 
 export const text = (
   profile: TextProfile,
-  { shouldTrim = true }: { shouldTrim?: boolean } = {}
+  { shouldTrim = true, required = false }: TextOptions = {}
 ) => {
   let result = z.string();
   if (shouldTrim) {
     result = result.trim();
   }
-  return result.max(TEXT_LIMITS[profile]);
+  if (required) {
+    result = result.min(1, { error: "Field is required" });
+  }
+  return result.max(TEXT_LIMITS[profile], {
+    error: (iss) => `Field must be less than ${iss.maximum} characters`,
+  });
 };
 
 export const Text = {
-  Handle: text("handle"),
-  Title: text("title"),
-  Short: text("short"),
-  Long: text("long"),
+  Handle: (options?: TextOptions) => text("handle", options),
+  Title: (options?: TextOptions) => text("title", options),
+  Short: (options?: TextOptions) => text("short", options),
+  Long: (options?: TextOptions) => text("long", options),
 } as const;
