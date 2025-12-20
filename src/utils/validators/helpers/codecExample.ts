@@ -7,7 +7,7 @@ import { zDayjs } from "@/utils/validators/helpers/custom";
 
 const filterSchemaForm = z
   .object({
-    searchText: Text.Handle,
+    searchText: Text.Handle(),
     startDate: zDayjs.nullable(),
     endDate: zDayjs.nullable(),
   })
