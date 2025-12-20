@@ -6,7 +6,6 @@ import {
   useController,
   UseControllerReturn,
 } from "react-hook-form";
-import clsx from "clsx";
 import ClearIcon from "@mui/icons-material/Clear";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";

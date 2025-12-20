@@ -1,4 +1,4 @@
-import { Text, TEXT_LIMITS } from "@/utils/validators/helpers/text";
+import { Text } from "@/utils/validators/helpers/text";
 import z from "zod";
 
 const commentTextSchema = Text.Short({ required: true });

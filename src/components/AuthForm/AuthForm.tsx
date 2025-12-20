@@ -1,6 +1,5 @@
 import Login from "@/components/AuthForm/Login";
 import Signup from "@/components/AuthForm/Signup";
-import Button from "@/components/Button/Button";
 import Tabs from "@/components/Tabs/Tabs";
 import React from "react";
 

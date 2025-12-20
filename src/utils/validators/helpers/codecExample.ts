@@ -1,5 +1,4 @@
 import z from "zod";
-import { Dayjs } from "dayjs";
 
 import dayjs from "@/utils/dayjs";
 import { Text } from "@/utils/validators/helpers/text";
