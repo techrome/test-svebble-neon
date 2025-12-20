@@ -7,7 +7,6 @@ import { trpc } from "@/trpc/client";
 import useAppQuery from "@/utils/useAppQuery";
 import { prepareDefaultData } from "@/utils/prepareDefaultData";
 import CommentsList from "@/components/CommentsList/CommentsList";
-import Link from "@/components/Link/Link";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { Box } from "@mui/material";
 import {
@@ -17,7 +16,6 @@ import {
   useLocalModal,
 } from "@/utils/useOverlay";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
-import { ROUTES } from "@/utils/routes";
 import { useAppSnackbar } from "@/utils/snackbar";
 
 const GlobalData = () => {
@@ -201,11 +199,7 @@ const HomePage = () => {
         >
           Open local modal
         </Button>
-        <localModal.Modal
-          isOpen={localModal.isOpen}
-          onClose={localModal.closeModal}
-          title="Authentication"
-        >
+        <localModal.ReadyComponent title="Authentication">
           <Button
             variant="contained"
             color="info"
@@ -213,7 +207,7 @@ const HomePage = () => {
           >
             OK
           </Button>
-        </localModal.Modal>
+        </localModal.ReadyComponent>
         <Button
           variant="contained"
           color="info"

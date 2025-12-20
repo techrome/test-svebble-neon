@@ -34,7 +34,11 @@ import { type Dayjs } from "dayjs";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-import { useGlobalDrawer, useLocalPopover } from "@/utils/useOverlay";
+import {
+  useGlobalDrawer,
+  useLocalModal,
+  useLocalPopover,
+} from "@/utils/useOverlay";
 import {
   HorizontalStack,
   Section,
@@ -66,6 +70,10 @@ import { Text } from "@/utils/validators/helpers/text";
 import { isWithinMinute } from "@/utils/timeUtils";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { zDayjs } from "@/utils/validators/helpers/custom";
+import AuthForm, {
+  AuthType,
+  authTypeMapping,
+} from "@/components/AuthForm/AuthForm";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -191,7 +199,7 @@ const timePresets = [
 
 const filterSchemaForm = z
   .object({
-    searchText: Text.Long,
+    searchText: Text.Long(),
     startDate: zDayjs.nullable(),
     endDate: zDayjs.nullable(),
   })
@@ -200,7 +208,7 @@ const filterSchemaForm = z
       ctx.addIssue({
         code: "custom",
         path: ["endDate"],
-        message: "End date must be after start date",
+        message: "End time must be after start time",
       });
     }
   });
@@ -238,7 +246,7 @@ const FilterForm = ({
           <Input
             control={formState.control}
             name="searchText"
-            label="Search Text"
+            label="Search"
             type="text"
             fullWidth
             autoFocus
@@ -247,13 +255,13 @@ const FilterForm = ({
           <DateTimePicker
             control={formState.control}
             name="startDate"
-            label="From time"
+            label="Start time"
             maxDateTime={endDate || undefined}
           />
           <DateTimePicker
             control={formState.control}
             name="endDate"
-            label="To time"
+            label="End time"
             minDateTime={startDate || undefined}
           />
           <div className="mb-5">
@@ -326,11 +334,11 @@ const SearchOutsideForm = ({
   }, [searchText, filterPopover.isOpen]);
 
   return (
-    <form onSubmit={formState.handleSubmit(handleSubmit)}>
+    <form onSubmit={formState.handleSubmit(handleSubmit)} noValidate>
       <Input
         control={formState.control}
         name="searchText"
-        label="Search Text"
+        label="Search"
         type="text"
         withHelperText={false}
         className="w-3xs"
@@ -489,7 +497,7 @@ const SystemNotifications = () => {
           return <Snackbar isSystemNotification {...systemNotification} />;
         }}
       />
-      <filterPopover.ReadyPopover
+      <filterPopover.ReadyComponent
         onClose={() => {
           filterFormState.reset(filter, { keepDefaultValues: true });
         }}
@@ -499,7 +507,7 @@ const SystemNotifications = () => {
           onSubmit={handleFilterSubmit}
           onClear={handleClearFilter}
         />
-      </filterPopover.ReadyPopover>
+      </filterPopover.ReadyComponent>
     </Box>
   );
 };
@@ -551,7 +559,9 @@ const NotificationsContent = () => {
 };
 
 const Navbar = () => {
+  const [authType, setAuthType] = React.useState<AuthType>("login");
   const { openDrawer, closeDrawer } = useGlobalDrawer();
+  const authModal = useLocalModal();
   const router = useRouter();
 
   const notificationsPopover = useLocalPopover();
@@ -574,20 +584,45 @@ const Navbar = () => {
           </Typography>
         </Link>
         <HorizontalStack>
-          <IconButton
-            size="large"
-            color="inherit"
-            aria-label="notifications"
-            onClick={notificationsPopover.openPopover}
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setAuthType("login");
+              authModal.openModal();
+            }}
           >
-            <Badge badgeContent={0}>
-              <NotificationsIcon />
-            </Badge>
-          </IconButton>
-          <notificationsPopover.ReadyPopover transitionDuration={0}>
+            Log in
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setAuthType("signup");
+              authModal.openModal();
+            }}
+          >
+            Sign up
+          </Button>
+          <LoadingBoundary>
+            <IconButton
+              size="large"
+              color="inherit"
+              aria-label="notifications"
+              onClick={notificationsPopover.openPopover}
+            >
+              <Badge badgeContent={0}>
+                <NotificationsIcon />
+              </Badge>
+            </IconButton>
+          </LoadingBoundary>
+          <authModal.ReadyComponent title={authTypeMapping[authType]}>
+            <AuthForm
+              initialAuthType={authType}
+              onAuthTypeChange={setAuthType}
+            />
+          </authModal.ReadyComponent>
+          <notificationsPopover.ReadyComponent transitionDuration={0}>
             <NotificationsContent />
-          </notificationsPopover.ReadyPopover>
-
+          </notificationsPopover.ReadyComponent>
           <IconButton
             size="large"
             color="inherit"
