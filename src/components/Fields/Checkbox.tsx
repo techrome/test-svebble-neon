@@ -14,7 +14,7 @@ import {
   type FormControlProps,
 } from "@mui/material";
 import { BasePropsBuilder } from "@/components/Fields/BasePicker";
-import clsx from "clsx";
+import ErrorLabel from "@/components/Fields/ErrorLabel";
 
 type BaseMuiProps = {
   checkboxProps?: Omit<
@@ -79,18 +79,9 @@ const Checkbox = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
         }
       />
 
-      {hasError && (
-        <FormHelperText>
-          <span
-            className={clsx(
-              "block transition min-h-5",
-              hasError ? "opacity-100" : "opacity-0"
-            )}
-          >
-            {hasError ? errorMessage : ""}
-          </span>
-        </FormHelperText>
-      )}
+      <FormHelperText>
+        <ErrorLabel hasError={hasError} error={fieldState.error} />
+      </FormHelperText>
     </FormControl>
   );
 };

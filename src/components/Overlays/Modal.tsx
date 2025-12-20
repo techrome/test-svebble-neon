@@ -10,9 +10,12 @@ import {
 import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@/components/Button/IconButton";
 
+type MuiOnClose = NonNullable<DialogProps["onClose"]>;
+type MuiCloseArgs = Parameters<MuiOnClose>;
+
 export type ModalProps = {
   isOpen: boolean;
-  onClose: () => void;
+  onClose: (event?: MuiCloseArgs[0], reason?: MuiCloseArgs[1]) => void;
   onExited?: () => void;
   title?: string;
   children: React.ReactNode;
