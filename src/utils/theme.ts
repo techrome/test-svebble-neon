@@ -49,6 +49,16 @@ _theme = {
         icon: { marginTop: _theme.spacing(1.5) },
       },
     },
+    MuiDialog: {
+      styleOverrides: {
+        paper: ({ theme }) => ({
+          [theme.breakpoints.down("sm")]: {
+            margin: theme.spacing(1),
+            width: "100%",
+          },
+        }),
+      },
+    },
   },
 };
 
