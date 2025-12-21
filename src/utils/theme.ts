@@ -51,12 +51,23 @@ _theme = {
     },
     MuiDialog: {
       styleOverrides: {
-        paper: ({ theme }) => ({
-          [theme.breakpoints.down("sm")]: {
-            margin: theme.spacing(1),
+        paper: {
+          [_theme.breakpoints.down("sm")]: {
+            margin: _theme.spacing(1),
             width: "100%",
+            maxHeight: `calc(100% - ${_theme.spacing(2)})`,
           },
-        }),
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          transition: `var(--default-transition-duration)`,
+          "&:hover": {
+            backgroundColor: _theme.vars?.palette.action.hover,
+          },
+        },
       },
     },
   },

@@ -74,6 +74,7 @@ import AuthForm, {
   AuthType,
   authTypeMapping,
 } from "@/components/AuthForm/AuthForm";
+import clsx from "clsx";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -82,12 +83,51 @@ const MotionItem = React.forwardRef<
   <motion.div ref={ref} layout transition={{ duration: 0.2 }} {...props} />
 ));
 
+const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
+  const [authType, setAuthType] = React.useState<AuthType>("login");
+  const authModal = useLocalModal();
+
+  return (
+    <HorizontalStack
+      addClassName={clsx("items-center", props.isNavbar && "max-md:hidden")}
+      wrap={false}
+    >
+      <Button
+        variant="outlined"
+        onClick={() => {
+          setAuthType("login");
+          authModal.openModal();
+        }}
+        size="large"
+        fullWidth={props.fullWidth}
+      >
+        Log in
+      </Button>
+      <Button
+        variant="contained"
+        onClick={() => {
+          setAuthType("signup");
+          authModal.openModal();
+        }}
+        size="large"
+        fullWidth={props.fullWidth}
+      >
+        Sign up
+      </Button>
+      <authModal.ReadyComponent title={authTypeMapping[authType]}>
+        <AuthForm initialAuthType={authType} onAuthTypeChange={setAuthType} />
+      </authModal.ReadyComponent>
+    </HorizontalStack>
+  );
+};
+
 const DrawerContent = () => {
   const { mode, setMode } = useColorScheme();
   const modeLabelId = useId();
 
   return (
     <VerticalStack withPadding addClassName="flex-1 overflow-y-auto">
+      <AuthButtons fullWidth />
       <Box>
         <Label id={modeLabelId}>Mode</Label>
         <ToggleButtonGroup
@@ -559,9 +599,7 @@ const NotificationsContent = () => {
 };
 
 const Navbar = () => {
-  const [authType, setAuthType] = React.useState<AuthType>("login");
   const { openDrawer, closeDrawer } = useGlobalDrawer();
-  const authModal = useLocalModal();
   const router = useRouter();
 
   const notificationsPopover = useLocalPopover();
@@ -584,24 +622,7 @@ const Navbar = () => {
           </Typography>
         </Link>
         <HorizontalStack>
-          <Button
-            variant="outlined"
-            onClick={() => {
-              setAuthType("login");
-              authModal.openModal();
-            }}
-          >
-            Log in
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setAuthType("signup");
-              authModal.openModal();
-            }}
-          >
-            Sign up
-          </Button>
+          <AuthButtons isNavbar />
           <LoadingBoundary>
             <IconButton
               size="large"
@@ -614,12 +635,6 @@ const Navbar = () => {
               </Badge>
             </IconButton>
           </LoadingBoundary>
-          <authModal.ReadyComponent title={authTypeMapping[authType]}>
-            <AuthForm
-              initialAuthType={authType}
-              onAuthTypeChange={setAuthType}
-            />
-          </authModal.ReadyComponent>
           <notificationsPopover.ReadyComponent transitionDuration={0}>
             <NotificationsContent />
           </notificationsPopover.ReadyComponent>

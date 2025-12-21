@@ -20,6 +20,7 @@ import { useAppSnackbar } from "@/utils/snackbar";
 import { Text } from "@/utils/validators/helpers/text";
 import { LinearProgress, Typography, TypographyProps } from "@mui/material";
 import Collapse from "@/components/Collapse/Collapse";
+import { Divider } from "@/components/Layout/Dividers";
 
 type Props = {
   onSubmit?: () => void;
@@ -297,6 +298,10 @@ const Signup = (props: Props) => {
           </Button>
         </VerticalStack>
       </form>
+      <Divider className="my-4">or</Divider>
+      <Button variant="outlined" fullWidth size="large">
+        Continue as guest
+      </Button>
     </Section>
   );
 };
