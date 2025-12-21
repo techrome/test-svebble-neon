@@ -3,9 +3,9 @@ import { type GetStaticProps } from "next";
 import Button from "@/components/Button/Button";
 import clsx from "clsx";
 
-import { trpc } from "@/trpc/client";
+import { utils } from "@/server";
+import { trpc } from "@/trpc";
 import useAppQuery from "@/utils/useAppQuery";
-import { prepareDefaultData } from "@/utils/prepareDefaultData";
 import CommentsList from "@/components/CommentsList/CommentsList";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { Box } from "@mui/material";
@@ -276,7 +276,7 @@ const HomePage = () => {
 };
 
 export const getStaticProps = (async () => {
-  const helpers = await prepareDefaultData();
+  const helpers = await utils.prepareDefaultData();
   await helpers.commentsGet.prefetch();
   return {
     props: {

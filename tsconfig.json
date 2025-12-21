@@ -19,6 +19,8 @@
       }
     ],
     "paths": {
+      "@/server": ["./src/server/index.ts"],
+      "@/server/*": ["./src/nonexistent-directory/*"],
       "@/*": ["./src/*"],
       "@@/*": ["./*"]
     }
