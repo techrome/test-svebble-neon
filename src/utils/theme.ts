@@ -70,6 +70,13 @@ _theme = {
         },
       },
     },
+    MuiFormLabel: {
+      styleOverrides: {
+        asterisk: {
+          color: _theme.vars?.palette.error.main,
+        },
+      },
+    },
   },
 };
 

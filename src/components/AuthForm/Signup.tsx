@@ -215,7 +215,7 @@ const Signup = (props: Props) => {
 
   return (
     <Section addClassName="mt-5">
-      <form onSubmit={form.handleSubmit(onSubmit)}>
+      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
         <VerticalStack>
           <Input
             control={form.control}
