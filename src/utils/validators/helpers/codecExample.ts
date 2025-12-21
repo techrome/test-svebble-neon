@@ -1,5 +1,4 @@
 import z from "zod";
-import { Dayjs } from "dayjs";
 
 import dayjs from "@/utils/dayjs";
 import { Text } from "@/utils/validators/helpers/text";
@@ -7,7 +6,7 @@ import { zDayjs } from "@/utils/validators/helpers/custom";
 
 const filterSchemaForm = z
   .object({
-    searchText: Text.Handle,
+    searchText: Text.Handle(),
     startDate: zDayjs.nullable(),
     endDate: zDayjs.nullable(),
   })

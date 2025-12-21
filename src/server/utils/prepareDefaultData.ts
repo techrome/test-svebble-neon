@@ -1,11 +1,11 @@
 import { createServerSideHelpers } from "@trpc/react-query/server";
 import superJSON from "superjson";
 
-import { appRouter } from "@/trpc/server/routers/app";
+import { trpc } from "@/server";
 
 export const prepareDefaultData = async () => {
   const helpers = createServerSideHelpers({
-    router: appRouter,
+    router: trpc.appRouter,
     ctx: {},
     transformer: superJSON,
   });

@@ -1,16 +1,19 @@
 import React from "react";
-import { TextField, type TextFieldProps } from "@mui/material";
+import { Collapse, TextField, type TextFieldProps } from "@mui/material";
 import {
   type FieldPath,
   type FieldValues,
   useController,
   UseControllerReturn,
 } from "react-hook-form";
-import clsx from "clsx";
 import ClearIcon from "@mui/icons-material/Clear";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
 import IconButton from "@/components/Button/IconButton";
 import { BasePropsBuilder } from "@/components/Fields/BasePicker";
+import Tooltip from "@/components/Tooltip/Tooltip";
+import ErrorLabel from "@/components/Fields/ErrorLabel";
 
 type Props<
   TFV extends FieldValues,
@@ -36,8 +39,6 @@ type AccessoryCustomRenderer = <
 const ClearButton: AccessoryCustomRenderer = (props) => {
   return props.controller.field.value ? (
     <IconButton
-      size="small"
-      color="inherit"
       aria-label="clear text"
       type="button"
       onMouseDown={(e) => {
@@ -52,8 +53,34 @@ const ClearButton: AccessoryCustomRenderer = (props) => {
   ) : null;
 };
 
+const PasswordVisibilityButton: AccessoryCustomRenderer = (props) => {
+  const type = props.additionalProps.type || props.type;
+  const isPassword = type === "password";
+  const helperText = isPassword ? "Show password" : "Hide password";
+  return (
+    <Tooltip title={helperText}>
+      <IconButton
+        aria-label={helperText}
+        type="button"
+        onMouseDown={(e) => {
+          e.preventDefault();
+        }}
+        onClick={() => {
+          props.setAdditionalProps((prev) => ({
+            ...prev,
+            type: isPassword ? "text" : "password",
+          }));
+        }}
+      >
+        {isPassword ? <VisibilityIcon /> : <VisibilityOffIcon />}
+      </IconButton>
+    </Tooltip>
+  );
+};
+
 const predefinedAccessories = {
   clear: ClearButton,
+  passwordVisibility: PasswordVisibilityButton,
 } satisfies Record<string, AccessoryCustomRenderer>;
 
 type PredefinedAccessories = keyof typeof predefinedAccessories;
@@ -125,18 +152,7 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
       inputRef={ref}
       slotProps={{ input: { endAdornment } }}
       error={hasError}
-      helperText={
-        withHelperText && (
-          <span
-            className={clsx(
-              "block transition min-h-5",
-              hasError ? "opacity-100" : "opacity-0"
-            )}
-          >
-            {hasError ? error?.message : ""}
-          </span>
-        )
-      }
+      helperText={<ErrorLabel hasError={hasError} error={error} />}
     />
   );
 };

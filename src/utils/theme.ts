@@ -49,6 +49,34 @@ _theme = {
         icon: { marginTop: _theme.spacing(1.5) },
       },
     },
+    MuiDialog: {
+      styleOverrides: {
+        paper: {
+          [_theme.breakpoints.down("sm")]: {
+            margin: _theme.spacing(1),
+            width: "100%",
+            maxHeight: `calc(100% - ${_theme.spacing(2)})`,
+          },
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          transition: `var(--default-transition-duration)`,
+          "&:hover": {
+            backgroundColor: _theme.vars?.palette.action.hover,
+          },
+        },
+      },
+    },
+    MuiFormLabel: {
+      styleOverrides: {
+        asterisk: {
+          color: _theme.vars?.palette.error.main,
+        },
+      },
+    },
   },
 };
 
