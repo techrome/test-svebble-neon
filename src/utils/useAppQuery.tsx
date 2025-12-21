@@ -3,7 +3,7 @@ import { UseTRPCQueryResult } from "@trpc/react-query/shared";
 import { TRPCClientErrorLike } from "@trpc/client";
 
 import { LoadingBoundaryContext } from "@/utils/loadingBoundaryContext";
-import type { AppRouter } from "@/trpc/server/routers/app";
+import type { AppRouter } from "@/server";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { VerticalStack } from "@/components/Layout/Containers";
 

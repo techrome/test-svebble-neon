@@ -10,11 +10,11 @@ import {
 import { type DateTimePickerProps } from "@mui/x-date-pickers/DateTimePicker";
 import { type DatePickerProps } from "@mui/x-date-pickers/DatePicker";
 import { type TimePickerProps } from "@mui/x-date-pickers/TimePicker";
-import clsx from "clsx";
 import ClearIcon from "@mui/icons-material/Clear";
 
 import IconButton from "@/components/Button/IconButton";
 import { InputAdornment, InputAdornmentProps } from "@mui/material";
+import ErrorLabel from "@/components/Fields/ErrorLabel";
 
 export type BasePropsBuilder<
   ComponentProps extends object,
@@ -178,16 +178,7 @@ export const useBaseProps = <
           ...pickerProps.slotProps?.textField,
           inputRef: ref,
           error: hasError,
-          helperText: withHelperText && (
-            <span
-              className={clsx(
-                "block transition min-h-5",
-                hasError ? "opacity-100" : "opacity-0"
-              )}
-            >
-              {hasError ? error?.message : ""}
-            </span>
-          ),
+          helperText: <ErrorLabel hasError={hasError} error={error} />,
         },
       },
     } satisfies typeof pickerProps & typeof fieldProps,

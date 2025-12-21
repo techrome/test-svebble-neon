@@ -1,10 +1,11 @@
 import z from "zod";
 import { eq, desc } from "drizzle-orm";
 
-import { procedure, router } from "@/trpc/server";
-import * as schema from "@/db/schema";
+import { trpc, dbUtils } from "@/server";
 import * as sharedCommentsValidations from "@/utils/validators/shared/comments";
-import { db } from "@/db";
+
+const { schema, db } = dbUtils;
+const { procedure, router } = trpc;
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -33,6 +34,7 @@ const generateRandomText = (
   }
   return result;
 };
+
 export const appRouter = router({
   hello: procedure
     .input(

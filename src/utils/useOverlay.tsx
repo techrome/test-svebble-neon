@@ -71,8 +71,17 @@ export const useGlobalModal = () => {
   };
 };
 
+type ModalInitialProps = PartialFor<
+  ModalProps,
+  "isOpen" | "onClose" | "children"
+>;
+
 export const useLocalModal = () => {
   const [isOpen, setIsOpen] = React.useState<boolean>(false);
+  const initialPropsRef = React.useRef<ModalInitialProps>({});
+  const readyComponentRef = React.useRef<React.FC<ModalInitialProps> | null>(
+    null
+  );
 
   const openModal = () => {
     setIsOpen(true);
@@ -81,11 +90,41 @@ export const useLocalModal = () => {
     setIsOpen(false);
   };
 
+  // eslint-disable-next-line
+  initialPropsRef.current = {
+    isOpen,
+    onClose: closeModal,
+  };
+
+  // eslint-disable-next-line
+  if (!readyComponentRef.current) {
+    readyComponentRef.current = ({
+      children,
+      onClose,
+      ...props
+    }: ModalInitialProps) => {
+      return (
+        <Modal
+          isOpen={initialPropsRef.current.isOpen!}
+          onClose={(...args) => {
+            initialPropsRef.current?.onClose?.(...args);
+            onClose?.(...args);
+          }}
+          {...props}
+        >
+          {children}
+        </Modal>
+      );
+    };
+  }
+
   return {
     isOpen,
     openModal,
     closeModal,
     Modal,
+    // eslint-disable-next-line
+    ReadyComponent: readyComponentRef.current,
   };
 };
 
@@ -133,10 +172,11 @@ export const useLocalPopover = () => {
   const id = React.useId();
   const isOpen = Boolean(anchorEl);
   // using refs for performance. just keep this in mind whenever you use the hook
-  // (e.g. don't wrap the ReadyPopover in React.memo unless you know what you're doing)
+  // (e.g. don't wrap the ReadyComponent in React.memo unless you know what you're doing)
   const initialPropsRef = React.useRef<PopoverInitialProps>({});
-  const readyPopoverComponentRef =
-    React.useRef<React.FC<PopoverInitialProps> | null>(null);
+  const readyComponentRef = React.useRef<React.FC<PopoverInitialProps> | null>(
+    null
+  );
 
   const openPopover = (e: React.SyntheticEvent<HTMLElement>) => {
     setAnchorEl(e.currentTarget);
@@ -154,8 +194,8 @@ export const useLocalPopover = () => {
   };
 
   // eslint-disable-next-line
-  if (!readyPopoverComponentRef.current) {
-    readyPopoverComponentRef.current = ({
+  if (!readyComponentRef.current) {
+    readyComponentRef.current = ({
       children,
       onClose,
       ...props
@@ -184,6 +224,6 @@ export const useLocalPopover = () => {
     id,
     Popover,
     // eslint-disable-next-line
-    ReadyPopover: readyPopoverComponentRef.current,
+    ReadyComponent: readyComponentRef.current,
   };
 };

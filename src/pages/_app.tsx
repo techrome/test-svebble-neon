@@ -11,7 +11,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import "dayjs/locale/en-gb";
 
-import { trpc } from "@/trpc/client";
+import { trpc } from "@/trpc";
 import Navbar from "@/components/Navbar/Navbar";
 import TopLoader from "@/components/TopLoader/TopLoader";
 import { theme } from "@/utils/theme";

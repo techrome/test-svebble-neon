@@ -1,10 +1,9 @@
 import React from "react";
-import Button from "@/components/Button/Button";
 import { Virtuoso } from "react-virtuoso";
 
-import { trpc } from "@/trpc/client";
+import { trpc, type RouterOutput } from "@/trpc";
 import useAppQuery from "@/utils/useAppQuery";
-import { RouterOutput } from "@/trpc/client";
+import Button from "@/components/Button/Button";
 
 type CommentProps = {
   comment: RouterOutput["commentsGet"][number];
@@ -15,7 +14,6 @@ const Comment = ({ comment }: CommentProps) => {
   const [editInfo, setEditInfo] = React.useState(comment);
 
   const utils = trpc.useUtils();
-
   const commentsDeleteMutation = trpc.commentDelete.useMutation({
     onSuccess: () => {
       utils.commentsGet.invalidate();

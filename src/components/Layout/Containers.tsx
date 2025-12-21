@@ -15,7 +15,7 @@ type BaseSectionProps = {
 
 type ContainerProps = MuiContainerProps;
 
-type LayoutBreakpoints = Partial<Record<Breakpoints, string>>;
+type LayoutBreakpoints = Partial<Record<Breakpoints | "none", string>>;
 
 const switchingStackBreakpoints = {
   md: "md:flex-row md:flex-wrap",
@@ -44,12 +44,15 @@ export const spacingMapping = {
   sm: "gap-2 sm:gap-3",
   md: "gap-4 sm:gap-6",
   lg: "gap-8 sm:gap-12",
+  xs: "gap-1 sm:gap-2",
+  none: "",
 } as const satisfies LayoutBreakpoints;
 
 type StackProps = {
   spacing?: keyof typeof spacingMapping;
   withPadding?: boolean;
   fullWidth?: boolean;
+  wrap?: boolean;
 } & BaseSectionProps;
 
 export const VerticalStack = React.forwardRef<HTMLDivElement, StackProps>(
@@ -85,12 +88,14 @@ export const HorizontalStack = ({
   spacing = "sm",
   withPadding,
   fullWidth,
+  wrap = true,
   ...props
 }: StackProps) => {
   return (
     <div
       className={clsx(
-        `max-w-full flex flex-wrap ${spacingMapping[spacing]}`,
+        wrap && "flex-wrap",
+        `max-w-full flex ${spacingMapping[spacing]}`,
         withPadding && defaultPadding,
         fullWidth && "w-full",
         addClassName

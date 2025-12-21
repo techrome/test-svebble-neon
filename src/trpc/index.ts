@@ -3,7 +3,7 @@ import { httpBatchLink } from "@trpc/client";
 import { createTRPCNext } from "@trpc/next";
 import superJSON from "superjson";
 
-import type { AppRouter } from "@/trpc/server/routers/app";
+import type { AppRouter } from "@/server";
 
 const getApiBaseUrl = () => {
   if (typeof window !== "undefined") {
