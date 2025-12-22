@@ -26,7 +26,10 @@ import { Text } from "@/utils/validators/helpers/text";
 import { LinearProgress, Typography, TypographyProps } from "@mui/material";
 import Collapse from "@/components/Collapse/Collapse";
 import { Divider } from "@/components/Layout/Dividers";
-import { passwordMinLength } from "@/utils/validators/shared/auth";
+import {
+  passwordMinLength,
+  signupSchemaForm,
+} from "@/utils/validators/shared/auth";
 
 type Props = {
   onSubmit?: () => void;
@@ -41,7 +44,7 @@ type PasswordRule = {
   hidden?: boolean;
 };
 
-const requiredPasswordRules: PasswordRule[] = [
+export const requiredPasswordRules: PasswordRule[] = [
   {
     label: "At least 8 characters",
     error: "Password must be at least 8 characters long",
@@ -143,35 +146,7 @@ const sortedPasswordLevels = Object.values(passwordScoreMap).sort(
 type PasswordScoreInfo =
   (typeof passwordScoreMap)[keyof typeof passwordScoreMap];
 
-const zPassword = Text.Title({ shouldTrim: false, required: true }).superRefine(
-  (password, ctx) => {
-    requiredPasswordRules.forEach((rule) => {
-      if (!rule.validate(password)) {
-        ctx.addIssue({
-          code: "custom",
-          message: rule.error,
-        });
-      }
-    });
-  }
-);
-
-const schemaForm = z
-  .object({
-    username: Text.Handle({ required: true }),
-    email: Text.Title().pipe(z.email()).optional().or(z.literal("")),
-    password: zPassword,
-    passwordConfirm: Text.Title({ shouldTrim: false, required: true }),
-    agreeTerms: z.boolean().refine((v) => Boolean(v), {
-      error: "You must agree to the Terms and Privacy Policy",
-    }),
-  })
-  .refine((data) => data.password === data.passwordConfirm, {
-    error: "Passwords do not match",
-    path: ["passwordConfirm"],
-  });
-
-type FormValues = z.infer<typeof schemaForm>;
+type FormValues = z.infer<typeof signupSchemaForm>;
 
 const emptyFormValues: FormValues = {
   username: "",
@@ -287,7 +262,7 @@ const Signup = (props: Props) => {
 
   const form = useForm<FormValues>({
     defaultValues: emptyFormValues,
-    resolver: zodResolver(schemaForm),
+    resolver: zodResolver(signupSchemaForm),
   });
 
   const { addAppSnackbar } = useAppSnackbar();
