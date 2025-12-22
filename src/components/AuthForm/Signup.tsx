@@ -1,10 +1,15 @@
 import React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { SubmitHandler, useForm, useWatch } from "react-hook-form";
+import {
+  SubmitHandler,
+  useForm,
+  UseFormReturn,
+  useWatch,
+} from "react-hook-form";
 import z from "zod";
-import CancelIcon from "@mui/icons-material/Cancel";
+import ErrorIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import WarningIcon from "@mui/icons-material/Warning";
+import RemoveCircleIcon from "@mui/icons-material/RemoveCircleOutline";
 
 import Button from "@/components/Button/Button";
 import Checkbox from "@/components/Fields/Checkbox";
@@ -21,46 +26,84 @@ import { Text } from "@/utils/validators/helpers/text";
 import { LinearProgress, Typography, TypographyProps } from "@mui/material";
 import Collapse from "@/components/Collapse/Collapse";
 import { Divider } from "@/components/Layout/Dividers";
+import { passwordMinLength } from "@/utils/validators/shared/auth";
 
 type Props = {
   onSubmit?: () => void;
 };
 
-const passwordRules = [
-  {
-    label: "Contains at least 8 characters",
-    error: "Password must be at least 8 characters long",
-    validate: (value: string) => value.length >= 8,
-    required: true,
-    score: 1,
-  },
-  {
-    label: "Contains at least 16 characters",
-    validate: (value: string) => value.length >= 16,
-    score: 2,
-  },
-  {
-    label: "Contains at least 1 number",
-    validate: (value: string) => /\d/.test(value),
-    score: 2,
-  },
-  {
-    label: "Contains at least 1 uppercase and 1 lowercase character",
-    validate: (value: string) => /[A-Z]/.test(value) && /[a-z]/.test(value),
-    score: 2,
-  },
-  {
-    label: "Contains at least 1 special character (!, @, #, etc)",
-    validate: (value: string) => /[^\p{L}\d]/u.test(value),
-    score: 3,
-  },
-] satisfies {
+type PasswordRule = {
   label: string;
   error?: string;
   validate: (v: string) => boolean;
   required?: boolean;
   score: number;
-}[];
+  hidden?: boolean;
+};
+
+const requiredPasswordRules: PasswordRule[] = [
+  {
+    label: "At least 8 characters",
+    error: "Password must be at least 8 characters long",
+    validate: (value) => value.length >= passwordMinLength,
+    required: true,
+    score: 1,
+  },
+];
+
+const passwordRules: PasswordRule[] = [
+  ...requiredPasswordRules,
+  {
+    label: "At least 12 characters",
+    validate: (value) => value.length >= 12,
+    score: 2,
+    hidden: true,
+  },
+  {
+    label: "At least 16 characters",
+    validate: (value) => value.length >= 16,
+    score: 2,
+    hidden: true,
+  },
+  {
+    label: "At least 20 characters",
+    validate: (value) => value.length >= 20,
+    score: 3,
+    hidden: true,
+  },
+  {
+    label: "A repeated character 3 times (penalty)",
+    validate: (value) => /(.)\1\1/.test(value),
+    score: -2,
+    hidden: true,
+  },
+  {
+    label: "A repeated character 4 times (penalty)",
+    validate: (value) => /(.)\1\1\1/.test(value),
+    score: -1,
+    hidden: true,
+  },
+  {
+    label: "At least 1 number",
+    validate: (value) => /\d/.test(value),
+    score: 1,
+  },
+  {
+    label: "At least 1 uppercase letter",
+    validate: (value) => /[A-Z]/.test(value),
+    score: 1,
+  },
+  {
+    label: "At least 1 lowercase letter",
+    validate: (value) => /[a-z]/.test(value),
+    score: 1,
+  },
+  {
+    label: "At least 1 special character (!, @, #, etc)",
+    validate: (value) => /[^\p{L}\d]/u.test(value),
+    score: 2,
+  },
+];
 
 const passwordScoreMap = {
   tooWeak: {
@@ -75,17 +118,17 @@ const passwordScoreMap = {
   },
   medium: {
     label: "Medium",
-    score: 5,
+    score: 6,
     color: "warning",
   },
   good: {
     label: "Good",
-    score: 8,
+    score: 9,
     color: "success",
   },
   strong: {
     label: "Strong",
-    score: 10,
+    score: 13,
     color: "success",
   },
 } as const satisfies Record<
@@ -102,14 +145,14 @@ type PasswordScoreInfo =
 
 const zPassword = Text.Title({ shouldTrim: false, required: true }).superRefine(
   (password, ctx) => {
-    for (const rule of passwordRules) {
-      if (rule.required && !rule.validate(password)) {
+    requiredPasswordRules.forEach((rule) => {
+      if (!rule.validate(password)) {
         ctx.addIssue({
           code: "custom",
           message: rule.error,
         });
       }
-    }
+    });
   }
 );
 
@@ -138,21 +181,13 @@ const emptyFormValues: FormValues = {
   agreeTerms: false,
 };
 
-const Signup = (props: Props) => {
-  const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
-    React.useState(false);
-
-  const form = useForm<FormValues>({
-    defaultValues: emptyFormValues,
-    resolver: zodResolver(schemaForm),
-  });
-
-  const { addAppSnackbar } = useAppSnackbar();
-
-  const onSubmit: SubmitHandler<FormValues> = (values) => {
-    console.log({ values });
-  };
-
+const PasswordStrengthMeter = ({
+  form,
+  passwordFieldWasFocused,
+}: {
+  form: UseFormReturn<FormValues>;
+  passwordFieldWasFocused: boolean;
+}) => {
   const [password] = useWatch({ control: form.control, name: ["password"] });
 
   const passwordStrengthInfo = React.useMemo(() => {
@@ -161,13 +196,15 @@ const Signup = (props: Props) => {
     let result: {
       score: number;
       scorePercent: number;
-      renderedChecks: React.ReactNode[];
+      renderedRequiredChecks: React.ReactNode[];
+      renderedOptionalChecks: React.ReactNode[];
       highestScoreInfo: PasswordScoreInfo;
       maxScore: number;
     } = {
       score: 0,
       scorePercent: 0,
-      renderedChecks: [],
+      renderedRequiredChecks: [],
+      renderedOptionalChecks: [],
       highestScoreInfo: sortedPasswordLevels[0],
       maxScore: sortedPasswordLevels[sortedPasswordLevels.length - 1].score,
     };
@@ -184,22 +221,29 @@ const Signup = (props: Props) => {
       } else if (rulePassed) {
         result.score += rule.score;
       }
-      result.renderedChecks.push(
-        <HorizontalStack
-          key={rule.label}
-          addClassName="items-center"
-          wrap={false}
-        >
-          {rulePassed ? (
-            <CheckCircleIcon fontSize="small" color="success" />
-          ) : rule.required ? (
-            <CancelIcon fontSize="small" color="action" />
-          ) : (
-            <WarningIcon fontSize="small" color="action" />
-          )}
-          <div>{rule.label}</div>
-        </HorizontalStack>
-      );
+      if (!rule.hidden) {
+        const node = (
+          <HorizontalStack
+            key={rule.label}
+            addClassName="items-center"
+            wrap={false}
+          >
+            {rulePassed ? (
+              <CheckCircleIcon fontSize="small" color="success" />
+            ) : rule.required ? (
+              <ErrorIcon fontSize="small" color="error" />
+            ) : (
+              <RemoveCircleIcon fontSize="small" color="action" />
+            )}
+            <Typography>{rule.label}</Typography>
+          </HorizontalStack>
+        );
+        if (rule.required) {
+          result.renderedRequiredChecks.push(node);
+        } else {
+          result.renderedOptionalChecks.push(node);
+        }
+      }
     });
 
     for (const passwordLevel of sortedPasswordLevels) {
@@ -212,6 +256,45 @@ const Signup = (props: Props) => {
 
     return result;
   }, [password]);
+
+  return (
+    <Collapse
+      in={
+        form.formState.dirtyFields.password ||
+        form.formState.touchedFields.password ||
+        passwordFieldWasFocused
+      }
+    >
+      <div>
+        <LinearProgress
+          className="w-full my-2"
+          variant="determinate"
+          color={passwordStrengthInfo.highestScoreInfo.color}
+          value={passwordStrengthInfo.scorePercent}
+        />
+      </div>
+      <Typography variant="body2">Required:</Typography>
+      <div className="mb-2">{passwordStrengthInfo.renderedRequiredChecks}</div>
+      <Typography variant="body2">Nice to have:</Typography>
+      <div>{passwordStrengthInfo.renderedOptionalChecks}</div>
+    </Collapse>
+  );
+};
+
+const Signup = (props: Props) => {
+  const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
+    React.useState(false);
+
+  const form = useForm<FormValues>({
+    defaultValues: emptyFormValues,
+    resolver: zodResolver(schemaForm),
+  });
+
+  const { addAppSnackbar } = useAppSnackbar();
+
+  const onSubmit: SubmitHandler<FormValues> = (values) => {
+    console.log({ values });
+  };
 
   return (
     <Section addClassName="mt-5">
@@ -244,30 +327,10 @@ const Signup = (props: Props) => {
                 setPasswordFieldWasFocused(true);
               }}
             />
-            <Collapse
-              in={
-                form.formState.dirtyFields.password ||
-                form.formState.touchedFields.password ||
-                passwordFieldWasFocused
-              }
-            >
-              <div>
-                <LinearProgress
-                  className="w-full my-2"
-                  variant="determinate"
-                  color={passwordStrengthInfo.highestScoreInfo.color}
-                  value={passwordStrengthInfo.scorePercent}
-                />
-                Password strength:{" "}
-                <Typography
-                  color={passwordStrengthInfo.highestScoreInfo.color}
-                  component="span"
-                >
-                  {passwordStrengthInfo.highestScoreInfo.label}
-                </Typography>
-              </div>
-              <div>{passwordStrengthInfo.renderedChecks}</div>
-            </Collapse>
+            <PasswordStrengthMeter
+              form={form}
+              passwordFieldWasFocused={passwordFieldWasFocused}
+            />
           </div>
           <Input
             control={form.control}
