@@ -1,0 +1,26 @@
+diff --git a/node_modules/drizzle-orm/pg-core/columns/timestamp.cjs b/node_modules/drizzle-orm/pg-core/columns/timestamp.cjs
+index f558f6c..261bc84 100644
+--- a/node_modules/drizzle-orm/pg-core/columns/timestamp.cjs
++++ b/node_modules/drizzle-orm/pg-core/columns/timestamp.cjs
+@@ -58,7 +58,7 @@ class PgTimestamp extends import_common.PgColumn {
+     return new Date(this.withTimezone ? value : value + "+0000");
+   };
+   mapToDriverValue = (value) => {
+-    return value.toISOString();
++    return value instanceof Date ? value.toISOString() : value;
+   };
+ }
+ class PgTimestampStringBuilder extends import_date_common.PgDateColumnBaseBuilder {
+diff --git a/node_modules/drizzle-orm/pg-core/columns/timestamp.js b/node_modules/drizzle-orm/pg-core/columns/timestamp.js
+index 5f793f0..530100e 100644
+--- a/node_modules/drizzle-orm/pg-core/columns/timestamp.js
++++ b/node_modules/drizzle-orm/pg-core/columns/timestamp.js
+@@ -31,7 +31,7 @@ class PgTimestamp extends PgColumn {
+     return new Date(this.withTimezone ? value : value + "+0000");
+   };
+   mapToDriverValue = (value) => {
+-    return value.toISOString();
++    return value instanceof Date ? value.toISOString() : value;
+   };
+ }
+ class PgTimestampStringBuilder extends PgDateColumnBaseBuilder {
