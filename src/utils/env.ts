@@ -5,7 +5,7 @@ import z from "zod";
 import { isDev } from "./isDev";
 
 type EnvVar = "NODE_ENV";
-type EnvRecord = Partial<Record<EnvVar, unknown>>;
+type EnvRecord = Record<EnvVar, z.ZodType>;
 
 export const requiredWhen = (isRequired: boolean) => {
   let schema = z.string();
