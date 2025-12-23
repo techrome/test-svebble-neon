@@ -2,7 +2,7 @@ import { initTRPC } from "@trpc/server";
 import superJSON from "superjson";
 import z, { ZodError } from "zod";
 
-import { isDev } from "@@/scripts/helpers/isDev.mjs";
+import { isDev } from "@@/scripts/helpers/isDev";
 
 const trpc = initTRPC.create({
   isDev,

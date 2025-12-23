@@ -2,7 +2,7 @@ import { createEnv } from "@t3-oss/env-nextjs";
 import z from "zod";
 
 // relative paths here because this file is used in some cli and they can't recognize TS path aliases
-import { isDev } from "../../scripts/helpers/isDev.mjs";
+import { isDev } from "../../scripts/helpers/isDev";
 import { required, requiredForDev } from "../utils/env";
 
 type EnvVar =
