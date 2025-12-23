@@ -30,7 +30,7 @@ jobs:
       - uses: ./.github/actions/setup-node-steps
       - name: Ensure migrations are committed
         run: |
-          npm run db:g
+          npm run db:g-prod
 
           if [ -n "$(git status --porcelain -- drizzle)" ]; then
             echo "[Custom Error]: Schema changed but migrations are not committed. Run db:g and commit the drizzle/ changes."
