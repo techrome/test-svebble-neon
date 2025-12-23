@@ -9,18 +9,13 @@ import { Section, VerticalStack } from "@/components/Layout/Containers";
 import Button from "@/components/Button/Button";
 import Checkbox from "@/components/Fields/Checkbox";
 import Input from "@/components/Fields/Input";
+import { loginSchemaForm } from "@/utils/validators/shared/auth";
 
 type Props = {
   onSubmit?: () => void;
 };
 
-const schemaForm = z.object({
-  username: Text.Handle({ required: true }),
-  password: Text.Title({ shouldTrim: false, required: true }),
-  rememberMe: z.boolean(),
-});
-
-type FormValues = z.infer<typeof schemaForm>;
+type FormValues = z.infer<typeof loginSchemaForm>;
 
 const emptyFormValues: FormValues = {
   username: "",
@@ -31,7 +26,7 @@ const emptyFormValues: FormValues = {
 const Login = (props: Props) => {
   const form = useForm<FormValues>({
     defaultValues: emptyFormValues,
-    resolver: zodResolver(schemaForm),
+    resolver: zodResolver(loginSchemaForm),
   });
 
   const { addAppSnackbar } = useAppSnackbar();

@@ -3,7 +3,7 @@ import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import { migrate } from "drizzle-orm/neon-http/migrator";
 
-import { getDBURLPrimary } from "./helpers/getDBURL.mjs";
+import { getDBURLPrimary } from "./helpers/getDBURL";
 
 const db = drizzle(neon(getDBURLPrimary()));
 

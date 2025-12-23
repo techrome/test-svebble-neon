@@ -1,8 +1,14 @@
+import { sql } from "drizzle-orm";
 import { uuid, timestamp } from "drizzle-orm/pg-core";
 
 const idColumn = () => uuid().primaryKey().defaultRandom();
-const timestampColumn = () =>
-  timestamp({ withTimezone: true }).notNull().defaultNow();
+const createdAtColumn = () =>
+  timestamp({ withTimezone: true, precision: 3 }).notNull().defaultNow();
+const updatedAtColumn = () =>
+  timestamp({ withTimezone: true, precision: 3 })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => sql`now()`);
 
 const defaultColumns = {
   id: {
@@ -11,11 +17,11 @@ const defaultColumns = {
   },
   created_at: {
     default: true,
-    getColumn: () => timestampColumn(),
+    getColumn: () => createdAtColumn(),
   },
   updated_at: {
     default: true,
-    getColumn: () => timestampColumn(),
+    getColumn: () => updatedAtColumn(),
   },
 } as const satisfies Record<
   string,
