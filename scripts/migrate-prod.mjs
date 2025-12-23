@@ -5,7 +5,7 @@ import { migrate } from "drizzle-orm/neon-http/migrator";
 
 import { getDBURLPrimary } from "./helpers/getDBURL.mjs";
 
-const db = drizzle(neon(getDBURLPrimary()));
+const db = drizzle(neon(getDBURLPrimary(process.env)));
 
 const main = async () => {
   try {

@@ -1,17 +1,33 @@
 import "dotenv/config";
+
+// relative paths here because this file is used in some cli and they can't recognize TS path aliases
 import { isDev } from "./isDev.mjs";
 
-const prodUrl = process.env.DATABASE_URL;
-const prodUrlPrimary = process.env.DATABASE_URL_UNPOOLED;
+// not using process.env here directly because I want to keep type safety and validation for env
+// but also can't import ts files here because cli blows up
+// so I need to pass env as an argument instead of directly importing
+const checkEnv = (env) => {
+  const prodUrl = env.DATABASE_URL;
 
-if (!isDev && !prodUrl) {
-  console.warn(
-    "Production environment detected but no DATABASE_URL was set. Falling back to development db url"
+  if (!isDev && !prodUrl) {
+    console.warn(
+      "Production environment detected but no DATABASE_URL was set. Falling back to development db url"
+    );
+  }
+};
+
+export const getDBURL = (env) => {
+  checkEnv(env);
+  const prodUrl = env.DATABASE_URL;
+  return (
+    prodUrl ||
+    `postgres://${env.POSTGRES_USER}:${env.POSTGRES_PASSWORD}@${env.DATABASE_URL_DOMAIN}:${env.DATABASE_URL_PORT}/${env.POSTGRES_DB}`
   );
-}
+};
 
-export const getDBURL = () =>
-  prodUrl ||
-  `postgres://${process.env.POSTGRES_USER}:${process.env.POSTGRES_PASSWORD}@${process.env.DATABASE_URL_DOMAIN}:${process.env.DATABASE_URL_PORT}/${process.env.POSTGRES_DB}`;
+export const getDBURLPrimary = (env) => {
+  checkEnv(env);
+  const prodUrlPrimary = env.DATABASE_URL_UNPOOLED;
 
-export const getDBURLPrimary = () => prodUrlPrimary || getDBURL();
+  return prodUrlPrimary || getDBURL(env);
+};
