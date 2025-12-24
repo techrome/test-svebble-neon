@@ -5,6 +5,12 @@ on:
     branches: [master]
   workflow_dispatch: {}
 
+env:
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
+  BASE_URL: ${{ secrets.BASE_URL }}
+  BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
+
 jobs:
   check_needs_migration:
     runs-on: ubuntu-22.04
@@ -28,9 +34,6 @@ jobs:
       - uses: actions/checkout@v5.0.0
       - uses: ./.github/actions/setup-node-steps
       - name: Ensure migrations are committed
-        env:
-          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
         run: |
           npm run db:g-prod
 
@@ -53,11 +56,6 @@ jobs:
       - uses: ./.github/actions/setup-node-steps
       - name: Run DB migrations
         run: npm run db:m-prod
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DATABASE_URL_UNPOOLED: ${{ secrets.DATABASE_URL_UNPOOLED }}
-          BETTER_AUTH_URL: ${{ secrets.BETTER_AUTH_URL }}
-          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET }}
 
   deploy:
     needs: [check_needs_migration, check_migrations_are_committed, migrate]
