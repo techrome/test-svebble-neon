@@ -6,7 +6,6 @@ import { isDev } from "../../scripts/helpers/isDev";
 import { required, requiredForDev } from "../utils/env";
 
 type EnvVar =
-  | "NODE_ENV"
   | "POSTGRES_USER"
   | "POSTGRES_PASSWORD"
   | "POSTGRES_DB"
@@ -20,7 +19,7 @@ type EnvVar =
   | "BETTER_AUTH_SECRET"
   | "BETTER_AUTH_URL";
 
-type EnvRecord = Partial<Record<EnvVar, unknown>>;
+type EnvRecord = Record<EnvVar, z.ZodType>;
 
 export const env = createEnv({
   server: {
