@@ -23,15 +23,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+      # - name: Configure git identity
+      #   run: |
+      #     git config user.name "github-actions[bot]"
+      #     git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Push master to public (overwrite)
         env:
           TOKEN: ${{ secrets.PUBLIC_REPO_PUSH_TOKEN }}
-          PUBLIC_REPO: techrome/test-svebble-neon
+          PUBLIC_REPO: ${{ secrets.PUBLIC_REPO_NAME }}
         run: |
           set -euo pipefail
 
