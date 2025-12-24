@@ -3,7 +3,7 @@ import z from "zod";
 
 // relative paths here because this file is used in some cli and they can't recognize TS path aliases
 import { isDev } from "../../scripts/helpers/isDev";
-import { required, requiredForDev } from "../utils/env";
+import { domain, required, requiredForDev } from "../utils/env";
 
 type EnvVar =
   | "POSTGRES_USER"
@@ -17,7 +17,11 @@ type EnvVar =
   | "DATABASE_URL_UNPOOLED"
   | "SENTRY_AUTH_TOKEN"
   | "BETTER_AUTH_SECRET"
-  | "BETTER_AUTH_URL";
+  | "BASE_URL"
+  | "VERCEL"
+  | "VERCEL_ENV"
+  | "VERCEL_URL"
+  | "VERCEL_PROJECT_PRODUCTION_URL";
 
 type EnvRecord = Record<EnvVar, z.ZodType>;
 
@@ -29,7 +33,6 @@ export const env = createEnv({
     POSTGRES_DB: requiredForDev(),
     DATABASE_URL_DOMAIN: requiredForDev(),
     DATABASE_URL_PORT: requiredForDev(),
-
     PGADMIN_DEFAULT_EMAIL: z.email().optional(),
     PGADMIN_DEFAULT_PASSWORD: z.string().optional(),
 
@@ -38,9 +41,13 @@ export const env = createEnv({
     DATABASE_URL_UNPOOLED: z.string().optional(),
 
     // common
+    BASE_URL: z.url().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     BETTER_AUTH_SECRET: required(),
-    BETTER_AUTH_URL: required(),
+    VERCEL: z.string().optional(),
+    VERCEL_ENV: z.enum(["development", "production", "preview"]).optional(),
+    VERCEL_URL: domain().optional(),
+    VERCEL_PROJECT_PRODUCTION_URL: domain().optional(),
   } satisfies EnvRecord,
   experimental__runtimeEnv: {},
   emptyStringAsUndefined: true,
@@ -64,6 +71,18 @@ export const env = createEnv({
               message: `In production, ${envVarName} is required if DATABASE_URL wasn't provided`,
             });
           }
+        });
+      }
+
+      if (
+        !isDev &&
+        !all.BASE_URL &&
+        !all.VERCEL_PROJECT_PRODUCTION_URL &&
+        !all.VERCEL_URL
+      ) {
+        ctx.addIssue({
+          code: "custom",
+          message: `In production, you must set either of these: BASE_URL, VERCEL_PROJECT_PRODUCTION_URL, VERCEL_URL`,
         });
       }
     }),

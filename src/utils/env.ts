@@ -16,6 +16,11 @@ export const required = () => requiredWhen(true);
 export const requiredForDev = () => requiredWhen(isDev);
 export const requiredForProd = () => requiredWhen(!isDev);
 
+export const domain = () =>
+  z.string().regex(z.regexes.domain, {
+    message: "Invalid domain",
+  });
+
 export const env = createEnv({
   shared: {
     NODE_ENV: z.enum(["development", "production"]),
