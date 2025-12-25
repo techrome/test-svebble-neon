@@ -1,12 +1,12 @@
 import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
 import { fromNodeHeaders } from "better-auth/node";
 
-import { dbUtils } from "@/server";
+import { auth } from "./auth";
 
 export const createTRPCContext = async (options?: CreateNextContextOptions) => {
   let authSession = null;
   if (options) {
-    authSession = await dbUtils.auth.api.getSession({
+    authSession = await auth.api.getSession({
       headers: fromNodeHeaders(options.req.headers),
     });
   }

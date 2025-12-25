@@ -3,6 +3,7 @@ import { eq, desc } from "drizzle-orm";
 
 import { trpc, dbUtils } from "@/server";
 import * as sharedCommentsValidations from "@/utils/validators/shared/comments";
+import { authRouter } from "./auth";
 
 const { schema, db } = dbUtils;
 const { publicProcedure, router } = trpc;
@@ -110,6 +111,7 @@ export const appRouter = router({
   commentsDeleteAll: publicProcedure.mutation(async () => {
     await db.delete(schema.commentsSchema);
   }),
+  auth: authRouter,
 });
 
 export type AppRouter = typeof appRouter;

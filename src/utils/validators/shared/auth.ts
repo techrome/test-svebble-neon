@@ -22,7 +22,17 @@ export const zPassword = Text.Title({
 
 export const signupSchemaForm = z
   .object({
-    username: Text.Handle({ required: true }),
+    username: Text.Handle()
+      .min(3, "Username must be at least 3 characters")
+      .regex(
+        /^[A-Za-z0-9_-]+$/,
+        "Use only English letters, numbers, underscore or hyphen"
+      )
+      .refine(
+        (value) =>
+          !["__", "--"].some((invalidStr) => value.includes(invalidStr)),
+        "Don't use consecutive underscores/hyphens"
+      ),
     email: Text.Title().pipe(z.email()).optional().or(z.literal("")),
     password: zPassword,
     passwordConfirm: Text.Title({ shouldTrim: false, required: true }),

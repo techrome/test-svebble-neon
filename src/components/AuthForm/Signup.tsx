@@ -10,6 +10,8 @@ import z from "zod";
 import ErrorIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RemoveCircleIcon from "@mui/icons-material/RemoveCircleOutline";
+import PersonIcon from "@mui/icons-material/Person";
+import Image from "next/image";
 
 import Button from "@/components/Button/Button";
 import Checkbox from "@/components/Fields/Checkbox";
@@ -30,6 +32,8 @@ import {
   passwordMinLength,
   signupSchemaForm,
 } from "@/utils/validators/shared/auth";
+import { authClient } from "@/trpc/auth";
+import { trpc } from "@/trpc";
 
 type Props = {
   onSubmit?: () => void;
@@ -267,12 +271,63 @@ const Signup = (props: Props) => {
 
   const { addAppSnackbar } = useAppSnackbar();
 
-  const onSubmit: SubmitHandler<FormValues> = (values) => {
-    console.log({ values });
+  const signUpMutation = trpc.auth.signUpUsername.useMutation({
+    onSuccess(data, variables, onMutateResult, context) {
+      console.log({ data });
+      addAppSnackbar({
+        message: "Signed Up",
+        variant: "success",
+      });
+    },
+    onError(error, variables, onMutateResult, context) {
+      console.log(error.message);
+      addAppSnackbar({ message: error.message, variant: "error" });
+    },
+  });
+
+  const onSubmit: SubmitHandler<FormValues> = async (values) => {
+    signUpMutation.mutate(values);
   };
+
+  const formSubmitting = signUpMutation.isPending;
 
   return (
     <Section addClassName="mt-5">
+      <VerticalStack>
+        <Button
+          disabled={formSubmitting}
+          color="inherit"
+          variant="outlined"
+          fullWidth
+          size="large"
+          onClick={async () => {
+            const data = await authClient.signIn.social({ provider: "google" });
+            console.log({ data });
+          }}
+          startIcon={
+            <Image
+              src="/icons/google.svg"
+              alt="google-icon"
+              width={22}
+              height={22}
+              priority
+            />
+          }
+        >
+          Sign up with Google
+        </Button>
+        <Button
+          disabled={formSubmitting}
+          color="inherit"
+          variant="outlined"
+          fullWidth
+          size="large"
+          startIcon={<PersonIcon />}
+        >
+          Continue as guest
+        </Button>
+      </VerticalStack>
+      <Divider className="my-4">or create an account</Divider>
       <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
         <VerticalStack>
           <Input
@@ -331,15 +386,17 @@ const Signup = (props: Props) => {
               </span>
             }
           />
-          <Button variant="contained" type="submit" size="large">
+          <Button
+            variant="contained"
+            type="submit"
+            size="large"
+            disabled={formSubmitting}
+            isLoading={signUpMutation.isPending}
+          >
             Sign Up
           </Button>
         </VerticalStack>
       </form>
-      <Divider className="my-4">or</Divider>
-      <Button variant="outlined" fullWidth size="large">
-        Continue as guest
-      </Button>
     </Section>
   );
 };

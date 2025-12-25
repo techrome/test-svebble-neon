@@ -3,7 +3,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { anonymous, username } from "better-auth/plugins";
 
 // relative paths here because better-auth cli can't recognize TS path aliases
-import { db } from "./core";
+import { db } from "../db/core";
 import { passwordMinLength } from "../../utils/validators/shared/auth";
 import { TEXT_LIMITS } from "../../utils/validators/helpers/text";
 import { env } from "../env";
@@ -28,6 +28,13 @@ export const auth = betterAuth({
   secret: env.BETTER_AUTH_SECRET,
   baseURL,
   trustedOrigins: [baseURL],
+
+  socialProviders: {
+    google: {
+      clientId: env.GOOGLE_CLIENT_ID!,
+      clientSecret: env.GOOGLE_CLIENT_SECRET!,
+    },
+  },
 
   emailAndPassword: {
     enabled: true,

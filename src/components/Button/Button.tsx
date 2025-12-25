@@ -18,8 +18,8 @@ const Button = ({ children, ...props }: Props) => {
       </div>
 
       {props.isLoading && (
-        <div className="absolute inset-0 flex justify-center items-center">
-          <CircularProgress size={20} />
+        <div className="absolute inset-0 flex justify-center items-center text-[var(--mui-palette-text-primary)]">
+          <CircularProgress size={20} color="inherit" />
         </div>
       )}
     </MuiButton>

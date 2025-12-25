@@ -1,7 +1,7 @@
 import { toNodeHandler } from "better-auth/node";
 import { PageConfig } from "next";
 
-import { dbUtils } from "@/server";
+import { trpc } from "@/server";
 
 export const config = {
   api: {
@@ -9,4 +9,4 @@ export const config = {
   },
 } satisfies PageConfig;
 
-export default toNodeHandler(dbUtils.auth.handler);
+export default toNodeHandler(trpc.auth.handler);
