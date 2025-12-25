@@ -21,7 +21,9 @@ type EnvVar =
   | "VERCEL"
   | "VERCEL_ENV"
   | "VERCEL_URL"
-  | "VERCEL_PROJECT_PRODUCTION_URL";
+  | "VERCEL_PROJECT_PRODUCTION_URL"
+  | "GOOGLE_CLIENT_ID"
+  | "GOOGLE_CLIENT_SECRET";
 
 type EnvRecord = Record<EnvVar, z.ZodType>;
 
@@ -48,6 +50,8 @@ export const env = createEnv({
     VERCEL_ENV: z.enum(["development", "production", "preview"]).optional(),
     VERCEL_URL: domain().optional(),
     VERCEL_PROJECT_PRODUCTION_URL: domain().optional(),
+    GOOGLE_CLIENT_ID: required(),
+    GOOGLE_CLIENT_SECRET: required(),
   } satisfies EnvRecord,
   experimental__runtimeEnv: {},
   emptyStringAsUndefined: true,
