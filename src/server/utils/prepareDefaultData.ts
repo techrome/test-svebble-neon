@@ -6,7 +6,7 @@ import { trpc } from "@/server";
 export const prepareDefaultData = async () => {
   const helpers = createServerSideHelpers({
     router: trpc.appRouter,
-    ctx: {},
+    ctx: await trpc.createTRPCContext(),
     transformer: superJSON,
   });
   await helpers.globalData.prefetch();

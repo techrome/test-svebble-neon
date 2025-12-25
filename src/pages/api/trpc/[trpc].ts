@@ -4,5 +4,5 @@ import { trpc } from "@/server";
 
 export default trpcNext.createNextApiHandler({
   router: trpc.appRouter,
-  createContext: () => ({}),
+  createContext: trpc.createTRPCContext,
 });

@@ -1,10 +1,11 @@
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superJSON from "superjson";
 import z, { ZodError } from "zod";
 
 import { isDev } from "@@/scripts/helpers/isDev";
+import { type TRPCContext } from "./context";
 
-const trpc = initTRPC.create({
+const trpc = initTRPC.context<TRPCContext>().create({
   isDev,
   transformer: superJSON,
   errorFormatter: (opts) => {
@@ -27,4 +28,12 @@ const trpc = initTRPC.create({
 });
 
 export const router = trpc.router;
-export const procedure = trpc.procedure;
+export const publicProcedure = trpc.procedure;
+
+export const privateProcedure = trpc.procedure.use(({ ctx, next }) => {
+  if (!ctx.user || !ctx.session) {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+
+  return next({ ctx });
+});
