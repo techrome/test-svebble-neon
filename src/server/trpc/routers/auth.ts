@@ -7,7 +7,7 @@ import { signupSchemaForm } from "@/utils/validators/shared/auth";
 import { fromNodeHeaders } from "better-auth/node";
 
 const { schema, db } = dbUtils;
-const { publicProcedure, router, auth } = trpc;
+const { publicProcedure, publicProcedureHttp, router, auth } = trpc;
 
 export const authRouter = router({
   //   commentsGet: publicProcedure.query(async () => {
@@ -25,12 +25,12 @@ export const authRouter = router({
 
   session: publicProcedure.query(({ ctx }) => ctx.session),
 
-  signUpUsername: publicProcedure
+  signUpUsername: publicProcedureHttp
     .input(signupSchemaForm)
     .mutation(async ({ ctx, input }) => {
       const { headers, response } = await auth.api.signUpEmail({
         returnHeaders: true,
-        headers: fromNodeHeaders(ctx.req!.headers),
+        headers: fromNodeHeaders(ctx.req.headers),
         body: {
           name: input.username,
           email: input.email || `${input.username}@tmpmail-svebble.com`,

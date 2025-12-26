@@ -22,3 +22,13 @@ export const createTRPCContext = async (options?: CreateNextContextOptions) => {
 };
 
 export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
+
+export type TRPCContextWithReqRes = TRPCContext & {
+  req: NonNullable<TRPCContext["req"]>;
+  res: NonNullable<TRPCContext["res"]>;
+};
+
+export type TRPCContextAuthed = TRPCContext & {
+  user: NonNullable<TRPCContext["user"]>;
+  session: NonNullable<TRPCContext["session"]>;
+};

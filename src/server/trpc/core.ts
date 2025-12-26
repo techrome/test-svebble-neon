@@ -4,6 +4,7 @@ import z, { ZodError } from "zod";
 
 import { isDev } from "@@/scripts/helpers/isDev";
 import { type TRPCContext } from "./context";
+import { assertHasReqRes, assertIsAuthed } from "./helpers/assert";
 
 const trpc = initTRPC.context<TRPCContext>().create({
   isDev,
@@ -27,13 +28,20 @@ const trpc = initTRPC.context<TRPCContext>().create({
   },
 });
 
-export const router = trpc.router;
-export const publicProcedure = trpc.procedure;
-
-export const privateProcedure = trpc.procedure.use(({ ctx, next }) => {
-  if (!ctx.user || !ctx.session) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
-  }
-
+const withReqRes = trpc.middleware(({ ctx, next }) => {
+  assertHasReqRes(ctx);
   return next({ ctx });
 });
+
+const withAuth = trpc.middleware(({ ctx, next }) => {
+  assertIsAuthed(ctx);
+  return next({ ctx });
+});
+
+export const router = trpc.router;
+
+export const publicProcedure = trpc.procedure;
+export const publicProcedureHttp = publicProcedure.use(withReqRes);
+
+export const privateProcedure = publicProcedure.use(withAuth);
+export const privateProcedureHttp = privateProcedure.use(withReqRes);
