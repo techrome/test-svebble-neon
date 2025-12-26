@@ -40,18 +40,24 @@ const Checkbox = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
     name,
     control,
     label,
-    disabled,
+    disabled: disabledProp,
     checkboxProps,
     formControlProps,
     formControlLabelProps,
-    withHelperText = true,
+    defaultDisabledBehavior = true,
   } = props;
 
-  const { field, fieldState } = useController({
+  const {
+    field,
+    fieldState,
+    formState: { isSubmitting },
+  } = useController({
     name,
     control,
   });
-
+  const disabled = defaultDisabledBehavior
+    ? isSubmitting || disabledProp
+    : disabledProp;
   const errorMessage = fieldState.error?.message;
   const hasError = Boolean(errorMessage);
 

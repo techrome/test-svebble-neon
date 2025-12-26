@@ -106,8 +106,9 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
     name,
     control,
     rules,
-    withHelperText = true,
+    defaultDisabledBehavior = true,
     endAccessory,
+    disabled: disabledProp,
     ...textFieldProps
   } = props;
 
@@ -119,7 +120,10 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
 
   const field = controller.field;
   const error = controller.fieldState.error;
-
+  const isSubmitting = controller.formState.isSubmitting;
+  const disabled = defaultDisabledBehavior
+    ? isSubmitting || disabledProp
+    : disabledProp;
   const hasError = Boolean(error);
 
   let endAdornment: React.ReactNode = null;
@@ -148,6 +152,7 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
     <TextField
       {...textFieldProps}
       {...fieldProps}
+      disabled={disabled}
       {...additionalProps}
       inputRef={ref}
       slotProps={{ input: { endAdornment } }}

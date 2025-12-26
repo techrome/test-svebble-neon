@@ -25,6 +25,7 @@ export type BasePropsBuilder<
   control: Control<TFV>;
   rules?: RegisterOptions<TFV, TName>;
   withHelperText?: boolean;
+  defaultDisabledBehavior?: boolean;
 };
 
 type AnyPickerProps = DateTimePickerProps | DatePickerProps | TimePickerProps;
@@ -126,8 +127,9 @@ export const useBaseProps = <
     name,
     control,
     rules,
-    withHelperText = true,
+    defaultDisabledBehavior = true,
     endAccessory = "clear",
+    disabled: disabledProp,
     ...pickerProps
   } = props;
 
@@ -139,6 +141,11 @@ export const useBaseProps = <
 
   const field = controller.field;
   const error = controller.fieldState.error;
+  const isSubmitting = controller.formState.isSubmitting;
+
+  const disabled = defaultDisabledBehavior
+    ? isSubmitting || disabledProp
+    : disabledProp;
 
   const hasError = Boolean(error);
 
@@ -168,6 +175,7 @@ export const useBaseProps = <
     componentProps: {
       ...pickerProps,
       ...fieldProps,
+      disabled,
       slots: {
         inputAdornment: PickerInputAdornment,
       },
