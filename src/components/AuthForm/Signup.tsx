@@ -10,30 +10,25 @@ import z from "zod";
 import ErrorIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RemoveCircleIcon from "@mui/icons-material/RemoveCircleOutline";
-import PersonIcon from "@mui/icons-material/Person";
-import Image from "next/image";
+import { LinearProgress, Typography, TypographyProps } from "@mui/material";
 
 import Button from "@/components/Button/Button";
-import Checkbox from "@/components/Fields/Checkbox";
 import Input from "@/components/Fields/Input";
 import {
   HorizontalStack,
   Section,
   VerticalStack,
 } from "@/components/Layout/Containers";
-import Link from "@/components/Link/Link";
-import { ROUTES } from "@/utils/routes";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { Text } from "@/utils/validators/helpers/text";
-import { LinearProgress, Typography, TypographyProps } from "@mui/material";
 import Collapse from "@/components/Collapse/Collapse";
-import { Divider } from "@/components/Layout/Dividers";
 import {
   passwordMinLength,
   signupSchemaForm,
 } from "@/utils/validators/shared/auth";
 import { authClient } from "@/trpc/auth";
 import { trpc } from "@/trpc";
+import { AuthWrapper } from "@/components/AuthForm/Helpers";
 
 type Props = {
   onSubmit?: () => void;
@@ -51,7 +46,7 @@ type PasswordRule = {
 export const requiredPasswordRules: PasswordRule[] = [
   {
     label: "At least 8 characters",
-    error: "Password must be at least 8 characters long",
+    error: "Password must have at least 8 characters",
     validate: (value) => value.length >= passwordMinLength,
     required: true,
     score: 1,
@@ -157,7 +152,6 @@ const emptyFormValues: FormValues = {
   email: "",
   password: "",
   passwordConfirm: "",
-  agreeTerms: false,
 };
 
 const PasswordStrengthMeter = ({
@@ -285,118 +279,79 @@ const Signup = (props: Props) => {
     },
   });
 
-  const onSubmit: SubmitHandler<FormValues> = async (values) => {
-    signUpMutation.mutate(values);
+  // mutateAsync because I need isSubmitting to be true for the whole duration of the request
+  // this is the shortest version just to keep next.js happy without using try/catch
+  const onSubmit: SubmitHandler<FormValues> = async (values) =>
+    signUpMutation.mutateAsync(values).catch(() => {});
+
+  const onGoogleClick = async () => {
+    const data = await authClient.signIn.social({ provider: "google" });
+    console.log({ data });
   };
 
-  const formSubmitting = signUpMutation.isPending;
+  const isSubmitting = form.formState.isSubmitting;
 
   return (
     <Section addClassName="mt-5">
-      <VerticalStack>
-        <Button
-          disabled={formSubmitting}
-          color="inherit"
-          variant="outlined"
-          fullWidth
-          size="large"
-          onClick={async () => {
-            const data = await authClient.signIn.social({ provider: "google" });
-            console.log({ data });
-          }}
-          startIcon={
-            <Image
-              src="/icons/google.svg"
-              alt="google-icon"
-              width={22}
-              height={22}
-              priority
-            />
-          }
-        >
-          Sign up with Google
-        </Button>
-        <Button
-          disabled={formSubmitting}
-          color="inherit"
-          variant="outlined"
-          fullWidth
-          size="large"
-          startIcon={<PersonIcon />}
-        >
-          Continue as guest
-        </Button>
-      </VerticalStack>
-      <Divider className="my-4">or create an account</Divider>
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-        <VerticalStack>
-          <Input
-            control={form.control}
-            name="username"
-            label="Username"
-            type="text"
-            fullWidth
-            autoFocus
-          />
-          <Input
-            control={form.control}
-            name="email"
-            label="Email (optional)"
-            type="email"
-            fullWidth
-          />
-          <div>
+      <AuthWrapper
+        authType="signup"
+        isLoading={isSubmitting}
+        onGoogleClick={onGoogleClick}
+        onGuestClick={() => {}}
+      >
+        <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          <VerticalStack>
             <Input
               control={form.control}
-              name="password"
-              label="Password"
+              name="username"
+              label="Username"
+              type="text"
+              fullWidth
+            />
+            <Input
+              control={form.control}
+              name="email"
+              label="Email (optional)"
+              type="email"
+              fullWidth
+            />
+            <div>
+              <Input
+                control={form.control}
+                name="password"
+                label="Password"
+                fullWidth
+                type="password"
+                endAccessory="passwordVisibility"
+                onFocus={() => {
+                  setPasswordFieldWasFocused(true);
+                }}
+              />
+              <PasswordStrengthMeter
+                form={form}
+                passwordFieldWasFocused={passwordFieldWasFocused}
+              />
+            </div>
+            <Input
+              control={form.control}
+              name="passwordConfirm"
+              label="Password confirmation"
               fullWidth
               type="password"
               endAccessory="passwordVisibility"
-              onFocus={() => {
-                setPasswordFieldWasFocused(true);
-              }}
             />
-            <PasswordStrengthMeter
-              form={form}
-              passwordFieldWasFocused={passwordFieldWasFocused}
-            />
-          </div>
-          <Input
-            control={form.control}
-            name="passwordConfirm"
-            label="Password confirmation"
-            fullWidth
-            type="password"
-            endAccessory="passwordVisibility"
-          />
-          <Checkbox
-            control={form.control}
-            name="agreeTerms"
-            label={
-              <span>
-                I have read and agree to the{" "}
-                <Link target="_blank" href={ROUTES.terms}>
-                  Terms and Conditions
-                </Link>{" "}
-                and{" "}
-                <Link target="_blank" href={ROUTES.privacyPolicy}>
-                  Privacy Policy
-                </Link>
-              </span>
-            }
-          />
-          <Button
-            variant="contained"
-            type="submit"
-            size="large"
-            disabled={formSubmitting}
-            isLoading={signUpMutation.isPending}
-          >
-            Sign Up
-          </Button>
-        </VerticalStack>
-      </form>
+            <Button
+              variant="contained"
+              type="submit"
+              size="large"
+              disabled={isSubmitting}
+              isLoading={isSubmitting}
+            >
+              Sign Up
+            </Button>
+          </VerticalStack>
+        </form>
+      </AuthWrapper>
     </Section>
   );
 };

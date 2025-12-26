@@ -36,9 +36,6 @@ export const signupSchemaForm = z
     email: Text.Title().pipe(z.email()).optional().or(z.literal("")),
     password: zPassword,
     passwordConfirm: Text.Title({ shouldTrim: false, required: true }),
-    agreeTerms: z.boolean().refine((v) => Boolean(v), {
-      error: "You must agree to the Terms and Privacy Policy",
-    }),
   })
   .refine((data) => data.password === data.passwordConfirm, {
     error: "Passwords do not match",

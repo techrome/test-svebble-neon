@@ -10,6 +10,7 @@ import Button from "@/components/Button/Button";
 import Checkbox from "@/components/Fields/Checkbox";
 import Input from "@/components/Fields/Input";
 import { loginSchemaForm } from "@/utils/validators/shared/auth";
+import { AuthWrapper } from "@/components/AuthForm/Helpers";
 
 type Props = {
   onSubmit?: () => void;
@@ -35,36 +36,45 @@ const Login = (props: Props) => {
     console.log({ values });
   };
 
+  const isSubmitting = form.formState.isSubmitting;
+
   return (
     <Section addClassName="mt-5">
-      <form onSubmit={form.handleSubmit(onSubmit)}>
-        <VerticalStack>
-          <Input
-            control={form.control}
-            name="username"
-            label="Username"
-            type="text"
-            fullWidth
-            autoFocus
-          />
-          <Input
-            control={form.control}
-            name="password"
-            label="Password"
-            fullWidth
-            type="password"
-            endAccessory="passwordVisibility"
-          />
-          <Checkbox
-            control={form.control}
-            name="rememberMe"
-            label="Remember me"
-          />
-          <Button variant="contained" type="submit" size="large">
-            Log In
-          </Button>
-        </VerticalStack>
-      </form>
+      <AuthWrapper
+        authType="login"
+        isLoading={isSubmitting}
+        onGoogleClick={() => {}}
+        onGuestClick={() => {}}
+      >
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <VerticalStack>
+            <Input
+              control={form.control}
+              name="username"
+              label="Username or email"
+              type="text"
+              fullWidth
+              autoFocus
+            />
+            <Input
+              control={form.control}
+              name="password"
+              label="Password"
+              fullWidth
+              type="password"
+              endAccessory="passwordVisibility"
+            />
+            <Checkbox
+              control={form.control}
+              name="rememberMe"
+              label="Remember me"
+            />
+            <Button variant="contained" type="submit" size="large">
+              Log In
+            </Button>
+          </VerticalStack>
+        </form>
+      </AuthWrapper>
     </Section>
   );
 };
