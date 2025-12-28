@@ -11,15 +11,16 @@ import Checkbox from "@/components/Fields/Checkbox";
 import Input from "@/components/Fields/Input";
 import { loginSchemaForm } from "@/utils/validators/shared/auth";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
+import { trpc } from "@/trpc";
 
 type Props = {
-  onSubmit?: () => void;
+  onSuccess?: () => void;
 };
 
 type FormValues = z.infer<typeof loginSchemaForm>;
 
 const emptyFormValues: FormValues = {
-  username: "",
+  usernameOrEmail: "",
   password: "",
   rememberMe: false,
 };
@@ -31,26 +32,36 @@ const Login = (props: Props) => {
   });
 
   const { addAppSnackbar } = useAppSnackbar();
+  const utils = trpc.useUtils();
+  const loginMutation = trpc.auth.loginCredentials.useMutation({
+    onSuccess(data) {
+      props.onSuccess?.();
+      if (data?.user) {
+        utils.auth.user.setData(undefined, {
+          user: {
+            isAnonymous: false,
+            ...data.user,
+          },
+        });
+        utils.auth.user.invalidate();
+      }
+    },
+  });
 
-  const onSubmit: SubmitHandler<FormValues> = (values) => {
-    console.log({ values });
+  const onSubmit: SubmitHandler<FormValues> = async (values) => {
+    loginMutation.mutate(values);
   };
 
-  const isSubmitting = form.formState.isSubmitting;
+  const isSubmitting = loginMutation.isPending;
 
   return (
     <Section addClassName="mt-5">
-      <AuthWrapper
-        authType="login"
-        isLoading={isSubmitting}
-        onGoogleClick={() => {}}
-        onGuestClick={() => {}}
-      >
+      <AuthWrapper authType="login" disabled={isSubmitting}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <VerticalStack>
             <Input
               control={form.control}
-              name="username"
+              name="usernameOrEmail"
               label="Username or email"
               type="text"
               fullWidth
@@ -69,7 +80,12 @@ const Login = (props: Props) => {
               name="rememberMe"
               label="Remember me"
             />
-            <Button variant="contained" type="submit" size="large">
+            <Button
+              variant="contained"
+              type="submit"
+              size="large"
+              isLoading={isSubmitting}
+            >
               Log In
             </Button>
           </VerticalStack>

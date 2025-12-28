@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   SubmitHandler,
@@ -10,7 +10,12 @@ import z from "zod";
 import ErrorIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RemoveCircleIcon from "@mui/icons-material/RemoveCircleOutline";
-import { LinearProgress, Typography, TypographyProps } from "@mui/material";
+import {
+  CircularProgress,
+  LinearProgress,
+  Typography,
+  TypographyProps,
+} from "@mui/material";
 
 import Button from "@/components/Button/Button";
 import Input from "@/components/Fields/Input";
@@ -20,18 +25,20 @@ import {
   VerticalStack,
 } from "@/components/Layout/Containers";
 import { useAppSnackbar } from "@/utils/snackbar";
-import { Text } from "@/utils/validators/helpers/text";
 import Collapse from "@/components/Collapse/Collapse";
 import {
   passwordMinLength,
   signupSchemaForm,
 } from "@/utils/validators/shared/auth";
-import { authClient } from "@/trpc/auth";
 import { trpc } from "@/trpc";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
+import { CACHE_TIME } from "@/utils/cacheTime";
+import { useDebouncedValue } from "@/utils/useDebouncedValue";
+import { normalizeText } from "@/utils/stringUtils";
+import Tooltip from "@/components/Tooltip/Tooltip";
 
 type Props = {
-  onSubmit?: () => void;
+  onSuccess?: () => void;
 };
 
 type PasswordRule = {
@@ -254,6 +261,70 @@ const PasswordStrengthMeter = ({
   );
 };
 
+const UsernameInput = ({ form }: { form: UseFormReturn<FormValues> }) => {
+  const [username] = useWatch({ control: form.control, name: ["username"] });
+
+  const fieldState = form.getFieldState("username", form.formState);
+
+  const debouncedUsername = normalizeText(
+    useDebouncedValue(username, 750)
+  ).toLowerCase();
+
+  const queryDisabled =
+    !signupSchemaForm.shape.username.safeParse(debouncedUsername).success ||
+    (fieldState.error && fieldState.error?.type !== "availability");
+
+  const usernameAvailabilityQuery =
+    trpc.auth.checkUsernameAvailability.useQuery(
+      { username: debouncedUsername },
+      { staleTime: CACHE_TIME.NORMAL, retry: false, enabled: !queryDisabled }
+    );
+
+  useEffect(() => {
+    if (queryDisabled) {
+      return;
+    }
+
+    if (usernameAvailabilityQuery.data) {
+      if (usernameAvailabilityQuery.data.available) {
+        if (fieldState.error?.type === "availability") {
+          form.clearErrors("username");
+        }
+      } else {
+        form.setError("username", {
+          type: "availability",
+          message: "Username is already taken",
+        });
+      }
+    }
+  }, [debouncedUsername, usernameAvailabilityQuery.data]);
+
+  return (
+    <Input
+      control={form.control}
+      name="username"
+      label="Username"
+      type="text"
+      fullWidth
+      endAccessory={
+        <>
+          {usernameAvailabilityQuery.isFetching ? (
+            <CircularProgress size={24} />
+          ) : usernameAvailabilityQuery.data ? (
+            usernameAvailabilityQuery.data.available ? (
+              <CheckCircleIcon color="success" />
+            ) : (
+              <Tooltip title="Username is already taken">
+                <ErrorIcon color="error" />
+              </Tooltip>
+            )
+          ) : null}
+        </>
+      }
+    />
+  );
+};
+
 const Signup = (props: Props) => {
   const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
     React.useState(false);
@@ -265,49 +336,40 @@ const Signup = (props: Props) => {
 
   const { addAppSnackbar } = useAppSnackbar();
 
-  const signUpMutation = trpc.auth.signUpUsername.useMutation({
-    onSuccess(data, variables, onMutateResult, context) {
-      console.log({ data });
+  const utils = trpc.useUtils();
+  const signUpMutation = trpc.auth.signUpCredentials.useMutation({
+    onSuccess(data) {
+      props.onSuccess?.();
+      if (data?.user) {
+        utils.auth.user.setData(undefined, {
+          user: data.user,
+        });
+        utils.auth.user.invalidate();
+      }
       addAppSnackbar({
-        message: "Signed Up",
+        message: "You have successfully signed up",
         variant: "success",
       });
     },
-    onError(error, variables, onMutateResult, context) {
-      console.log(error.message);
-      addAppSnackbar({ message: error.message, variant: "error" });
-    },
   });
 
-  // mutateAsync because I need isSubmitting to be true for the whole duration of the request
-  // this is the shortest version just to keep next.js happy without using try/catch
-  const onSubmit: SubmitHandler<FormValues> = async (values) =>
-    signUpMutation.mutateAsync(values).catch(() => {});
-
-  const onGoogleClick = async () => {
-    const data = await authClient.signIn.social({ provider: "google" });
-    console.log({ data });
+  const onSubmit: SubmitHandler<FormValues> = async (values) => {
+    const usernameError = form.formState.errors.username;
+    if (usernameError) {
+      form.setError("username", { ...usernameError }, { shouldFocus: true });
+      return;
+    }
+    signUpMutation.mutate(values);
   };
 
-  const isSubmitting = form.formState.isSubmitting;
+  const isSubmitting = signUpMutation.isPending;
 
   return (
     <Section addClassName="mt-5">
-      <AuthWrapper
-        authType="signup"
-        isLoading={isSubmitting}
-        onGoogleClick={onGoogleClick}
-        onGuestClick={() => {}}
-      >
+      <AuthWrapper authType="signup" disabled={isSubmitting}>
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <VerticalStack>
-            <Input
-              control={form.control}
-              name="username"
-              label="Username"
-              type="text"
-              fullWidth
-            />
+            <UsernameInput form={form} />
             <Input
               control={form.control}
               name="email"
@@ -344,7 +406,6 @@ const Signup = (props: Props) => {
               variant="contained"
               type="submit"
               size="large"
-              disabled={isSubmitting}
               isLoading={isSubmitting}
             >
               Sign Up

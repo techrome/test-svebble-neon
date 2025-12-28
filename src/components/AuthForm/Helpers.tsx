@@ -9,28 +9,51 @@ import { VerticalStack } from "@/components/Layout/Containers";
 import Button from "@/components/Button/Button";
 import { Divider } from "@/components/Layout/Dividers";
 import { AuthType } from "@/components/AuthForm/AuthForm";
+import { useAppSnackbar } from "@/utils/snackbar";
+import { trpc } from "@/trpc";
 
 type WrapperProps = {
   authType: AuthType;
-  isLoading: boolean;
+  disabled: boolean;
   children: React.ReactNode;
-  onGoogleClick: () => void;
-  onGuestClick: () => void;
 };
 
 export const AuthWrapper = (props: WrapperProps) => {
   const isLogin = props.authType === "login";
 
+  const { addAppSnackbar } = useAppSnackbar();
+
+  const googleLoginMutation = trpc.auth.googleLogin.useMutation({
+    onSuccess(data) {
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    },
+    onError() {
+      addAppSnackbar({ message: "Something went wrong", variant: "error" });
+    },
+  });
+
+  const onGoogleClick = async () => {
+    googleLoginMutation.mutate();
+  };
+
+  const onGuestClick = () => {};
+
+  const isLoading = googleLoginMutation.isPending;
+  const isDisabled = isLoading || props.disabled;
+
   return (
     <>
       <VerticalStack>
         <Button
-          disabled={props.isLoading}
+          isLoading={googleLoginMutation.isPending}
+          disabled={isDisabled}
           color="inherit"
           variant="outlined"
           fullWidth
           size="large"
-          onClick={props.onGoogleClick}
+          onClick={onGoogleClick}
           startIcon={
             <Image
               src="/icons/google.svg"
@@ -44,12 +67,12 @@ export const AuthWrapper = (props: WrapperProps) => {
           {isLogin ? "Log in" : "Sign up"} with Google
         </Button>
         <Button
-          disabled={props.isLoading}
+          disabled={isDisabled}
           color="inherit"
           variant="outlined"
           fullWidth
           size="large"
-          onClick={props.onGuestClick}
+          onClick={onGuestClick}
           startIcon={<PersonIcon />}
         >
           Continue as guest
