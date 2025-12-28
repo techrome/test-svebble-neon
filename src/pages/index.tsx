@@ -17,6 +17,7 @@ import {
 } from "@/utils/useOverlay";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
 import { useAppSnackbar } from "@/utils/snackbar";
+import { CACHE_TIME } from "@/utils/cacheTime";
 
 const GlobalData = () => {
   const globalData = useAppQuery(
@@ -282,7 +283,7 @@ export const getStaticProps = (async () => {
     props: {
       trpcState: helpers.dehydrate(),
     },
-    revalidate: 15,
+    revalidate: CACHE_TIME.QUICKEST,
   };
 }) satisfies GetStaticProps;
 

@@ -26,6 +26,17 @@ let _theme = createTheme({
 _theme = {
   ..._theme,
   components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          "&.Mui-disabled": {
+            "& > .MuiButton-icon > img": {
+              opacity: "0.5",
+            },
+          },
+        },
+      },
+    },
     MuiTooltip: {
       styleOverrides: { tooltip: { maxWidth: "450px" } },
     },

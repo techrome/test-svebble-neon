@@ -25,7 +25,7 @@ export type BasePropsBuilder<
   control: Control<TFV>;
   rules?: RegisterOptions<TFV, TName>;
   withHelperText?: boolean;
-  defaultDisabledBehavior?: boolean;
+  autoDisableOnSubmit?: boolean;
 };
 
 type AnyPickerProps = DateTimePickerProps | DatePickerProps | TimePickerProps;
@@ -127,7 +127,7 @@ export const useBaseProps = <
     name,
     control,
     rules,
-    defaultDisabledBehavior = true,
+    autoDisableOnSubmit = false,
     endAccessory = "clear",
     disabled: disabledProp,
     ...pickerProps
@@ -143,7 +143,7 @@ export const useBaseProps = <
   const error = controller.fieldState.error;
   const isSubmitting = controller.formState.isSubmitting;
 
-  const disabled = defaultDisabledBehavior
+  const disabled = autoDisableOnSubmit
     ? isSubmitting || disabledProp
     : disabledProp;
 

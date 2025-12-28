@@ -44,7 +44,7 @@ const Checkbox = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
     checkboxProps,
     formControlProps,
     formControlLabelProps,
-    defaultDisabledBehavior = true,
+    autoDisableOnSubmit = false,
   } = props;
 
   const {
@@ -55,7 +55,7 @@ const Checkbox = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
     name,
     control,
   });
-  const disabled = defaultDisabledBehavior
+  const disabled = autoDisableOnSubmit
     ? isSubmitting || disabledProp
     : disabledProp;
   const errorMessage = fieldState.error?.message;
