@@ -47,6 +47,7 @@ const ClearButton: AccessoryCustomRenderer = (props) => {
       onClick={() => {
         props.controller.field.onChange("");
       }}
+      disabled={props.disabled}
     >
       <ClearIcon />
     </IconButton>
@@ -71,6 +72,7 @@ const PasswordVisibilityButton: AccessoryCustomRenderer = (props) => {
             type: isPassword ? "text" : "password",
           }));
         }}
+        disabled={props.disabled}
       >
         {isPassword ? <VisibilityIcon /> : <VisibilityOffIcon />}
       </IconButton>
@@ -106,8 +108,9 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
     name,
     control,
     rules,
-    withHelperText = true,
+    autoDisableOnSubmit = false,
     endAccessory,
+    disabled: disabledProp,
     ...textFieldProps
   } = props;
 
@@ -119,12 +122,16 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
 
   const field = controller.field;
   const error = controller.fieldState.error;
-
+  const isSubmitting = controller.formState.isSubmitting;
+  const disabled = autoDisableOnSubmit
+    ? isSubmitting || disabledProp
+    : disabledProp;
   const hasError = Boolean(error);
 
   let endAdornment: React.ReactNode = null;
   let accessoryContext: AccessoryContext<TFV, TName> = {
     ...props,
+    disabled,
     additionalProps,
     setAdditionalProps,
     controller,
@@ -148,6 +155,7 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
     <TextField
       {...textFieldProps}
       {...fieldProps}
+      disabled={disabled}
       {...additionalProps}
       inputRef={ref}
       slotProps={{ input: { endAdornment } }}

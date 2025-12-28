@@ -133,7 +133,7 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
       {hasDetails && (
         <Collapse in={expanded} unmountOnExit>
           <Box className="mt-2 pr-3 max-w-full max-h-[250px] overflow-y-auto">
-            <Typography variant="body2" component="span">
+            <Typography variant="body2" component="div">
               {props.details}
             </Typography>
           </Box>

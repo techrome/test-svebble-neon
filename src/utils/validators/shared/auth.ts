@@ -6,6 +6,20 @@ import { Text } from "@/utils/validators/helpers/text";
 export const passwordMinLength = 8;
 export const passwordCheck = z.string().min(passwordMinLength);
 
+export const zUsername = Text.Handle()
+  .min(3, "Username must be at least 3 characters")
+  .regex(
+    /^[A-Za-z0-9_\.]+$/,
+    "Please use only English letters, numbers, underscore or period"
+  )
+  .refine(
+    (value) =>
+      !["__", "..", "_.", "._"].some((invalidStr) =>
+        value.includes(invalidStr)
+      ),
+    "Please don't use consecutive underscores/periods"
+  );
+
 export const zPassword = Text.Title({
   shouldTrim: false,
   required: true,
@@ -22,13 +36,10 @@ export const zPassword = Text.Title({
 
 export const signupSchemaForm = z
   .object({
-    username: Text.Handle({ required: true }),
+    username: zUsername,
     email: Text.Title().pipe(z.email()).optional().or(z.literal("")),
     password: zPassword,
     passwordConfirm: Text.Title({ shouldTrim: false, required: true }),
-    agreeTerms: z.boolean().refine((v) => Boolean(v), {
-      error: "You must agree to the Terms and Privacy Policy",
-    }),
   })
   .refine((data) => data.password === data.passwordConfirm, {
     error: "Passwords do not match",
@@ -36,7 +47,10 @@ export const signupSchemaForm = z
   });
 
 export const loginSchemaForm = z.object({
-  username: Text.Handle({ required: true }),
+  usernameOrEmail: Text.Handle().min(
+    3,
+    "Username or email must be at least 3 characters"
+  ),
   password: Text.Title({ shouldTrim: false, required: true }),
   rememberMe: z.boolean(),
 });

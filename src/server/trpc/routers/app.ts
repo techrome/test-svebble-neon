@@ -3,9 +3,10 @@ import { eq, desc } from "drizzle-orm";
 
 import { trpc, dbUtils } from "@/server";
 import * as sharedCommentsValidations from "@/utils/validators/shared/comments";
+import { authRouter } from "./auth";
 
 const { schema, db } = dbUtils;
-const { procedure, router } = trpc;
+const { publicProcedure, router } = trpc;
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -36,7 +37,7 @@ const generateRandomText = (
 };
 
 export const appRouter = router({
-  hello: procedure
+  hello: publicProcedure
     .input(
       z.object({
         text: z.string(),
@@ -47,17 +48,17 @@ export const appRouter = router({
         greeting: `hello ${opts.input.text}`,
       };
     }),
-  globalData: procedure.query(() => ({
+  globalData: publicProcedure.query(() => ({
     links: ["a1", "a2", "a3"],
   })),
-  commentsGet: procedure.query(async () => {
+  commentsGet: publicProcedure.query(async () => {
     const comments = await db
       .select()
       .from(schema.commentsSchema)
       .orderBy(desc(schema.commentsSchema.created_at));
     return comments;
   }),
-  commentCreateSpam: procedure
+  commentCreateSpam: publicProcedure
     .input(
       z
         .object({
@@ -86,12 +87,12 @@ export const appRouter = router({
         }
       }
     }),
-  commentCreate: procedure
+  commentCreate: publicProcedure
     .input(sharedCommentsValidations.commentsCreate)
     .mutation(async ({ input }) => {
       await db.insert(schema.commentsSchema).values({ text: input.text });
     }),
-  commentUpdate: procedure
+  commentUpdate: publicProcedure
     .input(sharedCommentsValidations.commentsUpdate)
     .mutation(async ({ input }) => {
       const res = await db
@@ -100,16 +101,17 @@ export const appRouter = router({
         .where(eq(schema.commentsSchema.id, input.id));
       return res;
     }),
-  commentDelete: procedure
+  commentDelete: publicProcedure
     .input(sharedCommentsValidations.commentsDelete)
     .mutation(async ({ input }) => {
       await db
         .delete(schema.commentsSchema)
         .where(eq(schema.commentsSchema.id, input.id));
     }),
-  commentsDeleteAll: procedure.mutation(async () => {
+  commentsDeleteAll: publicProcedure.mutation(async () => {
     await db.delete(schema.commentsSchema);
   }),
+  auth: authRouter,
 });
 
 export type AppRouter = typeof appRouter;

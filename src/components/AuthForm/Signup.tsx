@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   SubmitHandler,
@@ -10,29 +10,35 @@ import z from "zod";
 import ErrorIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RemoveCircleIcon from "@mui/icons-material/RemoveCircleOutline";
+import {
+  CircularProgress,
+  LinearProgress,
+  Typography,
+  TypographyProps,
+} from "@mui/material";
 
 import Button from "@/components/Button/Button";
-import Checkbox from "@/components/Fields/Checkbox";
 import Input from "@/components/Fields/Input";
 import {
   HorizontalStack,
   Section,
   VerticalStack,
 } from "@/components/Layout/Containers";
-import Link from "@/components/Link/Link";
-import { ROUTES } from "@/utils/routes";
 import { useAppSnackbar } from "@/utils/snackbar";
-import { Text } from "@/utils/validators/helpers/text";
-import { LinearProgress, Typography, TypographyProps } from "@mui/material";
 import Collapse from "@/components/Collapse/Collapse";
-import { Divider } from "@/components/Layout/Dividers";
 import {
   passwordMinLength,
   signupSchemaForm,
 } from "@/utils/validators/shared/auth";
+import { trpc } from "@/trpc";
+import { AuthWrapper } from "@/components/AuthForm/Helpers";
+import { CACHE_TIME } from "@/utils/cacheTime";
+import { useDebouncedValue } from "@/utils/useDebouncedValue";
+import { normalizeText } from "@/utils/stringUtils";
+import Tooltip from "@/components/Tooltip/Tooltip";
 
 type Props = {
-  onSubmit?: () => void;
+  onSuccess?: () => void;
 };
 
 type PasswordRule = {
@@ -47,7 +53,7 @@ type PasswordRule = {
 export const requiredPasswordRules: PasswordRule[] = [
   {
     label: "At least 8 characters",
-    error: "Password must be at least 8 characters long",
+    error: "Password must have at least 8 characters",
     validate: (value) => value.length >= passwordMinLength,
     required: true,
     score: 1,
@@ -153,7 +159,6 @@ const emptyFormValues: FormValues = {
   email: "",
   password: "",
   passwordConfirm: "",
-  agreeTerms: false,
 };
 
 const PasswordStrengthMeter = ({
@@ -256,6 +261,70 @@ const PasswordStrengthMeter = ({
   );
 };
 
+const UsernameInput = ({ form }: { form: UseFormReturn<FormValues> }) => {
+  const [username] = useWatch({ control: form.control, name: ["username"] });
+
+  const fieldState = form.getFieldState("username", form.formState);
+
+  const debouncedUsername = normalizeText(
+    useDebouncedValue(username, 750)
+  ).toLowerCase();
+
+  const queryDisabled =
+    !signupSchemaForm.shape.username.safeParse(debouncedUsername).success ||
+    (fieldState.error && fieldState.error?.type !== "availability");
+
+  const usernameAvailabilityQuery =
+    trpc.auth.checkUsernameAvailability.useQuery(
+      { username: debouncedUsername },
+      { staleTime: CACHE_TIME.NORMAL, retry: false, enabled: !queryDisabled }
+    );
+
+  useEffect(() => {
+    if (queryDisabled) {
+      return;
+    }
+
+    if (usernameAvailabilityQuery.data) {
+      if (usernameAvailabilityQuery.data.available) {
+        if (fieldState.error?.type === "availability") {
+          form.clearErrors("username");
+        }
+      } else {
+        form.setError("username", {
+          type: "availability",
+          message: "Username is already taken",
+        });
+      }
+    }
+  }, [debouncedUsername, usernameAvailabilityQuery.data]);
+
+  return (
+    <Input
+      control={form.control}
+      name="username"
+      label="Username"
+      type="text"
+      fullWidth
+      endAccessory={
+        <>
+          {usernameAvailabilityQuery.isFetching ? (
+            <CircularProgress size={24} />
+          ) : usernameAvailabilityQuery.data ? (
+            usernameAvailabilityQuery.data.available ? (
+              <CheckCircleIcon color="success" />
+            ) : (
+              <Tooltip title="Username is already taken">
+                <ErrorIcon color="error" />
+              </Tooltip>
+            )
+          ) : null}
+        </>
+      }
+    />
+  );
+};
+
 const Signup = (props: Props) => {
   const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
     React.useState(false);
@@ -267,79 +336,83 @@ const Signup = (props: Props) => {
 
   const { addAppSnackbar } = useAppSnackbar();
 
-  const onSubmit: SubmitHandler<FormValues> = (values) => {
-    console.log({ values });
+  const utils = trpc.useUtils();
+  const signUpMutation = trpc.auth.signUpCredentials.useMutation({
+    onSuccess(data) {
+      props.onSuccess?.();
+      if (data?.user) {
+        utils.auth.user.setData(undefined, {
+          user: data.user,
+        });
+        utils.auth.user.invalidate();
+      }
+      addAppSnackbar({
+        message: "You have successfully signed up",
+        variant: "success",
+      });
+    },
+  });
+
+  const onSubmit: SubmitHandler<FormValues> = async (values) => {
+    const usernameError = form.formState.errors.username;
+    if (usernameError) {
+      form.setError("username", { ...usernameError }, { shouldFocus: true });
+      return;
+    }
+    signUpMutation.mutate(values);
   };
+
+  const isSubmitting = signUpMutation.isPending;
 
   return (
     <Section addClassName="mt-5">
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-        <VerticalStack>
-          <Input
-            control={form.control}
-            name="username"
-            label="Username"
-            type="text"
-            fullWidth
-            autoFocus
-          />
-          <Input
-            control={form.control}
-            name="email"
-            label="Email (optional)"
-            type="email"
-            fullWidth
-          />
-          <div>
+      <AuthWrapper authType="signup" disabled={isSubmitting}>
+        <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+          <VerticalStack>
+            <UsernameInput form={form} />
             <Input
               control={form.control}
-              name="password"
-              label="Password"
+              name="email"
+              label="Email (optional)"
+              type="email"
+              fullWidth
+            />
+            <div>
+              <Input
+                control={form.control}
+                name="password"
+                label="Password"
+                fullWidth
+                type="password"
+                endAccessory="passwordVisibility"
+                onFocus={() => {
+                  setPasswordFieldWasFocused(true);
+                }}
+              />
+              <PasswordStrengthMeter
+                form={form}
+                passwordFieldWasFocused={passwordFieldWasFocused}
+              />
+            </div>
+            <Input
+              control={form.control}
+              name="passwordConfirm"
+              label="Password confirmation"
               fullWidth
               type="password"
               endAccessory="passwordVisibility"
-              onFocus={() => {
-                setPasswordFieldWasFocused(true);
-              }}
             />
-            <PasswordStrengthMeter
-              form={form}
-              passwordFieldWasFocused={passwordFieldWasFocused}
-            />
-          </div>
-          <Input
-            control={form.control}
-            name="passwordConfirm"
-            label="Password confirmation"
-            fullWidth
-            type="password"
-            endAccessory="passwordVisibility"
-          />
-          <Checkbox
-            control={form.control}
-            name="agreeTerms"
-            label={
-              <span>
-                I have read and agree to the{" "}
-                <Link target="_blank" href={ROUTES.terms}>
-                  Terms and Conditions
-                </Link>{" "}
-                and{" "}
-                <Link target="_blank" href={ROUTES.privacyPolicy}>
-                  Privacy Policy
-                </Link>
-              </span>
-            }
-          />
-          <Button variant="contained" type="submit" size="large">
-            Sign Up
-          </Button>
-        </VerticalStack>
-      </form>
-      <Divider className="my-4">or</Divider>
-      <Button variant="outlined" fullWidth size="large">
-        Continue as guest
-      </Button>
+            <Button
+              variant="contained"
+              type="submit"
+              size="large"
+              isLoading={isSubmitting}
+            >
+              Sign Up
+            </Button>
+          </VerticalStack>
+        </form>
+      </AuthWrapper>
     </Section>
   );
 };

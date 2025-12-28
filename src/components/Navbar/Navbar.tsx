@@ -12,6 +12,7 @@ import {
   ListItemButton,
   ListItemText,
   useMediaQuery,
+  CircularProgress,
 } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
@@ -20,6 +21,7 @@ import DarkModeIcon from "@mui/icons-material/DarkMode";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import FilterListIcon from "@mui/icons-material/FilterList";
+import UserIcon from "@mui/icons-material/AccountCircle";
 import { useRouter } from "next/router";
 import { Virtuoso } from "react-virtuoso";
 import { motion } from "motion/react";
@@ -33,6 +35,7 @@ import Fuse from "fuse.js";
 import { type Dayjs } from "dayjs";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import clsx from "clsx";
 
 import {
   useGlobalDrawer,
@@ -74,7 +77,10 @@ import AuthForm, {
   AuthType,
   authTypeMapping,
 } from "@/components/AuthForm/AuthForm";
-import clsx from "clsx";
+import { trpc } from "@/trpc";
+import { useAppSnackbar } from "@/utils/snackbar";
+import useUser from "@/trpc/hooks/useUser";
+import { useDebouncedValue } from "@/utils/useDebouncedValue";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -86,38 +92,100 @@ const MotionItem = React.forwardRef<
 const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
   const [authType, setAuthType] = React.useState<AuthType>("login");
   const authModal = useLocalModal();
+  const { addAppSnackbar } = useAppSnackbar();
+  const user = useUser();
+  const utils = trpc.useUtils();
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess() {
+      utils.auth.user.setData(undefined, { user: null });
+      utils.auth.user.invalidate();
+    },
+  });
+  const deleteAccountMutation = trpc.auth.deleteUser.useMutation({
+    onSuccess() {
+      utils.auth.user.setData(undefined, { user: null });
+      utils.auth.user.invalidate();
+      addAppSnackbar({
+        message: "Your account has been deleted",
+        variant: "success",
+      });
+    },
+  });
 
   return (
-    <HorizontalStack
-      addClassName={clsx("items-center", props.isNavbar && "max-md:hidden")}
-      wrap={false}
-    >
-      <Button
-        variant="outlined"
-        onClick={() => {
-          setAuthType("login");
-          authModal.openModal();
-        }}
-        size="large"
-        fullWidth={props.fullWidth}
-      >
-        Log in
-      </Button>
-      <Button
-        variant="contained"
-        onClick={() => {
-          setAuthType("signup");
-          authModal.openModal();
-        }}
-        size="large"
-        fullWidth={props.fullWidth}
-      >
-        Sign up
-      </Button>
+    <>
+      {user.isPending ? (
+        <CircularProgress size={24} />
+      ) : user.data?.user ? (
+        props.isNavbar ? null : (
+          <VerticalStack>
+            <Typography variant="body1" textAlign="center">
+              Hello, {user.data.user.name}!
+            </Typography>
+            <Button
+              variant="contained"
+              onClick={() => {
+                logoutMutation.mutate();
+              }}
+              size="large"
+              fullWidth
+              disabled={deleteAccountMutation.isPending}
+              isLoading={logoutMutation.isPending}
+            >
+              Log out
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => {
+                deleteAccountMutation.mutate();
+              }}
+              size="large"
+              fullWidth
+              disabled={logoutMutation.isPending}
+              isLoading={deleteAccountMutation.isPending}
+            >
+              Delete my account
+            </Button>
+          </VerticalStack>
+        )
+      ) : (
+        <HorizontalStack
+          addClassName={clsx("items-center", props.isNavbar && "max-md:hidden")}
+          wrap={false}
+        >
+          <Button
+            variant="outlined"
+            onClick={() => {
+              setAuthType("login");
+              authModal.openModal();
+            }}
+            size="large"
+            fullWidth={props.fullWidth}
+          >
+            Log in
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setAuthType("signup");
+              authModal.openModal();
+            }}
+            size="large"
+            fullWidth={props.fullWidth}
+          >
+            Sign up
+          </Button>
+        </HorizontalStack>
+      )}
       <authModal.ReadyComponent title={authTypeMapping[authType]}>
-        <AuthForm initialAuthType={authType} onAuthTypeChange={setAuthType} />
+        <AuthForm
+          initialAuthType={authType}
+          onAuthTypeChange={setAuthType}
+          onSuccess={authModal.closeModal}
+        />
       </authModal.ReadyComponent>
-    </HorizontalStack>
+    </>
   );
 };
 
@@ -127,8 +195,11 @@ const DrawerContent = () => {
 
   return (
     <VerticalStack withPadding addClassName="flex-1 overflow-y-auto">
-      <AuthButtons fullWidth />
-      <Box>
+      <LoadingBoundary isOuter>
+        <AuthButtons fullWidth />
+      </LoadingBoundary>
+
+      <div className="mt-auto">
         <Label id={modeLabelId}>Mode</Label>
         <ToggleButtonGroup
           value={mode}
@@ -173,8 +244,8 @@ const DrawerContent = () => {
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
-      </Box>
-      <Divider className="mt-auto" />
+      </div>
+      <Divider />
       <List disablePadding>
         {[
           {
@@ -357,21 +428,16 @@ const SearchOutsideForm = ({
     name: ["searchText"],
   });
 
+  const debouncedSearchText = useDebouncedValue(searchText, 300, {
+    instantOnFalsyValue: true,
+  });
+
   React.useEffect(() => {
     if (filterPopover.isOpen) {
       return;
     }
-    if (!searchText) {
-      onDebouncedValue(searchText);
-      return;
-    }
-    const timeoutId = setTimeout(() => {
-      onDebouncedValue(searchText);
-    }, 300);
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [searchText, filterPopover.isOpen]);
+    onDebouncedValue(debouncedSearchText);
+  }, [debouncedSearchText, filterPopover.isOpen]);
 
   return (
     <form onSubmit={formState.handleSubmit(handleSubmit)} noValidate>
@@ -598,11 +664,12 @@ const NotificationsContent = () => {
   );
 };
 
-const Navbar = () => {
+const NavbarInner = () => {
   const { openDrawer, closeDrawer } = useGlobalDrawer();
   const router = useRouter();
 
   const notificationsPopover = useLocalPopover();
+  const user = useUser();
 
   useEffect(() => {
     router.events.on("routeChangeComplete", closeDrawer);
@@ -614,45 +681,53 @@ const Navbar = () => {
   }, [router.events, closeDrawer]);
 
   return (
-    <AppBar position="sticky" color="default">
-      <Toolbar className="flex justify-between py-2 sm:py-3">
-        <Link href={ROUTES.home} className="logo">
-          <Typography variant="h5" component="div" color="textPrimary">
-            ChatApp
-          </Typography>
-        </Link>
-        <HorizontalStack>
-          <AuthButtons isNavbar />
-          <LoadingBoundary>
-            <IconButton
-              size="large"
-              color="inherit"
-              aria-label="notifications"
-              onClick={notificationsPopover.openPopover}
-            >
-              <Badge badgeContent={0}>
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
-          </LoadingBoundary>
-          <notificationsPopover.ReadyComponent transitionDuration={0}>
-            <NotificationsContent />
-          </notificationsPopover.ReadyComponent>
+    <Toolbar className="flex justify-between py-2 sm:py-3">
+      <Link href={ROUTES.home} className="logo">
+        <Typography variant="h5" component="div" color="textPrimary">
+          ChatApp
+        </Typography>
+      </Link>
+      <HorizontalStack addClassName="items-center">
+        <AuthButtons isNavbar />
+        <LoadingBoundary>
           <IconButton
             size="large"
             color="inherit"
-            aria-label="menu"
-            onClick={() => {
-              openDrawer({
-                content: <DrawerContent />,
-                props: { title: "Menu" },
-              });
-            }}
+            aria-label="notifications"
+            onClick={notificationsPopover.openPopover}
           >
-            <MenuIcon />
+            <Badge badgeContent={0}>
+              <NotificationsIcon />
+            </Badge>
           </IconButton>
-        </HorizontalStack>
-      </Toolbar>
+        </LoadingBoundary>
+        <notificationsPopover.ReadyComponent transitionDuration={0}>
+          <NotificationsContent />
+        </notificationsPopover.ReadyComponent>
+        <IconButton
+          size="large"
+          color="inherit"
+          aria-label="menu"
+          onClick={() => {
+            openDrawer({
+              content: <DrawerContent />,
+              props: { title: "Menu" },
+            });
+          }}
+        >
+          {user.data?.user ? <UserIcon /> : <MenuIcon />}
+        </IconButton>
+      </HorizontalStack>
+    </Toolbar>
+  );
+};
+
+const Navbar = () => {
+  return (
+    <AppBar position="sticky" color="default">
+      <LoadingBoundary>
+        <NavbarInner />
+      </LoadingBoundary>
     </AppBar>
   );
 };

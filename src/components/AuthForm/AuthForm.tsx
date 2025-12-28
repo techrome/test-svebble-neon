@@ -8,6 +8,7 @@ export type AuthType = "login" | "signup";
 type Props = {
   initialAuthType?: AuthType;
   onAuthTypeChange?: (type: AuthType) => void;
+  onSuccess?: () => void;
 };
 
 export const authTypeMapping = {
@@ -32,12 +33,12 @@ const AuthForm = (props: Props) => {
           {
             value: "login" satisfies AuthType,
             label: authTypeMapping.login,
-            panel: <Login />,
+            panel: <Login onSuccess={props.onSuccess} />,
           },
           {
             value: "signup" satisfies AuthType,
             label: authTypeMapping.signup,
-            panel: <Signup />,
+            panel: <Signup onSuccess={props.onSuccess} />,
           },
         ]}
       />

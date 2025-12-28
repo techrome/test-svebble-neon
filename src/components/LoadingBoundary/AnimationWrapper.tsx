@@ -5,6 +5,7 @@ type ChildObserverCallback = (el: HTMLElement) => void;
 type AnimationWrapperProps = {
   children: React.ReactNode;
   active?: boolean;
+  isOuter?: boolean;
 };
 
 const DELAY_MS = 200;
@@ -87,6 +88,7 @@ const useChildMutationObserver = (
 const AnimationWrapper = ({
   active = false,
   children,
+  isOuter,
 }: AnimationWrapperProps) => {
   const contentWrapperRef = React.useRef<HTMLDivElement | null>(null);
   const rectRef = React.useRef<SVGRectElement | null>(null);
@@ -139,7 +141,10 @@ const AnimationWrapper = ({
       <div ref={contentWrapperRef} className="dash-frame-content">
         {children}
       </div>
-      <svg className="dash-frame-svg" aria-hidden="true">
+      <svg
+        className={clsx("dash-frame-svg", isOuter ? "outer" : "inner")}
+        aria-hidden="true"
+      >
         <rect
           ref={rectRef}
           className={clsx(

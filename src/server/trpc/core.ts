@@ -1,10 +1,12 @@
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superJSON from "superjson";
 import z, { ZodError } from "zod";
 
 import { isDev } from "@@/scripts/helpers/isDev";
+import { type TRPCContext } from "./context";
+import { assertHasReqRes, assertIsAuthed } from "./helpers/assert";
 
-const trpc = initTRPC.create({
+const trpc = initTRPC.context<TRPCContext>().create({
   isDev,
   transformer: superJSON,
   errorFormatter: (opts) => {
@@ -26,5 +28,20 @@ const trpc = initTRPC.create({
   },
 });
 
+const withReqRes = trpc.middleware(({ ctx, next }) => {
+  assertHasReqRes(ctx);
+  return next({ ctx });
+});
+
+const withAuth = trpc.middleware(({ ctx, next }) => {
+  assertIsAuthed(ctx);
+  return next({ ctx });
+});
+
 export const router = trpc.router;
-export const procedure = trpc.procedure;
+
+export const publicProcedure = trpc.procedure;
+export const publicProcedureHttp = publicProcedure.use(withReqRes);
+
+export const privateProcedure = publicProcedure.use(withAuth);
+export const privateProcedureHttp = privateProcedure.use(withReqRes);

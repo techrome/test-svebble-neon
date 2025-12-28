@@ -6,6 +6,61 @@ import { LoadingBoundaryContext } from "@/utils/loadingBoundaryContext";
 import type { AppRouter } from "@/server";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { VerticalStack } from "@/components/Layout/Containers";
+import { Typography } from "@mui/material";
+
+export const getErrorInfo = (error: TRPCClientErrorLike<AppRouter>) => {
+  const hasZodError = Boolean(error.data?.zodError);
+
+  const message = hasZodError
+    ? `Error: ${error?.data?.code} - ${error?.data?.path}`
+    : error.message;
+
+  const details = (
+    <VerticalStack>
+      {hasZodError && (
+        <div>
+          <Typography variant="body2" className="font-medium">
+            Invalid fields:
+          </Typography>
+          {error.data?.zodError?.issues.map((issue, i) => (
+            <div key={i}>
+              <Typography variant="body2">
+                {" "}
+                <Typography
+                  variant="body2"
+                  className="underline"
+                  component="span"
+                >
+                  {issue.path.join(".")}
+                </Typography>{" "}
+                - {issue.message}
+              </Typography>
+            </div>
+          ))}
+        </div>
+      )}
+      {!hasZodError && (
+        <div>
+          <Typography variant="body2" className="font-medium">
+            Error message:
+          </Typography>
+          <Typography variant="body2">{error.message}</Typography>
+        </div>
+      )}
+      <div>
+        <Typography variant="body2" className="font-medium">
+          Error HTTP code:
+        </Typography>
+        <Typography variant="body2">{error.data?.httpStatus}</Typography>
+      </div>
+    </VerticalStack>
+  );
+
+  return {
+    message,
+    details,
+  };
+};
 
 const useAppQuery = <
   T extends UseTRPCQueryResult<unknown, TRPCClientErrorLike<AppRouter>>,
@@ -44,29 +99,11 @@ const useAppQuery = <
   useEffect(() => {
     const error = queryData.error;
     if (error) {
+      const errorInfo = getErrorInfo(error);
       addAppSnackbar({
-        message: `Error: ${error.data?.code} - ${error?.data?.path}`,
+        message: errorInfo.message,
+        details: errorInfo.details,
         variant: "error",
-        details: (
-          <VerticalStack>
-            <span>
-              <strong>Error message:</strong>
-              <br /> {error.message}
-            </span>
-            <span>
-              <strong>Error HTTP code:</strong> <br />
-              {error.data?.httpStatus}
-            </span>
-            {Boolean(error.data?.zodError) && (
-              <span>
-                <strong>Error validation:</strong> <br />
-                <pre className="whitespace-break-spaces">
-                  {JSON.stringify(error.data?.zodError?.tree, null, 2)}
-                </pre>
-              </span>
-            )}
-          </VerticalStack>
-        ),
       });
     }
   }, [queryData.error]);
