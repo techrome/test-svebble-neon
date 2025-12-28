@@ -3,7 +3,7 @@ import z from "zod";
 export const TEXT_LIMITS = {
   handle: 32,
   title: 80,
-  short: 254,
+  short: 255,
   long: 2000,
 } as const;
 
