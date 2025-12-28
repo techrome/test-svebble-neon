@@ -101,11 +101,20 @@
 
   .dash-frame-svg {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
     pointer-events: none;
     z-index: 2;
+
+    &.inner {
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    &.outer {
+      inset: -5px;
+      width: calc(100% + 10px);
+      height: calc(100% + 10px);
+    }
   }
 
   .dash-frame-stroke {
