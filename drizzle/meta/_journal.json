@@ -127,6 +127,13 @@
       "when": 1766926810505,
       "tag": "0017_white_black_bird",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1767030403978,
+      "tag": "0018_curved_magma",
+      "breakpoints": true
     }
   ]
 }

@@ -50,8 +50,24 @@ export const auth = betterAuth({
   },
 
   user: {
+    additionalFields: {
+      pendingEmail: { type: "string", required: false },
+      pendingEmailSetAt: { type: "date", required: false },
+    },
+    changeEmail: {
+      enabled: true,
+      updateEmailWithoutVerification: false,
+    },
     deleteUser: {
       enabled: true,
+    },
+  },
+
+  emailVerification: {
+    sendOnSignUp: false,
+
+    sendVerificationEmail: async (data, request) => {
+      console.log(`Verify email - to:${data.user.email} url:${data.url}`);
     },
   },
 
