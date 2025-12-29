@@ -1,0 +1,63 @@
+diff --git a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts b/src/server/db/schema/auth.ts
+index 0d612ad..04fddac 100644
+--- a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts
++++ b/src/server/db/schema/auth.ts
+@@ -1,4 +1,4 @@
+-import { relations } from "drizzle-orm";
++import { relations, sql } from "drizzle-orm";
+ import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+ 
+ export const user = pgTable("user", {
+@@ -10,7 +10,7 @@ export const user = pgTable("user", {
+   createdAt: timestamp("created_at").defaultNow().notNull(),
+   updatedAt: timestamp("updated_at")
+     .defaultNow()
+-    .$onUpdate(() => /* @__PURE__ */ new Date())
++    .$onUpdate(() => sql`now()`)
+     .notNull(),
+   isAnonymous: boolean("is_anonymous").default(false),
+   username: text("username").unique(),
+@@ -25,7 +25,7 @@ export const session = pgTable(
+     token: text("token").notNull().unique(),
+     createdAt: timestamp("created_at").defaultNow().notNull(),
+     updatedAt: timestamp("updated_at")
+-      .$onUpdate(() => /* @__PURE__ */ new Date())
++      .$onUpdate(() => sql`now()`)
+       .notNull(),
+     ipAddress: text("ip_address"),
+     userAgent: text("user_agent"),
+@@ -33,7 +33,7 @@ export const session = pgTable(
+       .notNull()
+       .references(() => user.id, { onDelete: "cascade" }),
+   },
+-  (table) => [index("session_userId_idx").on(table.userId)],
++  (table) => [index("session_userId_idx").on(table.userId)]
+ );
+ 
+ export const account = pgTable(
+@@ -54,10 +54,10 @@ export const account = pgTable(
+     password: text("password"),
+     createdAt: timestamp("created_at").defaultNow().notNull(),
+     updatedAt: timestamp("updated_at")
+-      .$onUpdate(() => /* @__PURE__ */ new Date())
++      .$onUpdate(() => sql`now()`)
+       .notNull(),
+   },
+-  (table) => [index("account_userId_idx").on(table.userId)],
++  (table) => [index("account_userId_idx").on(table.userId)]
+ );
+ 
+ export const verification = pgTable(
+@@ -70,10 +70,10 @@ export const verification = pgTable(
+     createdAt: timestamp("created_at").defaultNow().notNull(),
+     updatedAt: timestamp("updated_at")
+       .defaultNow()
+-      .$onUpdate(() => /* @__PURE__ */ new Date())
++      .$onUpdate(() => sql`now()`)
+       .notNull(),
+   },
+-  (table) => [index("verification_identifier_idx").on(table.identifier)],
++  (table) => [index("verification_identifier_idx").on(table.identifier)]
+ );
+ 
+ export const userRelations = relations(user, ({ many }) => ({
