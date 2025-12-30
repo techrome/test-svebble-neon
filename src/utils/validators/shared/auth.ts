@@ -34,10 +34,12 @@ export const zPassword = Text.Title({
   });
 });
 
+export const zEmail = Text.Title().pipe(z.email());
+
 export const signupSchemaForm = z
   .object({
     username: zUsername,
-    email: Text.Title().pipe(z.email()).optional().or(z.literal("")),
+    email: zEmail.optional().or(z.literal("")),
     password: zPassword,
     passwordConfirm: Text.Title({ shouldTrim: false, required: true }),
   })

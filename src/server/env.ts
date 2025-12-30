@@ -41,15 +41,15 @@ export const env = createEnv({
     // prod
     DATABASE_URL: z.string().optional(),
     DATABASE_URL_UNPOOLED: z.string().optional(),
+    VERCEL: z.string().optional(),
+    VERCEL_ENV: z.enum(["development", "production", "preview"]).optional(),
+    VERCEL_URL: domain().optional(),
+    VERCEL_PROJECT_PRODUCTION_URL: domain().optional(),
 
     // common
     BASE_URL: z.url().optional(),
     SENTRY_AUTH_TOKEN: z.string().optional(),
     BETTER_AUTH_SECRET: required(),
-    VERCEL: z.string().optional(),
-    VERCEL_ENV: z.enum(["development", "production", "preview"]).optional(),
-    VERCEL_URL: domain().optional(),
-    VERCEL_PROJECT_PRODUCTION_URL: domain().optional(),
     GOOGLE_CLIENT_ID: required(),
     GOOGLE_CLIENT_SECRET: required(),
   } satisfies EnvRecord,

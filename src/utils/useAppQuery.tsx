@@ -53,6 +53,12 @@ export const getErrorInfo = (error: TRPCClientErrorLike<AppRouter>) => {
         </Typography>
         <Typography variant="body2">{error.data?.httpStatus}</Typography>
       </div>
+      <div>
+        <Typography variant="body2" className="font-medium">
+          Error path:
+        </Typography>
+        <Typography variant="body2">{error.data?.path}</Typography>
+      </div>
     </VerticalStack>
   );
 
@@ -62,10 +68,15 @@ export const getErrorInfo = (error: TRPCClientErrorLike<AppRouter>) => {
   };
 };
 
+type Options = {
+  disableLoadingBoundary?: boolean;
+};
+
 const useAppQuery = <
   T extends UseTRPCQueryResult<unknown, TRPCClientErrorLike<AppRouter>>,
 >(
-  queryData: T
+  queryData: T,
+  options: Options = {}
 ): T => {
   const uniqueKey = useId();
   const { setQueryKeys } = useContext(LoadingBoundaryContext);
@@ -81,6 +92,10 @@ const useAppQuery = <
 
   useEffect(() => {
     const hasAnything = Boolean(queryData.data || queryData.error);
+
+    if (options.disableLoadingBoundary) {
+      return;
+    }
 
     if (queryData.isFetching && hasAnything) {
       setQueryKeys((prev) => ({

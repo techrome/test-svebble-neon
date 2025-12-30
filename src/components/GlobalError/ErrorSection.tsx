@@ -10,21 +10,29 @@ import { ROUTES } from "@/utils/routes";
 type Props = {
   errorCode: string | number;
   errorText: string;
+  errorDetails?: React.ReactNode;
 };
 
-const ErrorSection = ({ errorCode, errorText }: Props) => {
+const ErrorSection = ({ errorCode, errorText, errorDetails }: Props) => {
   return (
     <Box className="flex-1 flex justify-center items-center">
       <VerticalStack addClassName="items-center" spacing="lg">
-        <SwitchingStack addClassName="justify-center items-center">
-          <Typography variant="h2" component="h1" textAlign="center">
-            {errorCode}
-          </Typography>
-          <SwitchingDivider className="max-md:w-1/2" />
-          <Typography variant="h4" component="h2" textAlign="center">
-            {errorText}
-          </Typography>
-        </SwitchingStack>
+        <VerticalStack addClassName="items-center">
+          <SwitchingStack addClassName="justify-center items-center">
+            <Typography variant="h2" component="h1" textAlign="center">
+              {errorCode}
+            </Typography>
+            <SwitchingDivider className="max-md:w-1/2" />
+            <Typography variant="h4" component="h2" textAlign="center">
+              {errorText}
+            </Typography>
+          </SwitchingStack>
+          {Boolean(errorDetails) && (
+            <Typography variant="body1" component="div">
+              {errorDetails}
+            </Typography>
+          )}
+        </VerticalStack>
         <Link href={ROUTES.home} className="w-md max-w-full">
           <Button variant="contained" color="primary" size="large" fullWidth>
             Return to Home page

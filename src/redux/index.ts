@@ -2,12 +2,14 @@ import { combineReducers, configureStore } from "@reduxjs/toolkit";
 
 import overlays, { overlaysSlice } from "./slices/overlays";
 import snackbars, { snackbarsSlice } from "./slices/snackbars";
+import misc from "./slices/misc";
 import { isDev } from "@/utils/isDev";
 import { GetObjectPaths } from "@/utils/types";
 
 const rootReducer = combineReducers({
   overlays,
   snackbars,
+  misc,
 });
 
 export type RootState = ReturnType<typeof rootReducer>;

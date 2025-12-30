@@ -12,6 +12,8 @@ import Input from "@/components/Fields/Input";
 import { loginSchemaForm } from "@/utils/validators/shared/auth";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
 import { trpc } from "@/trpc";
+import { useAppDispatch } from "@/redux/hooks";
+import { eventHappened } from "@/redux/slices/misc";
 
 type Props = {
   onSuccess?: () => void;
@@ -32,10 +34,10 @@ const Login = (props: Props) => {
   });
 
   const { addAppSnackbar } = useAppSnackbar();
+  const dispatch = useAppDispatch();
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.loginCredentials.useMutation({
     onSuccess(data) {
-      props.onSuccess?.();
       if (data?.user) {
         utils.auth.user.setData(undefined, {
           user: {
@@ -45,6 +47,8 @@ const Login = (props: Props) => {
         });
         utils.auth.user.invalidate();
       }
+      dispatch(eventHappened("hasLoggedIn"));
+      props.onSuccess?.();
     },
   });
 

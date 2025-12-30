@@ -40,6 +40,13 @@ _theme = {
     MuiTooltip: {
       styleOverrides: { tooltip: { maxWidth: "450px" } },
     },
+    MuiListItemIcon: {
+      styleOverrides: {
+        root: {
+          minWidth: _theme.spacing(5),
+        },
+      },
+    },
     MuiAlert: {
       styleOverrides: {
         root: ({ ownerState }) => {

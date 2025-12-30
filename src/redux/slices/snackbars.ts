@@ -13,7 +13,8 @@ export type SnackbarId = string | number;
 export type Snackbar = {
   id: SnackbarId;
   variant: "info" | "success" | "warning" | "error";
-  message: string;
+  message: React.ReactNode;
+  messageStringified?: string;
   details?: React.ReactNode;
   detailsStringified?: string;
   dismissed: boolean;
@@ -57,6 +58,7 @@ export const snackbarsSlice = createSlice({
           ? action.payload.persist
           : true,
         isRead: false,
+        messageStringified: reactNodeToText(action.payload.message),
         detailsStringified: reactNodeToText(action.payload.details),
         ...action.payload,
       } satisfies Snackbar;

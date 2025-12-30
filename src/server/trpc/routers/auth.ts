@@ -6,6 +6,7 @@ import { trpc } from "@/server";
 import {
   loginSchemaForm,
   signupSchemaForm,
+  zEmail,
   zUsername,
 } from "@/utils/validators/shared/auth";
 import { forwardSetCookie } from "../helpers/forwardSetCookie";
@@ -61,15 +62,37 @@ export const authRouter = router({
           name: input.username,
           username: input.username,
           displayUsername: input.username,
-          // TODO Proper email handling and avoid enumeration attacks
-          email: input.email || generatePlaceholderEmail(),
+          email: generatePlaceholderEmail(),
           password: input.password,
+          pendingEmail: input.email || null,
+          pendingEmailSetAt: input.email ? new Date() : null,
         },
         ...options,
       });
+
       return responseHandler(authResponse);
     }),
-
+  changeEmail: privateProcedureHttp
+    .input(
+      z.object({
+        email: zEmail,
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      try {
+        const { options } = getAuthHelpers(ctx);
+        await auth.api.changeEmail({
+          body: {
+            newEmail: input.email,
+          },
+          ...options,
+        });
+      } catch (err) {
+        // intentionally do nothing so that the user won't know whether
+        // the email already exists (prevents email enumeration attacks)
+      }
+      return { email: input.email };
+    }),
   loginCredentials: publicProcedureHttp
     .input(loginSchemaForm)
     .mutation(async ({ ctx, input }) => {

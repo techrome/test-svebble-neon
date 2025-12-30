@@ -13,7 +13,7 @@ const handler = toNodeHandler(trpc.auth.handler);
 
 // Not exposing all better-auth routes to avoid any possible
 // vulnerabilities like email enumeration
-const WHITELISTED_PREFIXES = ["error", "callback"];
+const WHITELISTED_PREFIXES = ["error", "callback", "verify-email"];
 
 const limitedApiHandler: NextApiHandler = (req, res) => {
   const queryFirstSegment = req.query.all?.[0];

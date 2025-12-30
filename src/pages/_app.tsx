@@ -22,11 +22,24 @@ import { Section } from "@/components/Layout/Containers";
 import ErrorBoundaryFallback from "@/components/GlobalError/ErrorBoundaryFallback";
 import Snackbar from "@/components/Snackbar/Snackbar";
 import { SnackbarListener } from "@/utils/snackbar";
-
-import "@/styles/global.scss";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 
+import "@/styles/global.scss";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/router";
+import { privateRoutePrefix } from "@/utils/routes";
+
+const PrivateRoute = dynamic(
+  () => import("@/components/PrivateRoute/PrivateRoute").then((m) => m.default),
+  { ssr: false }
+);
+
 const App = ({ Component, pageProps }: AppProps) => {
+  const router = useRouter();
+  const isPrivateRoute = router.pathname.startsWith(`/${privateRoutePrefix}`);
+
+  const page = <Component {...pageProps} />;
+
   return (
     <>
       <Head>
@@ -59,7 +72,11 @@ const App = ({ Component, pageProps }: AppProps) => {
                     <Box className={clsx("flex flex-col min-h-screen")}>
                       <Navbar />
                       <Section addClassName="flex-1 flex flex-col">
-                        <Component {...pageProps} />
+                        {isPrivateRoute ? (
+                          <PrivateRoute>{page}</PrivateRoute>
+                        ) : (
+                          page
+                        )}
                       </Section>
                       <GlobalModal />
                       <GlobalDrawer />

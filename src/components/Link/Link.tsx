@@ -4,13 +4,13 @@ import {
   Link as MuiLink,
   type LinkProps as MuiLinksProps,
 } from "@mui/material";
-import { AppRoute } from "@/utils/routes";
+import { AllRoutes } from "@/utils/routes";
 
 type Props = {
   children: React.ReactNode;
 } & Omit<MuiLinksProps, "component" | "href"> &
   Omit<NextLinkProps, "href"> & {
-    href: AppRoute;
+    href: AllRoutes;
   };
 
 const Link = ({ children, ...props }: Props) => {

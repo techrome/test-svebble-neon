@@ -36,6 +36,9 @@ import { CACHE_TIME } from "@/utils/cacheTime";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
 import { normalizeText } from "@/utils/stringUtils";
 import Tooltip from "@/components/Tooltip/Tooltip";
+import useAppQuery from "@/utils/useAppQuery";
+import { useAppDispatch } from "@/redux/hooks";
+import { eventHappened } from "@/redux/slices/misc";
 
 type Props = {
   onSuccess?: () => void;
@@ -274,11 +277,13 @@ const UsernameInput = ({ form }: { form: UseFormReturn<FormValues> }) => {
     !signupSchemaForm.shape.username.safeParse(debouncedUsername).success ||
     (fieldState.error && fieldState.error?.type !== "availability");
 
-  const usernameAvailabilityQuery =
+  const usernameAvailabilityQuery = useAppQuery(
     trpc.auth.checkUsernameAvailability.useQuery(
       { username: debouncedUsername },
       { staleTime: CACHE_TIME.NORMAL, retry: false, enabled: !queryDisabled }
-    );
+    ),
+    { disableLoadingBoundary: true }
+  );
 
   useEffect(() => {
     if (queryDisabled) {
@@ -335,21 +340,40 @@ const Signup = (props: Props) => {
   });
 
   const { addAppSnackbar } = useAppSnackbar();
-
+  const dispatch = useAppDispatch();
   const utils = trpc.useUtils();
+
+  const changeEmailMutation = trpc.auth.changeEmail.useMutation({
+    onSuccess(data) {
+      addAppSnackbar({
+        message: (
+          <>
+            We sent a verification email to <strong>{data.email}</strong>.
+            Please check your inbox and spam folder
+          </>
+        ),
+        variant: "info",
+        durationMs: 0,
+      });
+      props.onSuccess?.();
+    },
+  });
   const signUpMutation = trpc.auth.signUpCredentials.useMutation({
     onSuccess(data) {
-      props.onSuccess?.();
-      if (data?.user) {
-        utils.auth.user.setData(undefined, {
-          user: data.user,
-        });
-        utils.auth.user.invalidate();
-      }
       addAppSnackbar({
         message: "You have successfully signed up",
         variant: "success",
       });
+      if (data.user.pendingEmail) {
+        changeEmailMutation.mutate({ email: data.user.pendingEmail });
+      } else {
+        props.onSuccess?.();
+      }
+      utils.auth.user.setData(undefined, {
+        user: data.user,
+      });
+      utils.auth.user.invalidate();
+      dispatch(eventHappened("hasSignedUp"));
     },
   });
 
@@ -362,7 +386,8 @@ const Signup = (props: Props) => {
     signUpMutation.mutate(values);
   };
 
-  const isSubmitting = signUpMutation.isPending;
+  const isSubmitting =
+    signUpMutation.isPending || changeEmailMutation.isPending;
 
   return (
     <Section addClassName="mt-5">

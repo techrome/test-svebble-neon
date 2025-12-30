@@ -149,6 +149,10 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
     endAdornment = endAccessory;
   }
 
+  if (endAdornment) {
+    endAdornment = <div className="pl-2 flex">{endAdornment}</div>;
+  }
+
   const { ref, ...fieldProps } = field;
 
   return (
