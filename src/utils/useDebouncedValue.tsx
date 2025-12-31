@@ -14,7 +14,7 @@ export const useDebouncedValue = <T,>(
     }
     const timeout = setTimeout(() => setDebounced(value), timeoutMs);
     return () => clearTimeout(timeout);
-  }, [value, timeoutMs]);
+  }, [value, timeoutMs, options?.instantOnFalsyValue]);
 
   return debounced;
 };

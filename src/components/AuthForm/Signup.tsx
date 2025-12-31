@@ -348,7 +348,7 @@ const Signup = (props: Props) => {
       addAppSnackbar({
         message: (
           <>
-            We sent a verification email to <strong>{data.email}</strong>.
+            We have sent a verification email to <strong>{data.email}</strong>.
             Please check your inbox and spam folder
           </>
         ),
@@ -373,7 +373,7 @@ const Signup = (props: Props) => {
         user: data.user,
       });
       utils.auth.user.invalidate();
-      dispatch(eventHappened("hasSignedUp"));
+      dispatch(eventHappened("hasAuthenticated"));
     },
   });
 

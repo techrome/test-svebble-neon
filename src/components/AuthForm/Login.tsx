@@ -47,7 +47,7 @@ const Login = (props: Props) => {
         });
         utils.auth.user.invalidate();
       }
-      dispatch(eventHappened("hasLoggedIn"));
+      dispatch(eventHappened("hasAuthenticated"));
       props.onSuccess?.();
     },
   });

@@ -71,13 +71,17 @@ export const SnackbarListener = () => {
 
 export const useAppSnackbar = () => {
   const dispatch = useAppDispatch();
+  const { closeSnackbar } = useSnackbar();
 
   const addAppSnackbar = (data: SnackbarPayload) => {
     dispatch(addSnackbar(data));
+  };
+  const closeAppSnackbar = (id: SnackbarKey) => {
+    closeSnackbar(id);
   };
   const dismissAllAppSnackbars = () => {
     dispatch(dismissAllSnackbars());
   };
 
-  return { addAppSnackbar, dismissAllAppSnackbars };
+  return { addAppSnackbar, closeAppSnackbar, dismissAllAppSnackbars };
 };

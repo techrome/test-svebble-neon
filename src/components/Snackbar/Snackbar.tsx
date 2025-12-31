@@ -85,7 +85,11 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
             <AutoRefreshingTime createdAt={props.createdAt} />
           )}
 
-          <Typography variant="body1" className="max-h-[100px] overflow-y-auto">
+          <Typography
+            variant="body1"
+            component="div"
+            className="max-h-[100px] overflow-y-auto"
+          >
             {props.message}
           </Typography>
         </div>

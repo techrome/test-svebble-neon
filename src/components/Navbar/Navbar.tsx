@@ -22,6 +22,9 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import UserIcon from "@mui/icons-material/AccountCircle";
+import PersonIcon from "@mui/icons-material/Person";
+import SettingsIcon from "@mui/icons-material/Settings";
+import LogoutIcon from "@mui/icons-material/Logout";
 import { useRouter } from "next/router";
 import { Virtuoso } from "react-virtuoso";
 import { motion } from "motion/react";
@@ -36,6 +39,7 @@ import { type Dayjs } from "dayjs";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import clsx from "clsx";
+import { nanoid } from "@reduxjs/toolkit";
 
 import {
   useGlobalDrawer,
@@ -49,7 +53,7 @@ import {
 } from "@/components/Layout/Containers";
 import Link from "@/components/Link/Link";
 import Label from "@/components/Label/Label";
-import { ROUTES } from "@/utils/routes";
+import { privateRoutePrefix, ROUTES } from "@/utils/routes";
 import { Divider } from "@/components/Layout/Dividers";
 import IconButton from "@/components/Button/IconButton";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
@@ -81,6 +85,7 @@ import { trpc } from "@/trpc";
 import { useAppSnackbar } from "@/utils/snackbar";
 import useUser from "@/trpc/hooks/useUser";
 import { useDebouncedValue } from "@/utils/useDebouncedValue";
+import { eventHandled, eventHappened } from "@/redux/slices/misc";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -93,16 +98,27 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
   const [authType, setAuthType] = React.useState<AuthType>("login");
   const authModal = useLocalModal();
   const { addAppSnackbar } = useAppSnackbar();
+  const router = useRouter();
+  const isPrivatePage = router.pathname.startsWith(`/${privateRoutePrefix}`);
   const user = useUser();
   const utils = trpc.useUtils();
+
+  const moveFromPrivatePage = () => {
+    if (isPrivatePage) {
+      router.push(ROUTES.home);
+    }
+  };
+
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess() {
+      moveFromPrivatePage();
       utils.auth.user.setData(undefined, { user: null });
       utils.auth.user.invalidate();
     },
   });
   const deleteAccountMutation = trpc.auth.deleteUser.useMutation({
     onSuccess() {
+      moveFromPrivatePage();
       utils.auth.user.setData(undefined, { user: null });
       utils.auth.user.invalidate();
       addAppSnackbar({
@@ -118,22 +134,52 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
         <CircularProgress size={24} />
       ) : user.data?.user ? (
         props.isNavbar ? null : (
-          <VerticalStack>
+          <VerticalStack spacing="md">
             <Typography variant="body1" textAlign="center">
-              Hello, {user.data.user.name}!
+              Hello, <strong>{user.data.user.name}</strong>!
             </Typography>
-            <Button
-              variant="contained"
-              onClick={() => {
-                logoutMutation.mutate();
-              }}
-              size="large"
-              fullWidth
-              disabled={deleteAccountMutation.isPending}
-              isLoading={logoutMutation.isPending}
-            >
-              Log out
-            </Button>
+
+            <VerticalStack>
+              <Link href={ROUTES.private_myProfile} color="textPrimary">
+                <Button
+                  variant="contained"
+                  color="inherit"
+                  size="large"
+                  fullWidth
+                  startIcon={<PersonIcon />}
+                >
+                  My Profile
+                </Button>
+              </Link>
+              <Link href={ROUTES.private_settings} color="textPrimary">
+                <Button
+                  variant="contained"
+                  color="inherit"
+                  size="large"
+                  fullWidth
+                  startIcon={<SettingsIcon />}
+                >
+                  Settings
+                </Button>
+              </Link>
+              <Divider className="my-2" />
+              <Button
+                variant="contained"
+                onClick={() => {
+                  logoutMutation.mutate();
+                }}
+                color="inherit"
+                className=""
+                size="large"
+                fullWidth
+                disabled={deleteAccountMutation.isPending}
+                isLoading={logoutMutation.isPending}
+                startIcon={<LogoutIcon />}
+              >
+                Log out
+              </Button>
+            </VerticalStack>
+
             <Button
               variant="outlined"
               color="error"
@@ -473,7 +519,7 @@ const SystemNotifications = () => {
     () =>
       new Fuse(systemNotifications, {
         keys: [
-          "message",
+          "messageStringified",
           "detailsStringified",
           "variant",
         ] satisfies (keyof SnackbarType)[],
@@ -670,6 +716,82 @@ const NavbarInner = () => {
 
   const notificationsPopover = useLocalPopover();
   const user = useUser();
+  const userData = user.data?.user;
+  const utils = trpc.useUtils();
+
+  const authenticatedEvent = useAppSelector(
+    (state) => state.misc.events.hasAuthenticated
+  );
+  const authenticatedOnFirstVisitEvent = useAppSelector(
+    (state) => state.misc.events.hasAuthenticatedOnFirstVisit
+  );
+
+  const dispatch = useAppDispatch();
+  const { addAppSnackbar, closeAppSnackbar } = useAppSnackbar();
+
+  useEffect(() => {
+    if (userData && !authenticatedOnFirstVisitEvent.happenedAtMs) {
+      dispatch(
+        eventHappened("hasAuthenticatedOnFirstVisit", { happenedAtMs: 1 }) // make it always older than user timestamp
+      );
+    }
+  }, [authenticatedOnFirstVisitEvent, userData]);
+
+  useEffect(() => {
+    const anyAuthUnhandledEvent =
+      authenticatedEvent.happenedAtMs && !authenticatedEvent.wasHandled
+        ? authenticatedEvent
+        : authenticatedOnFirstVisitEvent;
+    if (
+      anyAuthUnhandledEvent.happenedAtMs &&
+      !anyAuthUnhandledEvent.wasHandled &&
+      user.dataUpdatedAt > anyAuthUnhandledEvent.happenedAtMs &&
+      userData &&
+      !user.isFetching
+    ) {
+      if (
+        !userData.emailVerified &&
+        userData.pendingEmail &&
+        userData.pendingEmail !== userData.email
+      ) {
+        const snackbarId = nanoid();
+        addAppSnackbar({
+          id: snackbarId,
+          message: (
+            <HorizontalStack addClassName="items-center">
+              Please verify your email
+              <Link href={ROUTES.private_myProfile} color="textPrimary">
+                <Button
+                  onClick={() => {
+                    closeAppSnackbar(snackbarId);
+                  }}
+                  variant="outlined"
+                >
+                  Verify
+                </Button>
+              </Link>
+            </HorizontalStack>
+          ),
+          variant: "warning",
+          durationMs: 0,
+        });
+      }
+
+      if (userData.username) {
+        utils.auth.checkUsernameAvailability.invalidate({
+          username: userData?.username,
+        });
+      }
+      dispatch(eventHandled("hasAuthenticated"));
+      dispatch(eventHandled("hasAuthenticatedOnFirstVisit"));
+    }
+  }, [
+    authenticatedEvent,
+    authenticatedOnFirstVisitEvent,
+    userData,
+    user.isFetching,
+    user.dataUpdatedAt,
+  ]);
 
   useEffect(() => {
     router.events.on("routeChangeComplete", closeDrawer);
