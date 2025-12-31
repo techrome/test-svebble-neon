@@ -1,3 +1,5 @@
+// only run this when you change generated schema and then make tweaks to the actual schema
+
 import fs from "node:fs";
 
 import { runCommand } from "@@/scripts/helpers/runCommand";
