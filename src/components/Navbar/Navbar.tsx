@@ -749,17 +749,18 @@ const NavbarInner = () => {
       userData &&
       !user.isFetching
     ) {
+      const snackbarId = nanoid();
       if (
         !userData.emailVerified &&
         userData.pendingEmail &&
         userData.pendingEmail !== userData.email
       ) {
-        const snackbarId = nanoid();
         addAppSnackbar({
           id: snackbarId,
           message: (
             <HorizontalStack addClassName="items-center">
-              Please verify your email
+              Please verify your email. Accounts without a verified email have
+              limited capabilities.
               <Link href={ROUTES.private_myProfile} color="textPrimary">
                 <Button
                   onClick={() => {
@@ -767,7 +768,30 @@ const NavbarInner = () => {
                   }}
                   variant="outlined"
                 >
-                  Verify
+                  Verify email
+                </Button>
+              </Link>
+            </HorizontalStack>
+          ),
+          variant: "warning",
+          durationMs: 0,
+        });
+      } else if (!userData.pendingEmail && !userData.emailVerified) {
+        addAppSnackbar({
+          id: snackbarId,
+          message: (
+            <HorizontalStack addClassName="items-center">
+              {
+                "Please add an email so that you don't lose access to your account. Accounts without en email have limited capabilities."
+              }
+              <Link href={ROUTES.private_myProfile} color="textPrimary">
+                <Button
+                  onClick={() => {
+                    closeAppSnackbar(snackbarId);
+                  }}
+                  variant="outlined"
+                >
+                  Add email
                 </Button>
               </Link>
             </HorizontalStack>

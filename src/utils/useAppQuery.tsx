@@ -10,10 +10,14 @@ import { Typography } from "@mui/material";
 
 export const getErrorInfo = (error: TRPCClientErrorLike<AppRouter>) => {
   const hasZodError = Boolean(error.data?.zodError);
+  const isUnauthorized =
+    error.data?.code === "UNAUTHORIZED" || error.data?.httpStatus === 401;
 
-  const message = hasZodError
-    ? `Error: ${error?.data?.code} - ${error?.data?.path}`
-    : error.message;
+  const message = isUnauthorized
+    ? "Your session has expired. Please log in again."
+    : hasZodError
+      ? `Error: ${error?.data?.code} - ${error?.data?.path}`
+      : error.message;
 
   const details = (
     <VerticalStack>
@@ -65,6 +69,9 @@ export const getErrorInfo = (error: TRPCClientErrorLike<AppRouter>) => {
   return {
     message,
     details,
+    internal: {
+      isUnauthorized,
+    },
   };
 };
 

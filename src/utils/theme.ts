@@ -64,7 +64,7 @@ _theme = {
           };
         },
         message: { flex: "1" },
-        icon: { marginTop: _theme.spacing(1.5) },
+        icon: { marginTop: _theme.spacing(1.25) },
       },
     },
     MuiDialog: {

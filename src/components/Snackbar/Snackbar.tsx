@@ -77,8 +77,9 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
         />
       )}
       <HorizontalStack
+        wrap={false}
         fullWidth
-        addClassName="justify-between items-center flex-nowrap!"
+        addClassName="justify-between items-center"
       >
         <div>
           {props.isSystemNotification && (
@@ -88,13 +89,13 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
           <Typography
             variant="body1"
             component="div"
-            className="max-h-[100px] overflow-y-auto"
+            className="max-h-[200px] overflow-y-auto"
           >
             {props.message}
           </Typography>
         </div>
 
-        <HorizontalStack addClassName="flex-nowrap!">
+        <HorizontalStack wrap={false} addClassName="self-start">
           {hasDetails && (
             <Tooltip title={tooltipExpandLabel}>
               <IconButton

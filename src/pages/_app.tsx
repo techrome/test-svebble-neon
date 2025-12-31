@@ -6,7 +6,6 @@ import CssBaseline from "@mui/material/CssBaseline";
 import { Box } from "@mui/material";
 import { Provider as ReduxProvider } from "react-redux";
 import { ErrorBoundary } from "react-error-boundary";
-import { SnackbarProvider } from "notistack";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import "dayjs/locale/en-gb";
@@ -20,7 +19,7 @@ import GlobalModal from "@/components/Overlays/GlobalModal";
 import GlobalDrawer from "@/components/Overlays/GlobalDrawer";
 import { Section } from "@/components/Layout/Containers";
 import ErrorBoundaryFallback from "@/components/GlobalError/ErrorBoundaryFallback";
-import Snackbar from "@/components/Snackbar/Snackbar";
+import SnackbarProvider from "@/components/Snackbar/SnackbarProvider";
 import { SnackbarListener } from "@/utils/snackbar";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 
@@ -49,18 +48,7 @@ const App = ({ Component, pageProps }: AppProps) => {
         <StyledEngineProvider injectFirst>
           <ThemeProvider theme={theme}>
             <CssBaseline />
-            <SnackbarProvider
-              maxSnack={6}
-              Components={{
-                error: Snackbar,
-                info: Snackbar,
-                success: Snackbar,
-                warning: Snackbar,
-              }}
-              transitionDuration={{
-                exit: 150,
-              }}
-            >
+            <SnackbarProvider>
               <LocalizationProvider
                 dateAdapter={AdapterDayjs}
                 adapterLocale="en-gb"
