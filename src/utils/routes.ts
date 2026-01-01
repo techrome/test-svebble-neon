@@ -10,6 +10,7 @@ export const ROUTES = {
   terms: "/terms",
   privacyPolicy: "/privacy-policy",
   test: "/test-not-found-page",
+  private_emailVerified: `/${privateRoutePrefix}/email-verified`,
   private_myProfile: `/${privateRoutePrefix}/my-profile`,
   private_settings: `/${privateRoutePrefix}/settings`,
   //   users: (id: string): `/users/${string}` => `/users/${id}`,

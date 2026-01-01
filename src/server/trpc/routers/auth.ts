@@ -11,14 +11,10 @@ import {
 } from "@/utils/validators/shared/auth";
 import { forwardSetCookie } from "../helpers/forwardSetCookie";
 import z from "zod";
+import { baseURL } from "../auth";
+import { ROUTES } from "@/utils/routes";
 
-const {
-  publicProcedure,
-  publicProcedureHttp,
-  privateProcedureHttp,
-  router,
-  auth,
-} = trpc;
+const { publicProcedureHttp, privateProcedureHttp, router, auth } = trpc;
 
 const PLACEHOLDER_EMAIL_DOMAIN = "noemail.invalid";
 
@@ -49,9 +45,25 @@ const getAuthHelpers = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
 };
 
 export const authRouter = router({
-  user: publicProcedure.query(({ ctx }) => ({
+  user: publicProcedureHttp.query(({ ctx }) => ({
     user: ctx.user,
   })),
+  forceRefreshSession: publicProcedureHttp.mutation(async ({ ctx }) => {
+    const { options, responseHandler } = getAuthHelpers(ctx);
+    let _authResponse = await auth.api.getSession({
+      query: { disableCookieCache: true },
+      ...options,
+    });
+
+    const authResponse = {
+      ..._authResponse,
+      response: {
+        user: _authResponse.response?.user, // removing session object for now
+      },
+    };
+
+    return responseHandler(authResponse);
+  }),
 
   signUpCredentials: publicProcedureHttp
     .input(signupSchemaForm)
@@ -84,6 +96,7 @@ export const authRouter = router({
         await auth.api.changeEmail({
           body: {
             newEmail: input.email,
+            callbackURL: `${baseURL}/${ROUTES.private_emailVerified}`,
           },
           ...options,
         });

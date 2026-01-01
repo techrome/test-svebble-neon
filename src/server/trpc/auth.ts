@@ -22,7 +22,7 @@ const getBaseURL = () => {
   return "http://localhost:3000";
 };
 
-const baseURL = getBaseURL();
+export const baseURL = getBaseURL();
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema: { ...authSchema } }),
