@@ -15,7 +15,7 @@ type Props = {
 
 const ErrorSection = ({ errorCode, errorText, errorDetails }: Props) => {
   return (
-    <Box className="flex-1 flex justify-center items-center">
+    <div className="flex-1 flex justify-center items-center">
       <VerticalStack addClassName="items-center" spacing="lg">
         <VerticalStack addClassName="items-center">
           <SwitchingStack addClassName="justify-center items-center">
@@ -39,7 +39,7 @@ const ErrorSection = ({ errorCode, errorText, errorDetails }: Props) => {
           </Button>
         </Link>
       </VerticalStack>
-    </Box>
+    </div>
   );
 };
 

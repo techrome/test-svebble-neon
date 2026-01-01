@@ -3,7 +3,6 @@ import Head from "next/head";
 import { ThemeProvider, StyledEngineProvider } from "@mui/material/styles";
 import clsx from "clsx";
 import CssBaseline from "@mui/material/CssBaseline";
-import { Box } from "@mui/material";
 import { Provider as ReduxProvider } from "react-redux";
 import { ErrorBoundary } from "react-error-boundary";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -57,7 +56,7 @@ const App = ({ Component, pageProps }: AppProps) => {
                 <ErrorBoundary FallbackComponent={ErrorBoundaryFallback}>
                   <TopLoader />
                   <LoadingBoundary>
-                    <Box className={clsx("flex flex-col min-h-screen")}>
+                    <div className={clsx("flex flex-col min-h-screen")}>
                       <Navbar />
                       <Section addClassName="flex-1 flex flex-col">
                         {isPrivateRoute ? (
@@ -68,7 +67,7 @@ const App = ({ Component, pageProps }: AppProps) => {
                       </Section>
                       <GlobalModal />
                       <GlobalDrawer />
-                    </Box>
+                    </div>
                   </LoadingBoundary>
                 </ErrorBoundary>
               </LocalizationProvider>

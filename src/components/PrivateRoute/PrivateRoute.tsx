@@ -19,7 +19,7 @@ const PrivateRoute = (props: Props) => {
     return (
       <ErrorSection
         errorCode={401}
-        errorText="Unauthorized. Please log in to access this page"
+        errorText="Unauthorized. Please log in to access this page."
       />
     );
   }

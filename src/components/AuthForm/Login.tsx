@@ -3,8 +3,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { SubmitHandler, useForm } from "react-hook-form";
 import z from "zod";
 
-import { useAppSnackbar } from "@/utils/snackbar";
-import { Text } from "@/utils/validators/helpers/text";
 import { Section, VerticalStack } from "@/components/Layout/Containers";
 import Button from "@/components/Button/Button";
 import Checkbox from "@/components/Fields/Checkbox";
@@ -33,7 +31,6 @@ const Login = (props: Props) => {
     resolver: zodResolver(loginSchemaForm),
   });
 
-  const { addAppSnackbar } = useAppSnackbar();
   const dispatch = useAppDispatch();
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.loginCredentials.useMutation({

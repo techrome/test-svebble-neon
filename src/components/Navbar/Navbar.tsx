@@ -6,7 +6,6 @@ import {
   useColorScheme,
   ToggleButtonGroup,
   ToggleButton,
-  Box,
   List,
   ListItem,
   ListItemButton,
@@ -122,7 +121,7 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
       utils.auth.user.setData(undefined, { user: null });
       utils.auth.user.invalidate();
       addAppSnackbar({
-        message: "Your account has been deleted",
+        message: "Your account has been deleted.",
         variant: "success",
       });
     },
@@ -365,7 +364,7 @@ const filterSchemaForm = z
       ctx.addIssue({
         code: "custom",
         path: ["endDate"],
-        message: "End time must be after start time",
+        message: "To (time) must be after From (time)",
       });
     }
   });
@@ -412,13 +411,13 @@ const FilterForm = ({
           <DateTimePicker
             control={formState.control}
             name="startDate"
-            label="Start time"
+            label="From (time)"
             maxDateTime={endDate || undefined}
           />
           <DateTimePicker
             control={formState.control}
             name="endDate"
-            label="End time"
+            label="To (time)"
             minDateTime={startDate || undefined}
           />
           <div className="mb-5">
@@ -570,7 +569,7 @@ const SystemNotifications = () => {
   }, []);
 
   return (
-    <Box>
+    <div>
       <HorizontalStack addClassName="py-2 justify-between">
         <HorizontalStack addClassName="items-center">
           <Typography variant="body1">
@@ -660,7 +659,7 @@ const SystemNotifications = () => {
           onClear={handleClearFilter}
         />
       </filterPopover.ReadyComponent>
-    </Box>
+    </div>
   );
 };
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { CustomContentProps, useSnackbar } from "notistack";
-import { Alert, Box, Collapse, Typography } from "@mui/material";
+import { Alert, Collapse, Typography } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -137,11 +137,11 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
       </HorizontalStack>
       {hasDetails && (
         <Collapse in={expanded} unmountOnExit>
-          <Box className="mt-2 pr-3 max-w-full max-h-[250px] overflow-y-auto">
+          <div className="mt-2 pr-3 max-w-full max-h-[250px] overflow-y-auto">
             <Typography variant="body2" component="div">
               {props.details}
             </Typography>
-          </Box>
+          </div>
         </Collapse>
       )}
     </Alert>

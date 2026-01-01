@@ -349,7 +349,7 @@ const Signup = (props: Props) => {
         message: (
           <>
             We have sent a verification email to <strong>{data.email}</strong>.
-            Please check your inbox and spam folder
+            Please check your inbox and spam folder.
           </>
         ),
         variant: "info",
@@ -361,7 +361,7 @@ const Signup = (props: Props) => {
   const signUpMutation = trpc.auth.signUpCredentials.useMutation({
     onSuccess(data) {
       addAppSnackbar({
-        message: "You have successfully signed up",
+        message: "You have successfully signed up.",
         variant: "success",
       });
       if (data.user.pendingEmail) {

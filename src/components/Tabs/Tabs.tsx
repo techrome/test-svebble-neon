@@ -2,7 +2,6 @@ import React from "react";
 import {
   Tabs as MuiTabs,
   Tab as MuiTab,
-  Box,
   type TabsProps as MuiTabsProps,
   type TabProps as MuiTabProps,
 } from "@mui/material";
@@ -26,7 +25,7 @@ const Tabs = ({ tabs, ...props }: Props) => {
   const baseId = React.useId();
 
   return (
-    <Box>
+    <div>
       <MuiTabs {...props}>
         {tabs.map((tabInfo) => (
           <MuiTab
@@ -52,7 +51,7 @@ const Tabs = ({ tabs, ...props }: Props) => {
           </div>
         );
       })}
-    </Box>
+    </div>
   );
 };
 

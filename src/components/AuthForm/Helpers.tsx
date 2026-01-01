@@ -30,7 +30,7 @@ export const AuthWrapper = (props: WrapperProps) => {
       }
     },
     onError() {
-      addAppSnackbar({ message: "Something went wrong", variant: "error" });
+      addAppSnackbar({ message: "Something went wrong.", variant: "error" });
     },
   });
 
