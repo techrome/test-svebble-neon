@@ -21,7 +21,8 @@
     "db:m-prod": "npm run call-script:prod -- scripts/migrate-prod.ts",
     "db:run": "docker compose -f docker/postgres-dev/compose.yaml up -d --build",
     "patch-drizzle-orm": "patch-package drizzle-orm",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "add-custom-migration": "cross-env NODE_ENV=development cross-var drizzle-kit generate --custom --name=$npm_config_name"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.0.3",
