@@ -218,6 +218,13 @@
       "when": 1767337505485,
       "tag": "0030_delete_email_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1767344082614,
+      "tag": "0031_remove_plpgsql_check_extension",
+      "breakpoints": true
     }
   ]
 }
