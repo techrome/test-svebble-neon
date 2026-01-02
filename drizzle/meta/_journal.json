@@ -155,6 +155,27 @@
       "when": 1767311583089,
       "tag": "0021_enable_extension_plpgsql_check",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1767319981805,
+      "tag": "0022_lying_hitman",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1767320055506,
+      "tag": "0023_old_email_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1767320192840,
+      "tag": "0024_watery_captain_midlands",
+      "breakpoints": true
     }
   ]
 }
