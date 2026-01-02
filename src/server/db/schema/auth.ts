@@ -15,6 +15,7 @@ export const user = pgTable("user", {
   isAnonymous: boolean("is_anonymous").default(false),
   username: text("username").unique(),
   displayUsername: text("display_username"),
+  canChangeUsername: boolean("can_change_username").default(false),
   pendingEmail: text("pending_email"),
   pendingEmailSetAt: timestamp("pending_email_set_at"),
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "user" ADD COLUMN "can_change_username" boolean DEFAULT false;

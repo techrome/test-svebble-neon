@@ -64,6 +64,7 @@ export const auth = betterAuth({
 
   user: {
     additionalFields: {
+      canChangeUsername: { type: "boolean", defaultValue: false },
       pendingEmail: { type: "string", required: false },
       pendingEmailSetAt: { type: "date", required: false },
     },
@@ -86,6 +87,13 @@ export const auth = betterAuth({
 
   databaseHooks: {
     user: {
+      create: {
+        async before(user, context) {
+          console.log({ user, context });
+
+          return { data: user };
+        },
+      },
       update: {
         async before(user, context) {
           let updatedUser = user;
