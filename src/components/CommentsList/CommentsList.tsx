@@ -2,7 +2,7 @@ import React from "react";
 import { Virtuoso } from "react-virtuoso";
 
 import { trpc, type RouterOutput } from "@/trpc";
-import useAppQuery from "@/utils/useAppQuery";
+import useAppQuery from "@/utils/hooks/useAppQuery";
 import Button from "@/components/Button/Button";
 
 type CommentProps = {

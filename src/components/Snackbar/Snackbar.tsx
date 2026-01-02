@@ -18,7 +18,7 @@ import {
 } from "@/redux/slices/snackbars";
 import dayjs from "@/utils/dayjs";
 import { dateTimeFormatFullDisplay } from "@/utils/dateFormats";
-import { useRerenderOnInterval } from "@/utils/useRerenderOnInterval";
+import { useRerenderOnInterval } from "@/utils/hooks/useRerenderOnInterval";
 
 type SnackbarProps = {
   isSystemNotification?: false | undefined;

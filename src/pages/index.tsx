@@ -5,7 +5,7 @@ import clsx from "clsx";
 
 import { utils } from "@/server";
 import { trpc } from "@/trpc";
-import useAppQuery from "@/utils/useAppQuery";
+import useAppQuery from "@/utils/hooks/useAppQuery";
 import CommentsList from "@/components/CommentsList/CommentsList";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { Box } from "@mui/material";
@@ -14,7 +14,7 @@ import {
   useGlobalModal,
   useLocalDrawer,
   useLocalModal,
-} from "@/utils/useOverlay";
+} from "@/utils/hooks/useOverlay";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { CACHE_TIME } from "@/utils/cacheTime";
