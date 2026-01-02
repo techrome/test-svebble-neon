@@ -3,17 +3,23 @@ import type { NextApiHandler, PageConfig } from "next";
 
 import { trpc } from "@/server";
 
+const { SOME_AUTH_API_ROUTES, auth } = trpc;
+
 export const config = {
   api: {
     bodyParser: false,
   },
 } satisfies PageConfig;
 
-const handler = toNodeHandler(trpc.auth.handler);
+const handler = toNodeHandler(auth.handler);
 
 // Not exposing all better-auth routes to avoid any possible
 // vulnerabilities like email enumeration
-const WHITELISTED_PREFIXES = ["error", "callback", "verify-email"];
+const WHITELISTED_PREFIXES = [
+  SOME_AUTH_API_ROUTES.error,
+  SOME_AUTH_API_ROUTES.callback,
+  SOME_AUTH_API_ROUTES.verifyEmail,
+];
 
 const limitedApiHandler: NextApiHandler = (req, res) => {
   const queryFirstSegment = req.query.all?.[0];

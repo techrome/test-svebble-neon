@@ -24,6 +24,19 @@ const getBaseURL = () => {
 
 export const baseURL = getBaseURL();
 
+export const SOME_AUTH_API_ROUTES = {
+  error: "error",
+  callback: "callback",
+  verifyEmail: "verify-email",
+};
+
+type DbUserUpdate = Partial<(typeof authSchema.user)["$inferInsert"]>;
+
+type AdditionalUserFields = Pick<
+  DbUserUpdate,
+  "pendingEmail" | "pendingEmailSetAt"
+>;
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema: { ...authSchema } }),
 
@@ -78,14 +91,17 @@ export const auth = betterAuth({
           let updatedUser = user;
 
           if (
-            context?.path === "/verify-email" &&
+            context?.path === `/${SOME_AUTH_API_ROUTES.verifyEmail}` &&
             user.emailVerified &&
             user.email
           ) {
-            updatedUser = {
-              ...updatedUser,
+            const additionalFields = {
               pendingEmail: null,
               pendingEmailSetAt: null,
+            } satisfies AdditionalUserFields;
+            updatedUser = {
+              ...updatedUser,
+              ...additionalFields,
             };
           }
 
