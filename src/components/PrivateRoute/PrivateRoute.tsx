@@ -12,7 +12,11 @@ const PrivateRoute = (props: Props) => {
   const user = useUser();
 
   if (user.isPending) {
-    return <CircularProgress />;
+    return (
+      <div className="flex-1 flex justify-center items-center">
+        <CircularProgress />
+      </div>
+    );
   }
 
   if (!user.data?.user) {
