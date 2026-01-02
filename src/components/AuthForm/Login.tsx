@@ -10,8 +10,6 @@ import Input from "@/components/Fields/Input";
 import { loginSchemaForm } from "@/utils/validators/shared/auth";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
 import { trpc } from "@/trpc";
-import { useAppDispatch } from "@/redux/hooks";
-import { eventHappened } from "@/redux/slices/misc";
 
 type Props = {
   onSuccess?: () => void;
@@ -31,7 +29,6 @@ const Login = (props: Props) => {
     resolver: zodResolver(loginSchemaForm),
   });
 
-  const dispatch = useAppDispatch();
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.loginCredentials.useMutation({
     onSuccess(data) {
@@ -44,7 +41,6 @@ const Login = (props: Props) => {
         });
         utils.auth.user.invalidate();
       }
-      dispatch(eventHappened("hasAuthenticated"));
       props.onSuccess?.();
     },
   });

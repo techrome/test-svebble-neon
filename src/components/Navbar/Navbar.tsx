@@ -44,7 +44,7 @@ import {
   useGlobalDrawer,
   useLocalModal,
   useLocalPopover,
-} from "@/utils/useOverlay";
+} from "@/utils/hooks/useOverlay";
 import {
   HorizontalStack,
   Section,
@@ -83,8 +83,8 @@ import AuthForm, {
 import { trpc } from "@/trpc";
 import { useAppSnackbar } from "@/utils/snackbar";
 import useUser from "@/trpc/hooks/useUser";
-import { useDebouncedValue } from "@/utils/useDebouncedValue";
-import { eventHandled, eventHappened } from "@/redux/slices/misc";
+import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
+import usePrevious from "@/utils/hooks/usePrevious";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -94,6 +94,7 @@ const MotionItem = React.forwardRef<
 ));
 
 const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
+  const { closeDrawer } = useGlobalDrawer();
   const [authType, setAuthType] = React.useState<AuthType>("login");
   const authModal = useLocalModal();
   const { addAppSnackbar } = useAppSnackbar();
@@ -111,6 +112,10 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess() {
       moveFromPrivatePage();
+      closeDrawer();
+      addAppSnackbar({
+        message: "You have logged out.",
+      });
       utils.auth.user.setData(undefined, { user: null });
       utils.auth.user.invalidate();
     },
@@ -712,47 +717,23 @@ const NotificationsContent = () => {
 const NavbarInner = () => {
   const { openDrawer, closeDrawer } = useGlobalDrawer();
   const router = useRouter();
-
   const notificationsPopover = useLocalPopover();
-  const user = useUser();
-  const userData = user.data?.user;
   const utils = trpc.useUtils();
-
-  const authenticatedEvent = useAppSelector(
-    (state) => state.misc.events.hasAuthenticated
-  );
-  const authenticatedOnFirstVisitEvent = useAppSelector(
-    (state) => state.misc.events.hasAuthenticatedOnFirstVisit
-  );
-
-  const dispatch = useAppDispatch();
   const { addAppSnackbar, closeAppSnackbar } = useAppSnackbar();
+  const user = useUser();
+
+  const userData = user.data?.user;
+  const previousUserId = usePrevious(userData?.id);
+
+  const hasAuthenticated = Boolean(userData?.id) && !previousUserId;
 
   useEffect(() => {
-    if (userData && !authenticatedOnFirstVisitEvent.happenedAtMs) {
-      dispatch(
-        eventHappened("hasAuthenticatedOnFirstVisit", { happenedAtMs: 1 }) // make it always older than user timestamp
-      );
-    }
-  }, [authenticatedOnFirstVisitEvent, userData]);
-
-  useEffect(() => {
-    const anyAuthUnhandledEvent =
-      authenticatedEvent.happenedAtMs && !authenticatedEvent.wasHandled
-        ? authenticatedEvent
-        : authenticatedOnFirstVisitEvent;
-    if (
-      anyAuthUnhandledEvent.happenedAtMs &&
-      !anyAuthUnhandledEvent.wasHandled &&
-      user.dataUpdatedAt > anyAuthUnhandledEvent.happenedAtMs &&
-      userData &&
-      !user.isFetching
-    ) {
+    if (hasAuthenticated) {
       const snackbarId = nanoid();
       if (
-        !userData.emailVerified &&
-        userData.pendingEmail &&
-        userData.pendingEmail !== userData.email
+        !userData?.emailVerified &&
+        userData?.pendingEmail &&
+        userData?.pendingEmail !== userData?.email
       ) {
         addAppSnackbar({
           id: snackbarId,
@@ -775,7 +756,7 @@ const NavbarInner = () => {
           variant: "warning",
           durationMs: 0,
         });
-      } else if (!userData.pendingEmail && !userData.emailVerified) {
+      } else if (!userData?.pendingEmail && !userData?.emailVerified) {
         addAppSnackbar({
           id: snackbarId,
           message: (
@@ -800,21 +781,16 @@ const NavbarInner = () => {
         });
       }
 
-      if (userData.username) {
-        utils.auth.checkUsernameAvailability.invalidate({
-          username: userData?.username,
-        });
+      if (userData?.username) {
+        utils.auth.checkUsernameAvailability.invalidate(
+          {
+            username: userData?.username,
+          },
+          { refetchType: "none" }
+        );
       }
-      dispatch(eventHandled("hasAuthenticated"));
-      dispatch(eventHandled("hasAuthenticatedOnFirstVisit"));
     }
-  }, [
-    authenticatedEvent,
-    authenticatedOnFirstVisitEvent,
-    userData,
-    user.isFetching,
-    user.dataUpdatedAt,
-  ]);
+  }, [hasAuthenticated]);
 
   useEffect(() => {
     router.events.on("routeChangeComplete", closeDrawer);

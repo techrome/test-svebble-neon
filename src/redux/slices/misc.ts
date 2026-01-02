@@ -1,10 +1,7 @@
 import React from "react";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-const events = [
-  "hasAuthenticated",
-  "hasAuthenticatedOnFirstVisit",
-] as const satisfies readonly string[];
+const events = ["unusedEvent"] as const satisfies readonly string[];
 export type EventNames = (typeof events)[number];
 
 export type EventInfo = {

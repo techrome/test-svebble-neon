@@ -71,5 +71,29 @@ export const auth = betterAuth({
     },
   },
 
+  databaseHooks: {
+    user: {
+      update: {
+        async before(user, context) {
+          let updatedUser = user;
+
+          if (
+            context?.path === "/verify-email" &&
+            user.emailVerified &&
+            user.email
+          ) {
+            updatedUser = {
+              ...updatedUser,
+              pendingEmail: null,
+              pendingEmailSetAt: null,
+            };
+          }
+
+          return { data: updatedUser };
+        },
+      },
+    },
+  },
+
   plugins: [anonymous(), username()],
 });

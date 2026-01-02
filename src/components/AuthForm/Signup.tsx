@@ -33,12 +33,10 @@ import {
 import { trpc } from "@/trpc";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
 import { CACHE_TIME } from "@/utils/cacheTime";
-import { useDebouncedValue } from "@/utils/useDebouncedValue";
+import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import { normalizeText } from "@/utils/stringUtils";
 import Tooltip from "@/components/Tooltip/Tooltip";
-import useAppQuery from "@/utils/useAppQuery";
-import { useAppDispatch } from "@/redux/hooks";
-import { eventHappened } from "@/redux/slices/misc";
+import useAppQuery from "@/utils/hooks/useAppQuery";
 
 type Props = {
   onSuccess?: () => void;
@@ -340,7 +338,6 @@ const Signup = (props: Props) => {
   });
 
   const { addAppSnackbar } = useAppSnackbar();
-  const dispatch = useAppDispatch();
   const utils = trpc.useUtils();
 
   const changeEmailMutation = trpc.auth.changeEmail.useMutation({
@@ -369,11 +366,7 @@ const Signup = (props: Props) => {
       } else {
         props.onSuccess?.();
       }
-      utils.auth.user.setData(undefined, {
-        user: data.user,
-      });
       utils.auth.user.invalidate();
-      dispatch(eventHappened("hasAuthenticated"));
     },
   });
 

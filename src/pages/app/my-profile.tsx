@@ -10,6 +10,7 @@ const MyProfile = () => {
         <Typography variant="h4" component="h1">
           My Profile
         </Typography>
+        <form></form>
       </VerticalStack>
     </Section>
   );
