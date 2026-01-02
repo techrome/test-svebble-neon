@@ -1,6 +1,8 @@
 import { Client } from "pg";
 import { getDBURLPrimary } from "./helpers/getDBURL";
 
+// NOT USED FOR NOW
+
 const main = async () => {
   const client = new Client({ connectionString: getDBURLPrimary() });
 
