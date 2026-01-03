@@ -1,1 +1,0 @@
-ALTER TABLE "comments" ADD COLUMN "day" date DEFAULT now() NOT NULL;

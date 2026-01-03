@@ -1,1 +1,0 @@
-ALTER TABLE "user" RENAME COLUMN "pending_email" TO "pending_emails";

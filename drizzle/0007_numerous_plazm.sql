@@ -1,1 +1,0 @@
-ALTER TABLE "comments" ALTER COLUMN "text" SET DATA TYPE varchar(20);
