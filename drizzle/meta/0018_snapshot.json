@@ -1,5 +1,5 @@
 {
-  "id": "e7fd2c70-544a-4504-b653-b1fa79d71379",
+  "id": "666af331-dbc4-424a-b058-6fd6e48b67a7",
   "prevId": "80cded3d-d978-4d87-be59-2bc053634200",
   "version": "7",
   "dialect": "postgresql",
@@ -110,12 +110,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -202,12 +198,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -217,9 +209,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -293,18 +283,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "pending_email": {
-          "name": "pending_email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "pending_email_set_at": {
-          "name": "pending_email_set_at",
-          "type": "timestamp",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},
@@ -314,16 +292,12 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "user_username_unique": {
           "name": "user_username_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "username"
-          ]
+          "columns": ["username"]
         }
       },
       "policies": {},
@@ -424,7 +398,7 @@
         },
         "text": {
           "name": "text",
-          "type": "varchar(255)",
+          "type": "varchar(256)",
           "primaryKey": false,
           "notNull": true
         }
