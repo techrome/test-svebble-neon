@@ -202,7 +202,6 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
       ) : (
         <HorizontalStack
           addClassName={clsx("items-center", props.isNavbar && "max-md:hidden")}
-          wrap={false}
         >
           <Button
             variant="outlined"

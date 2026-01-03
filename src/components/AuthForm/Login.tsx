@@ -3,7 +3,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { SubmitHandler, useForm } from "react-hook-form";
 import z from "zod";
 
-import { Section, VerticalStack } from "@/components/Layout/Containers";
+import {
+  HorizontalStack,
+  Section,
+  VerticalStack,
+} from "@/components/Layout/Containers";
 import Button from "@/components/Button/Button";
 import Checkbox from "@/components/Fields/Checkbox";
 import Input from "@/components/Fields/Input";
@@ -64,11 +68,21 @@ const Login = (props: Props) => {
               type="password"
               endAccessory="passwordVisibility"
             />
-            <Checkbox
-              control={form.control}
-              name="rememberMe"
-              label="Remember me"
-            />
+            <HorizontalStack addClassName="items-center justify-between">
+              <Checkbox
+                control={form.control}
+                name="rememberMe"
+                label="Remember me"
+              />
+              <Button
+                variant="text"
+                type="button"
+                size="large"
+                disabled={isSubmitting}
+              >
+                Forgot password?
+              </Button>
+            </HorizontalStack>
             <Button
               variant="contained"
               type="submit"
