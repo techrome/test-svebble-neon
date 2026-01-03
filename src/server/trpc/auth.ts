@@ -1,14 +1,25 @@
 import { betterAuth } from "better-auth/minimal";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { anonymous, username } from "better-auth/plugins";
+import { createAuthMiddleware } from "better-auth/api";
+import { eq } from "drizzle-orm";
 
 // relative paths here because better-auth cli can't recognize TS path aliases
 import { db } from "../db/core";
 import * as authSchema from "../db/schema/auth";
-import { passwordMinLength } from "../../utils/validators/shared/auth";
+import {
+  passwordMinLength,
+  signupSchemaForm,
+} from "../../utils/validators/shared/auth";
 import { TEXT_LIMITS } from "../../utils/validators/helpers/text";
 import { env } from "../env";
 import { minutes } from "@/utils/cacheTime";
+import { generateRandomUsername } from "./helpers/generateRandomUsername";
+import { logger } from "@/utils/logger";
+import {
+  appendSetCookiesToHeaders,
+  cookieHeaderFromSetCookie,
+} from "./helpers/cookies";
 
 const getBaseURL = () => {
   if (env.BASE_URL) {
@@ -34,7 +45,12 @@ type DbUserUpdate = Partial<(typeof authSchema.user)["$inferInsert"]>;
 
 type AdditionalUserFields = Pick<
   DbUserUpdate,
-  "pendingEmail" | "pendingEmailSetAt"
+  | "pendingEmail"
+  | "pendingEmailSetAt"
+  | "username"
+  | "displayUsername"
+  | "isAnonymous"
+  | "canChangeUsername"
 >;
 
 export const auth = betterAuth({
@@ -85,13 +101,95 @@ export const auth = betterAuth({
     },
   },
 
+  hooks: {
+    after: createAuthMiddleware(async (ctx) => {
+      const allowedRoutes = [
+        SOME_AUTH_API_ROUTES.callback,
+        SOME_AUTH_API_ROUTES.verifyEmail,
+      ];
+      if (!allowedRoutes.some((path) => ctx.path.startsWith(`/${path}`)))
+        return;
+      if (!ctx.context.newSession) return;
+
+      const responseHeaders = ctx.context.responseHeaders;
+      if (!responseHeaders) return;
+
+      const cookieHeader = cookieHeaderFromSetCookie(responseHeaders);
+      if (!cookieHeader) return;
+
+      const headers = new Headers(ctx.headers);
+      headers.set("cookie", cookieHeader);
+
+      const refreshedSession = await auth.api.getSession({
+        headers,
+        query: { disableCookieCache: true },
+        asResponse: true,
+      });
+
+      appendSetCookiesToHeaders(responseHeaders, refreshedSession.headers);
+    }),
+  },
   databaseHooks: {
     user: {
       create: {
-        async before(user, context) {
-          console.log({ user, context });
+        async after(user, context) {
+          let updatedUser = user as typeof user & AdditionalUserFields;
 
-          return { data: user };
+          const maxAttempts = 10;
+          if (
+            !updatedUser.username &&
+            context?.path.startsWith(`/${SOME_AUTH_API_ROUTES.callback}`)
+          ) {
+            for (let i = 0; i <= maxAttempts; i++) {
+              const randomUsername = generateRandomUsername();
+
+              if (
+                !signupSchemaForm.shape.username.safeParse(randomUsername)
+                  .success
+              ) {
+                logger.error(
+                  "Error when validating random username, value was: ",
+                  randomUsername
+                );
+                continue;
+              }
+              try {
+                await db
+                  .update(authSchema.user)
+                  .set({ username: randomUsername, canChangeUsername: true })
+                  .where(eq(authSchema.user.id, updatedUser.id));
+
+                return;
+              } catch (err) {
+                const uniqueConstraintErrorCode = "23505";
+                if (
+                  (err as { code?: string })?.code === uniqueConstraintErrorCode
+                ) {
+                  continue;
+                } else {
+                  logger.error("Error when creating a random username: ", err);
+                  throw err;
+                }
+              }
+            }
+
+            const fallbackUsername = updatedUser.id;
+
+            if (
+              !signupSchemaForm.shape.username.safeParse(fallbackUsername)
+                .success
+            ) {
+              logger.error(
+                "Error when validating fallback username, value was: ",
+                fallbackUsername
+              );
+              return;
+            }
+            await db
+              .update(authSchema.user)
+              .set({ username: fallbackUsername, canChangeUsername: true })
+              .where(eq(authSchema.user.id, updatedUser.id));
+          }
         },
       },
       update: {
@@ -99,7 +197,7 @@ export const auth = betterAuth({
           let updatedUser = user;
 
           if (
-            context?.path === `/${SOME_AUTH_API_ROUTES.verifyEmail}` &&
+            context?.path.startsWith(`/${SOME_AUTH_API_ROUTES.verifyEmail}`) &&
             user.emailVerified &&
             user.email
           ) {

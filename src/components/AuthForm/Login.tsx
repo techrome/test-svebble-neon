@@ -31,16 +31,8 @@ const Login = (props: Props) => {
 
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.loginCredentials.useMutation({
-    onSuccess(data) {
-      if (data?.user) {
-        utils.auth.user.setData(undefined, {
-          user: {
-            isAnonymous: false,
-            ...data.user,
-          },
-        });
-        utils.auth.user.invalidate();
-      }
+    onSuccess() {
+      utils.auth.user.invalidate();
       props.onSuccess?.();
     },
   });

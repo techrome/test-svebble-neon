@@ -9,17 +9,6 @@ import Button from "@/components/Button/Button";
 import { ROUTES } from "@/utils/routes";
 
 const EmailVerified = () => {
-  const utils = trpc.useUtils();
-  const forceRefreshSession = trpc.auth.forceRefreshSession.useMutation({
-    onSuccess() {
-      utils.auth.user.invalidate();
-    },
-  });
-
-  React.useEffect(() => {
-    forceRefreshSession.mutate();
-  }, []);
-
   return (
     <div className="flex-1 flex justify-center items-center">
       <VerticalStack addClassName="items-center" spacing="lg">

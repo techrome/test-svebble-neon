@@ -9,10 +9,10 @@ import {
   zEmail,
   zUsername,
 } from "@/utils/validators/shared/auth";
-import { forwardSetCookie } from "../helpers/forwardSetCookie";
 import z from "zod";
 import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
+import { appendSetCookiesToNextRes } from "../helpers/cookies";
 
 const { publicProcedureHttp, privateProcedureHttp, router, auth } = trpc;
 
@@ -34,7 +34,7 @@ const getAuthHelpers = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
     headers: Headers;
     response: TAuthResponse;
   }) => {
-    forwardSetCookie(authResponse.headers, ctx.res);
+    appendSetCookiesToNextRes(ctx.res, authResponse.headers);
     return authResponse.response;
   };
 
@@ -131,7 +131,7 @@ export const authRouter = router({
         });
       }
 
-      forwardSetCookie(authResponse.headers, ctx.res);
+      appendSetCookiesToNextRes(ctx.res, authResponse.headers);
       return authResponse.response;
     }),
   logout: publicProcedureHttp.mutation(async ({ ctx }) => {
