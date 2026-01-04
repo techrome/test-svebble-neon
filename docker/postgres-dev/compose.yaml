@@ -14,10 +14,31 @@ services:
     <<: *common
     image: dpage/pgadmin4:8.13.0
     ports:
-      - 5050:80
+      - 5550:80
     volumes:
       - pgadmin:/var/lib/pgadmin
       - ./servers.json:/pgadmin4/servers.json:ro
+  redis:
+    image: redis:7.4.7-alpine3.21
+    ports:
+      - "5551:6379"
+  srh:
+    image: hiett/serverless-redis-http:0.0.10
+    ports:
+      - "5552:80"
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: dev-token
+      SRH_CONNECTION_STRING: "redis://redis:5551"
+  redisinsight:
+    image: redis/redisinsight:2.70
+    ports:
+      - "5553:5540"
+    depends_on:
+      - redis
+    volumes:
+      - redisinsight:/data
 volumes:
   pgdata:
   pgadmin:
+  redisinsight:
