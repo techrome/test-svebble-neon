@@ -31,5 +31,7 @@
     "other": "on",
     "comments": "off",
     "strings": "on"
-  }
+  },
+  "editor.snippetSuggestions": "inline",
+  "editor.suggestSelection": "first"
 }
