@@ -7,6 +7,8 @@ import { createHmac } from "node:crypto";
 import { redis } from "../redis";
 import { trpc } from "./core";
 import { env } from "@/server";
+import { logger } from "@/utils/logger";
+import { isDev } from "@@/scripts/helpers/isDev";
 
 type Duration = Parameters<typeof Ratelimit.slidingWindow>[1];
 
@@ -57,19 +59,31 @@ const makeRatelimitMiddleware = (spec: WindowSpec, prefix: string) => {
       ? `u:${ctx.user.id}`
       : `ip:${getHashedIp(ctx.req)}`;
 
-    const { success, reset } = await limiter.limit(requestId);
+    let rateLimitResponse: Awaited<ReturnType<typeof limiter.limit>> | null =
+      null;
+    try {
+      const _rateLimitResponse = await limiter.limit(requestId);
+      rateLimitResponse = _rateLimitResponse;
+    } catch (err) {
+      // for the rare case that the free quota is exceeded
+      // I want the app to continue working even when ratelimiter is unavailable
+      logger.error("Error in ratelimit.ts: ", err);
+    }
 
-    if (!success) {
-      const retryAfterSeconds = Math.max(
-        1,
-        Math.ceil((reset - Date.now()) / 1000)
-      );
+    if (rateLimitResponse && !rateLimitResponse.success) {
+      let retryAfterSeconds = 0;
+      if (isDev) {
+        retryAfterSeconds = Math.max(
+          1,
+          Math.ceil((rateLimitResponse.reset - Date.now()) / 1000)
+        );
 
-      ctx.res?.setHeader?.("Retry-After", String(retryAfterSeconds));
+        ctx.res?.setHeader?.("Retry-After", String(retryAfterSeconds));
+      }
 
       throw new TRPCError({
         code: "TOO_MANY_REQUESTS",
-        message: `Too many requests. Try again in ~${retryAfterSeconds} seconds.`,
+        message: `Too many requests. ${isDev ? `Try again in ~${retryAfterSeconds} seconds.` : "Please try again later."}`,
       });
     }
 
@@ -87,7 +101,7 @@ const rateLimits = {
   auth_signUp: { max: 3, window: "60s" },
   auth_changeEmail: { max: 2, window: "60s" },
   auth_login: { max: 5, window: "60s" },
-  auth_usernameCheck: { max: 10, window: "60s" },
+  auth_usernameCheck: { max: 15, window: "60s" },
 } as const satisfies Record<string, WindowSpec>;
 
 type LimiterKey = keyof typeof rateLimits;
