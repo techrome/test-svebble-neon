@@ -8,6 +8,13 @@
       "when": 1767601944350,
       "tag": "0000_yummy_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1767634653131,
+      "tag": "0001_lowly_supreme_intelligence",
+      "breakpoints": true
     }
   ]
 }
