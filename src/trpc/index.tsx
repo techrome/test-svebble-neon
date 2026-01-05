@@ -24,12 +24,16 @@ const getApiBaseUrl = () => {
   return "";
 };
 
-const getErrorInfo = (error: TRPCClientErrorLike<AppRouter>) => {
+const getErrorInfo = (
+  error: TRPCClientErrorLike<AppRouter>,
+  isLoggedIn: boolean = false
+) => {
   const hasZodError = Boolean(error.data?.zodError);
-  const isUnauthorized =
-    error.data?.code === "UNAUTHORIZED" || error.data?.httpStatus === 401;
+  const shouldLogout =
+    (error.data?.code === "UNAUTHORIZED" || error.data?.httpStatus === 401) &&
+    isLoggedIn;
 
-  const message = isUnauthorized
+  const message = shouldLogout
     ? "Your session has expired. Please log in again."
     : hasZodError
       ? `Error: ${error?.data?.code} - ${error?.data?.path}`
@@ -69,9 +73,11 @@ const getErrorInfo = (error: TRPCClientErrorLike<AppRouter>) => {
       )}
       <div>
         <Typography variant="body2" className="font-medium">
-          Error HTTP code:
+          Error code:
         </Typography>
-        <Typography variant="body2">{error.data?.httpStatus}</Typography>
+        <Typography variant="body2">
+          {error.data?.httpStatus} - {error.data?.code}
+        </Typography>
       </div>
       <div>
         <Typography variant="body2" className="font-medium">
@@ -86,7 +92,7 @@ const getErrorInfo = (error: TRPCClientErrorLike<AppRouter>) => {
     message,
     details,
     internal: {
-      isUnauthorized,
+      shouldLogout,
     },
   };
 };
@@ -97,7 +103,11 @@ const handleError = (qc: QueryClient, error: Error) => {
   }
 
   if (error instanceof TRPCClientError) {
-    const errorInfo = getErrorInfo(error);
+    const userKey = getQueryKey(trpc.auth.user, undefined, "query");
+    const currentUserData = qc.getQueryData(
+      userKey
+    ) as RouterOutput["auth"]["user"];
+    const errorInfo = getErrorInfo(error, Boolean(currentUserData.user));
     store.dispatch(
       addSnackbar({
         message: errorInfo.message,
@@ -105,8 +115,7 @@ const handleError = (qc: QueryClient, error: Error) => {
         variant: "error",
       })
     );
-    if (errorInfo.internal.isUnauthorized) {
-      const userKey = getQueryKey(trpc.auth.user, undefined, "query");
+    if (errorInfo.internal.shouldLogout) {
       qc.setQueryData(userKey, { user: null });
     }
   } else {

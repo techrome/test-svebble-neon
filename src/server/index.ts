@@ -5,6 +5,7 @@ if (typeof window !== "undefined") {
 export * as trpc from "./trpc";
 export * as utils from "./utils";
 export * as dbUtils from "./db";
+export * as redis from "./redis";
 export { env } from "./env";
 
 export type * from "./types";

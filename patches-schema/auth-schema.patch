@@ -1,14 +1,19 @@
 diff --git a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts b/src/server/db/schema/auth.ts
-index f9c77f0..276760f 100644
+index 0091577..fa8e8bc 100644
 --- a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts
 +++ b/src/server/db/schema/auth.ts
-@@ -1,4 +1,4 @@
--import { relations } from "drizzle-orm";
-+import { relations, sql } from "drizzle-orm";
- import { pgTable, text, timestamp, boolean, index } from "drizzle-orm/pg-core";
+@@ -10,9 +10,7 @@ import {
+ } from "drizzle-orm/pg-core";
  
  export const user = pgTable("user", {
-@@ -10,7 +10,7 @@ export const user = pgTable("user", {
+-  id: uuid("id")
+-    .default(sql`pg_catalog.gen_random_uuid()`)
+-    .primaryKey(),
++  id: uuid("id").primaryKey().defaultRandom(),
+   name: text("name").notNull(),
+   email: text("email").notNull().unique(),
+   emailVerified: boolean("email_verified").default(false).notNull(),
+@@ -20,7 +18,7 @@ export const user = pgTable("user", {
    createdAt: timestamp("created_at").defaultNow().notNull(),
    updatedAt: timestamp("updated_at")
      .defaultNow()
@@ -17,7 +22,15 @@ index f9c77f0..276760f 100644
      .notNull(),
    isAnonymous: boolean("is_anonymous").default(false),
    username: text("username").unique(),
-@@ -27,7 +27,7 @@ export const session = pgTable(
+@@ -34,14 +32,12 @@ export const user = pgTable("user", {
+ export const session = pgTable(
+   "session",
+   {
+-    id: uuid("id")
+-      .default(sql`pg_catalog.gen_random_uuid()`)
+-      .primaryKey(),
++    id: uuid("id").primaryKey().defaultRandom(),
+     expiresAt: timestamp("expires_at").notNull(),
      token: text("token").notNull().unique(),
      createdAt: timestamp("created_at").defaultNow().notNull(),
      updatedAt: timestamp("updated_at")
@@ -26,7 +39,7 @@ index f9c77f0..276760f 100644
        .notNull(),
      ipAddress: text("ip_address"),
      userAgent: text("user_agent"),
-@@ -35,7 +35,7 @@ export const session = pgTable(
+@@ -49,15 +45,13 @@ export const session = pgTable(
        .notNull()
        .references(() => user.id, { onDelete: "cascade" }),
    },
@@ -35,7 +48,16 @@ index f9c77f0..276760f 100644
  );
  
  export const account = pgTable(
-@@ -56,10 +56,10 @@ export const account = pgTable(
+   "account",
+   {
+-    id: uuid("id")
+-      .default(sql`pg_catalog.gen_random_uuid()`)
+-      .primaryKey(),
++    id: uuid("id").primaryKey().defaultRandom(),
+     accountId: text("account_id").notNull(),
+     providerId: text("provider_id").notNull(),
+     userId: uuid("user_id")
+@@ -72,28 +66,26 @@ export const account = pgTable(
      password: text("password"),
      createdAt: timestamp("created_at").defaultNow().notNull(),
      updatedAt: timestamp("updated_at")
@@ -48,7 +70,15 @@ index f9c77f0..276760f 100644
  );
  
  export const verification = pgTable(
-@@ -72,10 +72,10 @@ export const verification = pgTable(
+   "verification",
+   {
+-    id: uuid("id")
+-      .default(sql`pg_catalog.gen_random_uuid()`)
+-      .primaryKey(),
++    id: uuid("id").primaryKey().defaultRandom(),
+     identifier: text("identifier").notNull(),
+     value: text("value").notNull(),
+     expiresAt: timestamp("expires_at").notNull(),
      createdAt: timestamp("created_at").defaultNow().notNull(),
      updatedAt: timestamp("updated_at")
        .defaultNow()

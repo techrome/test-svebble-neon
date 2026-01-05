@@ -14,12 +14,19 @@ import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
 import { appendSetCookiesToNextRes } from "../helpers/cookies";
 
-const { publicProcedureHttp, privateProcedureHttp, router, auth } = trpc;
+const {
+  publicProcedureHttp,
+  privateProcedureHttp,
+  publicProcedureHttpDefaultRateLimit,
+  router,
+  auth,
+  rateLimitMiddlewares,
+} = trpc;
 
 const PLACEHOLDER_EMAIL_DOMAIN = "noemail.invalid";
 
 const generatePlaceholderEmail = () => {
-  return `u-${randomUUID()}@${PLACEHOLDER_EMAIL_DOMAIN}`;
+  return `u-${randomUUID()}@${PLACEHOLDER_EMAIL_DOMAIN}`.toLowerCase();
 };
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
@@ -45,27 +52,11 @@ const getAuthHelpers = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
 };
 
 export const authRouter = router({
-  user: publicProcedureHttp.query(({ ctx }) => ({
+  user: publicProcedureHttpDefaultRateLimit.query(({ ctx }) => ({
     user: ctx.user,
   })),
-  forceRefreshSession: publicProcedureHttp.mutation(async ({ ctx }) => {
-    const { options, responseHandler } = getAuthHelpers(ctx);
-    let _authResponse = await auth.api.getSession({
-      query: { disableCookieCache: true },
-      ...options,
-    });
-
-    const authResponse = {
-      ..._authResponse,
-      response: {
-        user: _authResponse.response?.user, // removing session object for now
-      },
-    };
-
-    return responseHandler(authResponse);
-  }),
-
   signUpCredentials: publicProcedureHttp
+    .use(rateLimitMiddlewares.auth_signUp)
     .input(signupSchemaForm)
     .mutation(async ({ ctx, input }) => {
       const { options, responseHandler } = getAuthHelpers(ctx);
@@ -85,6 +76,7 @@ export const authRouter = router({
       return responseHandler(authResponse);
     }),
   changeEmail: privateProcedureHttp
+    .use(rateLimitMiddlewares.auth_changeEmail)
     .input(
       z.object({
         email: zEmail,
@@ -107,6 +99,7 @@ export const authRouter = router({
       return { email: input.email };
     }),
   loginCredentials: publicProcedureHttp
+    .use(rateLimitMiddlewares.auth_login)
     .input(loginSchemaForm)
     .mutation(async ({ ctx, input }) => {
       const { options } = getAuthHelpers(ctx);
@@ -134,7 +127,7 @@ export const authRouter = router({
       appendSetCookiesToNextRes(ctx.res, authResponse.headers);
       return authResponse.response;
     }),
-  logout: publicProcedureHttp.mutation(async ({ ctx }) => {
+  logout: publicProcedureHttpDefaultRateLimit.mutation(async ({ ctx }) => {
     const { options, responseHandler } = getAuthHelpers(ctx);
     const authResponse = await auth.api.signOut({
       ...options,
@@ -143,19 +136,22 @@ export const authRouter = router({
     return responseHandler(authResponse);
   }),
 
-  googleLogin: publicProcedureHttp.mutation(async ({ ctx }) => {
-    const { options, responseHandler } = getAuthHelpers(ctx);
+  googleLogin: publicProcedureHttp
+    .use(rateLimitMiddlewares.auth_login)
+    .mutation(async ({ ctx }) => {
+      const { options, responseHandler } = getAuthHelpers(ctx);
 
-    const authResponse = await auth.api.signInSocial({
-      body: {
-        provider: "google",
-      },
-      ...options,
-    });
-    return responseHandler(authResponse);
-  }),
+      const authResponse = await auth.api.signInSocial({
+        body: {
+          provider: "google",
+        },
+        ...options,
+      });
+      return responseHandler(authResponse);
+    }),
 
   checkUsernameAvailability: publicProcedureHttp
+    .use(rateLimitMiddlewares.auth_usernameCheck)
     .input(
       z.object({
         username: zUsername,
@@ -170,13 +166,15 @@ export const authRouter = router({
       return response;
     }),
 
-  deleteUser: privateProcedureHttp.mutation(async ({ ctx }) => {
-    const helpers = getAuthHelpers(ctx);
-    const authResponse = await auth.api.deleteUser({
-      body: {},
-      ...helpers.options,
-    });
+  deleteUser: privateProcedureHttp
+    .use(rateLimitMiddlewares.auth_sensitive)
+    .mutation(async ({ ctx }) => {
+      const helpers = getAuthHelpers(ctx);
+      const authResponse = await auth.api.deleteUser({
+        body: {},
+        ...helpers.options,
+      });
 
-    return helpers.responseHandler(authResponse);
-  }),
+      return helpers.responseHandler(authResponse);
+    }),
 });

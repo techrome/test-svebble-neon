@@ -23,7 +23,10 @@ type EnvVar =
   | "VERCEL_URL"
   | "VERCEL_PROJECT_PRODUCTION_URL"
   | "GOOGLE_CLIENT_ID"
-  | "GOOGLE_CLIENT_SECRET";
+  | "GOOGLE_CLIENT_SECRET"
+  | "UPSTASH_REDIS_REST_TOKEN"
+  | "UPSTASH_REDIS_REST_URL"
+  | "RATELIMIT_IP_SALT";
 
 type EnvRecord = Record<EnvVar, z.ZodType>;
 
@@ -52,6 +55,9 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: required(),
     GOOGLE_CLIENT_ID: required(),
     GOOGLE_CLIENT_SECRET: required(),
+    UPSTASH_REDIS_REST_TOKEN: required(),
+    UPSTASH_REDIS_REST_URL: z.url(),
+    RATELIMIT_IP_SALT: required(),
   } satisfies EnvRecord,
   experimental__runtimeEnv: {},
   emptyStringAsUndefined: true,
