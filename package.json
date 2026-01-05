@@ -19,7 +19,7 @@
     "db:g-auth": "cross-env NODE_ENV=development better-auth generate --config ./src/server/trpc/auth.ts --output ./src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts --yes",
     "db:m": "cross-env NODE_ENV=development drizzle-kit migrate",
     "db:m-prod": "npm run call-script:prod -- scripts/migrate-prod.ts",
-    "db:run": "docker compose -f docker/postgres-dev/compose.yaml up -d --build",
+    "docker-run": "docker compose -f docker/dev/compose.yaml up -d --build",
     "patch-drizzle-orm": "patch-package drizzle-orm",
     "postinstall": "patch-package",
     "add-custom-migration": "cross-env NODE_ENV=development cross-var drizzle-kit generate --custom --name=$npm_config_name"
