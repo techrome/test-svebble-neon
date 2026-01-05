@@ -50,8 +50,20 @@ type AdditionalUserFields = Pick<
   | "username"
   | "displayUsername"
   | "isAnonymous"
-  | "canChangeUsername"
+  | "hasRandomUsername"
+  | "remainingUsernameChanges"
 >;
+
+const setDbRandomUsername = async (name: string, userId: string) => {
+  await db
+    .update(authSchema.user)
+    .set({
+      username: name,
+      hasRandomUsername: true,
+      remainingUsernameChanges: 1,
+    })
+    .where(eq(authSchema.user.id, userId));
+};
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema: { ...authSchema } }),
@@ -80,7 +92,8 @@ export const auth = betterAuth({
 
   user: {
     additionalFields: {
-      canChangeUsername: { type: "boolean", defaultValue: false },
+      remainingUsernameChanges: { type: "number", defaultValue: 0 },
+      hasRandomUsername: { type: "boolean", defaultValue: false },
       pendingEmail: { type: "string", required: false },
       pendingEmailSetAt: { type: "date", required: false },
     },
@@ -141,7 +154,7 @@ export const auth = betterAuth({
             context?.path.startsWith(`/${SOME_AUTH_API_ROUTES.callback}`)
           ) {
             for (let i = 0; i <= maxAttempts; i++) {
-              const randomUsername = generateRandomUsername();
+              const randomUsername = generateRandomUsername().toLowerCase();
 
               if (
                 !signupSchemaForm.shape.username.safeParse(randomUsername)
@@ -154,10 +167,7 @@ export const auth = betterAuth({
                 continue;
               }
               try {
-                await db
-                  .update(authSchema.user)
-                  .set({ username: randomUsername, canChangeUsername: true })
-                  .where(eq(authSchema.user.id, updatedUser.id));
+                await setDbRandomUsername(randomUsername, updatedUser.id);
 
                 return;
               } catch (err) {
@@ -173,7 +183,7 @@ export const auth = betterAuth({
               }
             }
 
-            const fallbackUsername = updatedUser.id;
+            const fallbackUsername = updatedUser.id.toLowerCase();
 
             if (
               !signupSchemaForm.shape.username.safeParse(fallbackUsername)
@@ -185,10 +195,7 @@ export const auth = betterAuth({
               );
               return;
             }
-            await db
-              .update(authSchema.user)
-              .set({ username: fallbackUsername, canChangeUsername: true })
-              .where(eq(authSchema.user.id, updatedUser.id));
+            await setDbRandomUsername(fallbackUsername, updatedUser.id);
           }
         },
       },
@@ -217,5 +224,15 @@ export const auth = betterAuth({
     },
   },
 
-  plugins: [anonymous(), username()],
+  plugins: [
+    anonymous(),
+    username({
+      maxUsernameLength: TEXT_LIMITS.handle,
+    }),
+  ],
+  advanced: {
+    database: {
+      generateId: "uuid",
+    },
+  },
 });

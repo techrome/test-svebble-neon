@@ -8,6 +8,13 @@
       "when": 1767432422047,
       "tag": "0000_huge_maria_hill",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1767600821231,
+      "tag": "0001_light_red_hulk",
+      "breakpoints": true
     }
   ]
 }
