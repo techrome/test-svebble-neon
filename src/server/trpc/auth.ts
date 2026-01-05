@@ -115,6 +115,7 @@ export const auth = betterAuth({
   },
 
   hooks: {
+    // invalidating cookie cache for routes that modify user
     after: createAuthMiddleware(async (ctx) => {
       const allowedRoutes = [
         SOME_AUTH_API_ROUTES.callback,
@@ -183,7 +184,10 @@ export const auth = betterAuth({
               }
             }
 
-            const fallbackUsername = updatedUser.id.toLowerCase();
+            const fallbackUsername = updatedUser.id
+              .toLowerCase()
+              .replaceAll("-", "")
+              .slice(0, TEXT_LIMITS.handle);
 
             if (
               !signupSchemaForm.shape.username.safeParse(fallbackUsername)

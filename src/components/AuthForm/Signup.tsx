@@ -82,6 +82,18 @@ const passwordRules: PasswordRule[] = [
     hidden: true,
   },
   {
+    label: "At least 24 characters",
+    validate: (value) => value.length >= 24,
+    score: 2,
+    hidden: true,
+  },
+  {
+    label: "At least 28 characters",
+    validate: (value) => value.length >= 28,
+    score: 2,
+    hidden: true,
+  },
+  {
     label: "A repeated character 3 times (penalty)",
     validate: (value) => /(.)\1\1/.test(value),
     score: -2,
