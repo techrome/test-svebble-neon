@@ -3,6 +3,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 
 import { trpc } from "@/server";
 import {
+  forgotPasswordSchemaForm,
   loginSchemaForm,
   signupSchemaForm,
   zEmail,
@@ -154,6 +155,24 @@ export const authRouter = router({
       return responseHandler(authResponse);
     }),
 
+  requestPasswordReset: publicProcedureHttp
+    .use(rateLimitMiddlewares.auth_requestPasswordReset)
+    .input(forgotPasswordSchemaForm)
+    .mutation(async ({ input }) => {
+      try {
+        await auth.api.requestPasswordReset({
+          body: {
+            email: input.email,
+            redirectTo: `${baseURL}/${ROUTES.resetPassword}`,
+          },
+        });
+      } catch (err) {
+        // intentionally ignoring any error here
+      }
+      return {
+        status: true,
+      };
+    }),
   checkUsernameAvailability: publicProcedureHttp
     .use(rateLimitMiddlewares.auth_usernameCheck)
     .input(

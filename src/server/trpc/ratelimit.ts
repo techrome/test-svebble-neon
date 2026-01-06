@@ -100,6 +100,7 @@ const rateLimits = {
   auth_sensitive: { max: 7, window: "60s" },
   auth_signUp: { max: 3, window: "60s" },
   auth_changeEmail: { max: 2, window: "60s" },
+  auth_requestPasswordReset: { max: 2, window: "60s" },
   auth_login: { max: 5, window: "60s" },
   auth_usernameCheck: { max: 15, window: "60s" },
 } as const satisfies Record<string, WindowSpec>;

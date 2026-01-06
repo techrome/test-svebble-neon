@@ -3,12 +3,17 @@ import { Route } from "next";
 type DynamicRoute = (...args: string[]) => Route;
 
 export const privateRoutePrefix = "app";
+export const authRoutePrefix = "auth";
 
 export const ROUTES = {
   home: "/",
   about: "/about",
   terms: "/terms",
   privacyPolicy: "/privacy-policy",
+  logIn: `/${authRoutePrefix}/log-in`,
+  signUp: `/${authRoutePrefix}/sign-up`,
+  accountRecovery: `/${authRoutePrefix}/account-recovery`,
+  resetPassword: `/${authRoutePrefix}/reset-password`,
   test: "/test-not-found-page",
   private_emailVerified: `/${privateRoutePrefix}/email-verified`,
   private_myProfile: `/${privateRoutePrefix}/my-profile`,

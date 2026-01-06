@@ -90,6 +90,13 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: passwordMinLength,
     maxPasswordLength: TEXT_LIMITS.title,
+
+    sendResetPassword: async (data, request) => {
+      console.log("send reset pass", { data, request });
+    },
+    onPasswordReset: async (data, request) => {
+      console.log("on pass reset", { data, request });
+    },
   },
 
   user: {
