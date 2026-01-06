@@ -25,7 +25,8 @@ import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import "@/styles/global.scss";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
-import { privateRoutePrefix } from "@/utils/routes";
+import { authRoutePrefix, privateRoutePrefix } from "@/utils/routes";
+import { AuthPageWrapper } from "@/components/AuthForm/Helpers";
 
 const PrivateRoute = dynamic(
   () => import("@/components/PrivateRoute/PrivateRoute").then((m) => m.default),
@@ -35,6 +36,7 @@ const PrivateRoute = dynamic(
 const App = ({ Component, pageProps }: AppProps) => {
   const router = useRouter();
   const isPrivateRoute = router.pathname.startsWith(`/${privateRoutePrefix}`);
+  const isAuthRoute = router.pathname.startsWith(`/${authRoutePrefix}`);
 
   const page = <Component {...pageProps} />;
 
@@ -61,6 +63,8 @@ const App = ({ Component, pageProps }: AppProps) => {
                       <Section addClassName="flex-1 flex flex-col">
                         {isPrivateRoute ? (
                           <PrivateRoute>{page}</PrivateRoute>
+                        ) : isAuthRoute ? (
+                          <AuthPageWrapper>{page}</AuthPageWrapper>
                         ) : (
                           page
                         )}

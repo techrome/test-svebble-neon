@@ -144,7 +144,7 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
                 Hello, <strong>{user.data.user.name}</strong>!
               </Typography>
               <Typography
-                color="textDisabled"
+                color="textSecondary"
                 variant="subtitle2"
                 component="div"
                 textAlign="center"
@@ -404,7 +404,6 @@ const FilterForm = ({
     control: formState.control,
     name: ["startDate", "endDate"],
   });
-  logger.log({ startDate, endDate });
 
   const now = dayjs();
 
@@ -746,8 +745,8 @@ const NavbarInner = () => {
           id: snackbarId,
           message: (
             <HorizontalStack addClassName="items-center">
-              You are logged in as a guest. This is a temporary session with
-              limited capabilities. Please link your account if you want to keep
+              You have logged in as a guest. This is a temporary session with
+              limited capabilities. Please link your account if you want to save
               your data.
               <Link href={ROUTES.private_myProfile} color="textPrimary">
                 <Button
@@ -796,7 +795,7 @@ const NavbarInner = () => {
           message: (
             <HorizontalStack addClassName="items-center">
               {
-                "Please add an email so that you can restore your account if you forgot your password. Accounts without en email have limited capabilities."
+                "Please add an email so that you can restore your account if you forget your password. Accounts without en email have limited capabilities."
               }
               <Link href={ROUTES.private_myProfile} color="textPrimary">
                 <Button

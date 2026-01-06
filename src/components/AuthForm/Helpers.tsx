@@ -1,5 +1,5 @@
 import React from "react";
-import { Typography } from "@mui/material";
+import { CircularProgress, Typography } from "@mui/material";
 import PersonIcon from "@mui/icons-material/Person";
 import Image from "next/image";
 
@@ -11,6 +11,8 @@ import { Divider } from "@/components/Layout/Dividers";
 import { AuthType } from "@/components/AuthForm/AuthForm";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { trpc } from "@/trpc";
+import useUser from "@/trpc/hooks/useUser";
+import { useRouter } from "next/router";
 
 type WrapperProps = {
   authType: AuthType;
@@ -95,18 +97,48 @@ export const AuthWrapper = (props: WrapperProps) => {
         or {isLogin ? "log in with your credentials" : "create an account"}
       </Divider>
       {props.children}
-      <Typography variant="subtitle2" className="mt-4">
-        <span>
-          By continuing, you agree to the{" "}
-          <Link target="_blank" href={ROUTES.terms}>
-            Terms and Conditions
-          </Link>{" "}
-          and{" "}
-          <Link target="_blank" href={ROUTES.privacyPolicy}>
-            Privacy Policy
-          </Link>
-        </span>
-      </Typography>
+      <TermsLabel />
     </>
+  );
+};
+
+export const TermsLabel = () => {
+  return (
+    <Typography variant="subtitle2" className="mt-4">
+      <span>
+        By continuing, you agree to the{" "}
+        <Link target="_blank" href={ROUTES.terms}>
+          Terms and Conditions
+        </Link>{" "}
+        and{" "}
+        <Link target="_blank" href={ROUTES.privacyPolicy}>
+          Privacy Policy
+        </Link>
+      </span>
+    </Typography>
+  );
+};
+
+type AuthPageWrapperProps = {
+  children: React.ReactNode;
+};
+
+export const AuthPageWrapper = (props: AuthPageWrapperProps) => {
+  const user = useUser();
+  const router = useRouter();
+
+  if (user.data?.user?.id) {
+    router.replace(ROUTES.private_myProfile);
+    return;
+  }
+
+  return (
+    <div className="flex-1 flex justify-center items-center">
+      {user.isPending ? (
+        <CircularProgress />
+      ) : (
+        <div className="max-w-[600px] w-full">{props.children}</div>
+      )}
+    </div>
   );
 };

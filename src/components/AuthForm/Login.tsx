@@ -17,6 +17,7 @@ import { trpc } from "@/trpc";
 
 type Props = {
   onSuccess?: () => void;
+  onForgotPasswordClick?: () => void;
 };
 
 type FormValues = z.infer<typeof loginSchemaForm>;
@@ -83,6 +84,7 @@ const Login = (props: Props) => {
                 type="button"
                 size="large"
                 disabled={isSubmitting}
+                onClick={props.onForgotPasswordClick}
               >
                 Forgot password?
               </Button>

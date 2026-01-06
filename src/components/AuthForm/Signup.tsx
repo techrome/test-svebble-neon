@@ -357,8 +357,9 @@ const Signup = (props: Props) => {
       addAppSnackbar({
         message: (
           <>
-            We have sent a verification email to <strong>{data.email}</strong>.
-            Please check your inbox and spam folder.
+            Verification email sent to <strong>{data.email}</strong>. If you
+            don’t see this email in your inbox within 15 minutes, look for it in
+            your spam mail folder.
           </>
         ),
         variant: "info",
