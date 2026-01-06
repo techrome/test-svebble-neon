@@ -1,16 +1,15 @@
 import z from "zod";
 import { eq, desc } from "drizzle-orm";
 
-import { trpc, dbUtils } from "@/server";
-import * as sharedCommentsValidations from "@/utils/validators/shared/comments";
-import { authRouter } from "./auth";
-
-const { schema, db } = dbUtils;
-const {
+import { db } from "../../db/core";
+import * as schema from "../../db/schema";
+import { router } from "../core";
+import {
   publicProcedureDefaultRateLimit,
   publicProcedureHttpDefaultRateLimit,
-  router,
-} = trpc;
+} from "../procedures";
+import * as sharedCommentsValidations from "@/utils/validators/shared/comments";
+import { authRouter } from "./auth";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";

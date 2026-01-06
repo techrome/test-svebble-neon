@@ -56,3 +56,7 @@ export const loginSchemaForm = z.object({
   password: Text.Title({ shouldTrim: false, required: true }),
   rememberMe: z.boolean(),
 });
+
+export const forgotPasswordSchemaForm = z.object({
+  email: zEmail,
+});

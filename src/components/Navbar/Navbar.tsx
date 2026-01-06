@@ -139,9 +139,19 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
       ) : user.data?.user ? (
         props.isNavbar ? null : (
           <VerticalStack spacing="md">
-            <Typography variant="body1" textAlign="center">
-              Hello, <strong>{user.data.user.name}</strong>!
-            </Typography>
+            <div>
+              <Typography variant="body1" textAlign="center">
+                Hello, <strong>{user.data.user.name}</strong>!
+              </Typography>
+              <Typography
+                color="textSecondary"
+                variant="subtitle2"
+                component="div"
+                textAlign="center"
+              >
+                {user.data.user.username}
+              </Typography>
+            </div>
 
             <VerticalStack>
               <Link href={ROUTES.private_myProfile} color="textPrimary">
@@ -299,7 +309,7 @@ const DrawerContent = () => {
         {[
           {
             label: "About Us",
-            url: ROUTES.about,
+            url: ROUTES.logIn,
           },
           {
             label: "Terms and Conditions",
@@ -394,7 +404,6 @@ const FilterForm = ({
     control: formState.control,
     name: ["startDate", "endDate"],
   });
-  logger.log({ startDate, endDate });
 
   const now = dayjs();
 
@@ -639,19 +648,21 @@ const SystemNotifications = () => {
           </Tooltip>
         </HorizontalStack>
       </HorizontalStack>
-      <Virtuoso
-        style={{ height: "500px", width: "100%" }}
-        increaseViewportBy={{ bottom: 150, top: 150 }}
-        data={filteredNotifications}
-        components={{
-          List: VerticalStack,
-          Item: MotionItem,
-        }}
-        computeItemKey={(_, item) => item.id}
-        itemContent={(_, systemNotification) => {
-          return <Snackbar isSystemNotification {...systemNotification} />;
-        }}
-      />
+      <div className="h-[500px] max-h-full">
+        <Virtuoso
+          style={{ height: "100%", width: "100%" }}
+          increaseViewportBy={{ bottom: 150, top: 150 }}
+          data={filteredNotifications}
+          components={{
+            List: VerticalStack,
+            Item: MotionItem,
+          }}
+          computeItemKey={(_, item) => item.id}
+          itemContent={(_, systemNotification) => {
+            return <Snackbar isSystemNotification {...systemNotification} />;
+          }}
+        />
+      </div>
       <filterPopover.ReadyComponent
         onClose={() => {
           filterFormState.reset(filter, { keepDefaultValues: true });
@@ -729,7 +740,30 @@ const NavbarInner = () => {
   useEffect(() => {
     if (hasAuthenticated) {
       const snackbarId = nanoid();
-      if (
+      if (userData?.isAnonymous) {
+        addAppSnackbar({
+          id: snackbarId,
+          message: (
+            <HorizontalStack addClassName="items-center">
+              You have logged in as a guest. This is a temporary session with
+              limited capabilities. Please link your account if you want to save
+              your data.
+              <Link href={ROUTES.private_myProfile} color="textPrimary">
+                <Button
+                  onClick={() => {
+                    closeAppSnackbar(snackbarId);
+                  }}
+                  variant="outlined"
+                >
+                  Link account
+                </Button>
+              </Link>
+            </HorizontalStack>
+          ),
+          variant: "info",
+          durationMs: 0,
+        });
+      } else if (
         !userData?.emailVerified &&
         userData?.pendingEmail &&
         userData?.pendingEmail !== userData?.email
@@ -752,7 +786,7 @@ const NavbarInner = () => {
               </Link>
             </HorizontalStack>
           ),
-          variant: "warning",
+          variant: "info",
           durationMs: 0,
         });
       } else if (!userData?.pendingEmail && !userData?.emailVerified) {
@@ -761,7 +795,7 @@ const NavbarInner = () => {
           message: (
             <HorizontalStack addClassName="items-center">
               {
-                "Please add an email so that you don't lose access to your account. Accounts without en email have limited capabilities."
+                "Please add an email so that you can restore your account if you forget your password. Accounts without en email have limited capabilities."
               }
               <Link href={ROUTES.private_myProfile} color="textPrimary">
                 <Button
@@ -775,7 +809,7 @@ const NavbarInner = () => {
               </Link>
             </HorizontalStack>
           ),
-          variant: "warning",
+          variant: "info",
           durationMs: 0,
         });
       }

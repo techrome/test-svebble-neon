@@ -8,11 +8,13 @@ import { ErrorBoundary } from "react-error-boundary";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import "dayjs/locale/en-gb";
+import dynamic from "next/dynamic";
+import { useRouter } from "next/router";
 
 import { trpc } from "@/trpc";
 import Navbar from "@/components/Navbar/Navbar";
 import TopLoader from "@/components/TopLoader/TopLoader";
-import { theme } from "@/utils/theme";
+import { roboto, theme } from "@/utils/theme";
 import { store } from "@/redux";
 import GlobalModal from "@/components/Overlays/GlobalModal";
 import GlobalDrawer from "@/components/Overlays/GlobalDrawer";
@@ -23,9 +25,8 @@ import { SnackbarListener } from "@/utils/snackbar";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 
 import "@/styles/global.scss";
-import dynamic from "next/dynamic";
-import { useRouter } from "next/router";
-import { privateRoutePrefix } from "@/utils/routes";
+import { authRoutePrefix, privateRoutePrefix } from "@/utils/routes";
+import { AuthPageWrapper } from "@/components/AuthForm/Helpers";
 
 const PrivateRoute = dynamic(
   () => import("@/components/PrivateRoute/PrivateRoute").then((m) => m.default),
@@ -35,6 +36,7 @@ const PrivateRoute = dynamic(
 const App = ({ Component, pageProps }: AppProps) => {
   const router = useRouter();
   const isPrivateRoute = router.pathname.startsWith(`/${privateRoutePrefix}`);
+  const isAuthRoute = router.pathname.startsWith(`/${authRoutePrefix}`);
 
   const page = <Component {...pageProps} />;
 
@@ -56,11 +58,20 @@ const App = ({ Component, pageProps }: AppProps) => {
                 <ErrorBoundary FallbackComponent={ErrorBoundaryFallback}>
                   <TopLoader />
                   <LoadingBoundary>
-                    <div className={clsx("flex flex-col min-h-screen")}>
+                    {/* here "roboto.variable" is just a duplicate to force the webpack 
+                    bundler not to drop it from prod build. the real font is applied in _document.tsx*/}
+                    <div
+                      className={clsx(
+                        "flex flex-col min-h-screen",
+                        roboto.variable
+                      )}
+                    >
                       <Navbar />
                       <Section addClassName="flex-1 flex flex-col">
                         {isPrivateRoute ? (
                           <PrivateRoute>{page}</PrivateRoute>
+                        ) : isAuthRoute ? (
+                          <AuthPageWrapper>{page}</AuthPageWrapper>
                         ) : (
                           page
                         )}

@@ -17,6 +17,7 @@ import { trpc } from "@/trpc";
 
 type Props = {
   onSuccess?: () => void;
+  onForgotPasswordClick?: () => void;
 };
 
 type FormValues = z.infer<typeof loginSchemaForm>;
@@ -49,7 +50,11 @@ const Login = (props: Props) => {
 
   return (
     <Section addClassName="mt-5">
-      <AuthWrapper authType="login" disabled={isSubmitting}>
+      <AuthWrapper
+        authType="login"
+        disabled={isSubmitting}
+        onSuccess={props.onSuccess}
+      >
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <VerticalStack>
             <Input
@@ -79,6 +84,7 @@ const Login = (props: Props) => {
                 type="button"
                 size="large"
                 disabled={isSubmitting}
+                onClick={props.onForgotPasswordClick}
               >
                 Forgot password?
               </Button>

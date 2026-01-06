@@ -1,9 +1,16 @@
 import { fromNodeHeaders } from "better-auth/node";
-import { randomUUID } from "node:crypto";
 import { NextApiRequest, NextApiResponse } from "next";
 
-import { trpc } from "@/server";
+import { router } from "../core";
 import {
+  publicProcedureHttp,
+  privateProcedureHttp,
+  publicProcedureHttpDefaultRateLimit,
+} from "../procedures";
+import { auth } from "../auth";
+import { rateLimitMiddlewares } from "../ratelimit";
+import {
+  forgotPasswordSchemaForm,
   loginSchemaForm,
   signupSchemaForm,
   zEmail,
@@ -13,21 +20,7 @@ import z from "zod";
 import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
 import { appendSetCookiesToNextRes } from "../helpers/cookies";
-
-const {
-  publicProcedureHttp,
-  privateProcedureHttp,
-  publicProcedureHttpDefaultRateLimit,
-  router,
-  auth,
-  rateLimitMiddlewares,
-} = trpc;
-
-const PLACEHOLDER_EMAIL_DOMAIN = "noemail.invalid";
-
-const generatePlaceholderEmail = () => {
-  return `u-${randomUUID()}@${PLACEHOLDER_EMAIL_DOMAIN}`.toLowerCase();
-};
+import { generatePlaceholderEmail } from "../helpers/email";
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
 
@@ -98,6 +91,16 @@ export const authRouter = router({
       }
       return { email: input.email };
     }),
+  loginAnonymous: publicProcedureHttp
+    .use(rateLimitMiddlewares.auth_signUp)
+    .mutation(async ({ ctx }) => {
+      const { options, responseHandler } = getAuthHelpers(ctx);
+
+      const authResponse = await auth.api.signInAnonymous({
+        ...options,
+      });
+      return responseHandler(authResponse);
+    }),
   loginCredentials: publicProcedureHttp
     .use(rateLimitMiddlewares.auth_login)
     .input(loginSchemaForm)
@@ -150,6 +153,24 @@ export const authRouter = router({
       return responseHandler(authResponse);
     }),
 
+  requestPasswordReset: publicProcedureHttp
+    .use(rateLimitMiddlewares.auth_requestPasswordReset)
+    .input(forgotPasswordSchemaForm)
+    .mutation(async ({ input }) => {
+      try {
+        await auth.api.requestPasswordReset({
+          body: {
+            email: input.email,
+            redirectTo: `${baseURL}/${ROUTES.resetPassword}`,
+          },
+        });
+      } catch (err) {
+        // intentionally ignoring any error here
+      }
+      return {
+        status: true,
+      };
+    }),
   checkUsernameAvailability: publicProcedureHttp
     .use(rateLimitMiddlewares.auth_usernameCheck)
     .input(
