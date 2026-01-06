@@ -6,7 +6,7 @@ import { createHmac } from "node:crypto";
 
 import { redis } from "../redis";
 import { trpc } from "./core";
-import { env } from "@/server";
+import { env } from "../env";
 import { logger } from "@/utils/logger";
 import { isDev } from "@@/scripts/helpers/isDev";
 

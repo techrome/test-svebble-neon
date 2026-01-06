@@ -1,7 +1,14 @@
 import { fromNodeHeaders } from "better-auth/node";
 import { NextApiRequest, NextApiResponse } from "next";
 
-import { trpc } from "@/server";
+import { router } from "../core";
+import {
+  publicProcedureHttp,
+  privateProcedureHttp,
+  publicProcedureHttpDefaultRateLimit,
+} from "../procedures";
+import { auth } from "../auth";
+import { rateLimitMiddlewares } from "../ratelimit";
 import {
   forgotPasswordSchemaForm,
   loginSchemaForm,
@@ -14,15 +21,6 @@ import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
 import { appendSetCookiesToNextRes } from "../helpers/cookies";
 import { generatePlaceholderEmail } from "../helpers/email";
-
-const {
-  publicProcedureHttp,
-  privateProcedureHttp,
-  publicProcedureHttpDefaultRateLimit,
-  router,
-  auth,
-  rateLimitMiddlewares,
-} = trpc;
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
 
