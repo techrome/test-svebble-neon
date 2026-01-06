@@ -309,7 +309,7 @@ const DrawerContent = () => {
         {[
           {
             label: "About Us",
-            url: ROUTES.about,
+            url: ROUTES.logIn,
           },
           {
             label: "Terms and Conditions",

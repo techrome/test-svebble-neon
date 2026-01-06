@@ -1,9 +1,10 @@
+import React from "react";
+
 import ForgotPassword from "@/components/AuthForm/ForgotPassword";
 import Login from "@/components/AuthForm/Login";
 import Signup from "@/components/AuthForm/Signup";
 import Tabs from "@/components/Tabs/Tabs";
 import { ROUTES } from "@/utils/routes";
-import React from "react";
 
 export type AuthType = "login" | "signup" | "accountRecovery";
 
