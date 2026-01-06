@@ -396,7 +396,11 @@ const Signup = (props: Props) => {
 
   return (
     <Section addClassName="mt-5">
-      <AuthWrapper authType="signup" disabled={isSubmitting}>
+      <AuthWrapper
+        authType="signup"
+        disabled={isSubmitting}
+        onSuccess={props.onSuccess}
+      >
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <VerticalStack>
             <UsernameInput form={form} />

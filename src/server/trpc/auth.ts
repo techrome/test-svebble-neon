@@ -20,6 +20,7 @@ import {
   appendSetCookiesToHeaders,
   cookieHeaderFromSetCookie,
 } from "./helpers/cookies";
+import { PLACEHOLDER_EMAIL_DOMAIN } from "./helpers/email";
 
 const getBaseURL = () => {
   if (env.BASE_URL) {
@@ -39,6 +40,7 @@ export const SOME_AUTH_API_ROUTES = {
   error: "error",
   callback: "callback",
   verifyEmail: "verify-email",
+  signInAnonymous: "sign-in/anonymous",
 };
 
 type DbUserUpdate = Partial<(typeof authSchema.user)["$inferInsert"]>;
@@ -116,22 +118,23 @@ export const auth = betterAuth({
 
   hooks: {
     // invalidating cookie cache for routes that modify user
-    after: createAuthMiddleware(async (ctx) => {
+    after: createAuthMiddleware(async (context) => {
       const allowedRoutes = [
         SOME_AUTH_API_ROUTES.callback,
         SOME_AUTH_API_ROUTES.verifyEmail,
+        SOME_AUTH_API_ROUTES.signInAnonymous,
       ];
-      if (!allowedRoutes.some((path) => ctx.path.startsWith(`/${path}`)))
+      if (!allowedRoutes.some((path) => context.path.startsWith(`/${path}`)))
         return;
-      if (!ctx.context.newSession) return;
+      if (!context.context.newSession) return;
 
-      const responseHeaders = ctx.context.responseHeaders;
+      const responseHeaders = context.context.responseHeaders;
       if (!responseHeaders) return;
 
       const cookieHeader = cookieHeaderFromSetCookie(responseHeaders);
       if (!cookieHeader) return;
 
-      const headers = new Headers(ctx.headers);
+      const headers = new Headers(context.headers);
       headers.set("cookie", cookieHeader);
 
       const refreshedSession = await auth.api.getSession({
@@ -149,13 +152,20 @@ export const auth = betterAuth({
         async after(user, context) {
           let updatedUser = user as typeof user & AdditionalUserFields;
 
+          const allowedRoutes = [
+            SOME_AUTH_API_ROUTES.callback,
+            SOME_AUTH_API_ROUTES.signInAnonymous,
+          ];
+          const isGuest = Boolean(updatedUser.isAnonymous);
           const maxAttempts = 10;
+
           if (
             !updatedUser.username &&
-            context?.path.startsWith(`/${SOME_AUTH_API_ROUTES.callback}`)
+            allowedRoutes.some((path) => context?.path.startsWith(`/${path}`))
           ) {
             for (let i = 0; i <= maxAttempts; i++) {
-              const randomUsername = generateRandomUsername().toLowerCase();
+              const randomUsername =
+                generateRandomUsername(isGuest).toLowerCase();
 
               if (
                 !signupSchemaForm.shape.username.safeParse(randomUsername)
@@ -229,7 +239,9 @@ export const auth = betterAuth({
   },
 
   plugins: [
-    anonymous(),
+    anonymous({
+      emailDomainName: PLACEHOLDER_EMAIL_DOMAIN,
+    }),
     username({
       maxUsernameLength: TEXT_LIMITS.handle,
     }),

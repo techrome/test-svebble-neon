@@ -49,7 +49,11 @@ const Login = (props: Props) => {
 
   return (
     <Section addClassName="mt-5">
-      <AuthWrapper authType="login" disabled={isSubmitting}>
+      <AuthWrapper
+        authType="login"
+        disabled={isSubmitting}
+        onSuccess={props.onSuccess}
+      >
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <VerticalStack>
             <Input

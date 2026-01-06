@@ -1,5 +1,4 @@
 import { fromNodeHeaders } from "better-auth/node";
-import { randomUUID } from "node:crypto";
 import { NextApiRequest, NextApiResponse } from "next";
 
 import { trpc } from "@/server";
@@ -13,6 +12,7 @@ import z from "zod";
 import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
 import { appendSetCookiesToNextRes } from "../helpers/cookies";
+import { generatePlaceholderEmail } from "../helpers/email";
 
 const {
   publicProcedureHttp,
@@ -22,12 +22,6 @@ const {
   auth,
   rateLimitMiddlewares,
 } = trpc;
-
-const PLACEHOLDER_EMAIL_DOMAIN = "noemail.invalid";
-
-const generatePlaceholderEmail = () => {
-  return `u-${randomUUID()}@${PLACEHOLDER_EMAIL_DOMAIN}`.toLowerCase();
-};
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
 
@@ -97,6 +91,16 @@ export const authRouter = router({
         // the email already exists (prevents email enumeration attacks)
       }
       return { email: input.email };
+    }),
+  loginAnonymous: publicProcedureHttp
+    .use(rateLimitMiddlewares.auth_signUp)
+    .mutation(async ({ ctx }) => {
+      const { options, responseHandler } = getAuthHelpers(ctx);
+
+      const authResponse = await auth.api.signInAnonymous({
+        ...options,
+      });
+      return responseHandler(authResponse);
     }),
   loginCredentials: publicProcedureHttp
     .use(rateLimitMiddlewares.auth_login)

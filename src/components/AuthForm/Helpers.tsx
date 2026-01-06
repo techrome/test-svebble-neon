@@ -16,12 +16,14 @@ type WrapperProps = {
   authType: AuthType;
   disabled: boolean;
   children: React.ReactNode;
+  onSuccess?: () => void;
 };
 
 export const AuthWrapper = (props: WrapperProps) => {
   const isLogin = props.authType === "login";
 
   const { addAppSnackbar } = useAppSnackbar();
+  const utils = trpc.useUtils();
 
   const googleLoginMutation = trpc.auth.googleLogin.useMutation({
     onSuccess(data) {
@@ -33,15 +35,25 @@ export const AuthWrapper = (props: WrapperProps) => {
       addAppSnackbar({ message: "Something went wrong.", variant: "error" });
     },
   });
+  const guestLoginMutation = trpc.auth.loginAnonymous.useMutation({
+    onSuccess() {
+      utils.auth.user.invalidate();
+      props.onSuccess?.();
+    },
+  });
 
   const onGoogleClick = async () => {
     googleLoginMutation.mutate();
   };
 
-  const onGuestClick = () => {};
+  const onGuestClick = () => {
+    guestLoginMutation.mutate();
+  };
 
-  const isLoading = googleLoginMutation.isPending;
-  const isDisabled = isLoading || props.disabled;
+  const isDisabled =
+    guestLoginMutation.isPending ||
+    googleLoginMutation.isPending ||
+    props.disabled;
 
   return (
     <>
@@ -67,6 +79,7 @@ export const AuthWrapper = (props: WrapperProps) => {
           {isLogin ? "Log in" : "Sign up"} with Google
         </Button>
         <Button
+          isLoading={guestLoginMutation.isPending}
           disabled={isDisabled}
           color="inherit"
           variant="outlined"
