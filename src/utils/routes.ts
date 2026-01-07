@@ -10,6 +10,7 @@ export const ROUTES = {
   about: "/about",
   terms: "/terms",
   privacyPolicy: "/privacy-policy",
+  oauthDone: "/oauth-done",
   logIn: `/${authRoutePrefix}/log-in`,
   signUp: `/${authRoutePrefix}/sign-up`,
   accountRecovery: `/${authRoutePrefix}/account-recovery`,

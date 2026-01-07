@@ -21,26 +21,23 @@ import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
 import { appendSetCookiesToNextRes } from "../helpers/cookies";
 import { generatePlaceholderEmail } from "../helpers/email";
+import { oauthDoneStatus } from "@/components/AuthForm/Helpers";
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
+type AuthCallResult<T> = { headers: Headers; response: T };
 
-const getAuthHelpers = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
-  const options = {
+const getCookieForwarder = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
+  const baseOptions = {
     returnHeaders: true,
     headers: fromNodeHeaders(ctx.req.headers),
-  } satisfies { returnHeaders: boolean; headers: HeadersInit };
+  } as const satisfies { returnHeaders: boolean; headers: HeadersInit };
 
-  const responseHandler = <TAuthResponse>(authResponse: {
-    headers: Headers;
-    response: TAuthResponse;
-  }) => {
+  return async <T>(
+    betterAuthFunction: (opts: typeof baseOptions) => Promise<AuthCallResult<T>>
+  ): Promise<T> => {
+    const authResponse = await betterAuthFunction(baseOptions);
     appendSetCookiesToNextRes(ctx.res, authResponse.headers);
     return authResponse.response;
-  };
-
-  return {
-    options,
-    responseHandler,
   };
 };
 
@@ -52,21 +49,20 @@ export const authRouter = router({
     .use(rateLimitMiddlewares.auth_signUp)
     .input(signupSchemaForm)
     .mutation(async ({ ctx, input }) => {
-      const { options, responseHandler } = getAuthHelpers(ctx);
-      const authResponse = await auth.api.signUpEmail({
-        body: {
-          name: input.username,
-          username: input.username,
-          displayUsername: input.username,
-          email: generatePlaceholderEmail(),
-          password: input.password,
-          pendingEmail: input.email || null,
-          pendingEmailSetAt: input.email ? new Date() : null,
-        },
-        ...options,
-      });
-
-      return responseHandler(authResponse);
+      return getCookieForwarder(ctx)((opts) =>
+        auth.api.signUpEmail({
+          body: {
+            name: input.username,
+            username: input.username,
+            displayUsername: input.username,
+            email: generatePlaceholderEmail(),
+            password: input.password,
+            pendingEmail: input.email || null,
+            pendingEmailSetAt: input.email ? new Date() : null,
+          },
+          ...opts,
+        })
+      );
     }),
   changeEmail: privateProcedureHttp
     .use(rateLimitMiddlewares.auth_changeEmail)
@@ -77,14 +73,15 @@ export const authRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       try {
-        const { options } = getAuthHelpers(ctx);
-        await auth.api.changeEmail({
-          body: {
-            newEmail: input.email,
-            callbackURL: `${baseURL}/${ROUTES.private_emailVerified}`,
-          },
-          ...options,
-        });
+        await getCookieForwarder(ctx)((opts) =>
+          auth.api.changeEmail({
+            body: {
+              newEmail: input.email,
+              callbackURL: `${baseURL}/${ROUTES.private_emailVerified}`,
+            },
+            ...opts,
+          })
+        );
       } catch (err) {
         // intentionally do nothing so that the user won't know whether
         // the email already exists (prevents email enumeration attacks)
@@ -94,63 +91,60 @@ export const authRouter = router({
   loginAnonymous: publicProcedureHttp
     .use(rateLimitMiddlewares.auth_signUp)
     .mutation(async ({ ctx }) => {
-      const { options, responseHandler } = getAuthHelpers(ctx);
-
-      const authResponse = await auth.api.signInAnonymous({
-        ...options,
-      });
-      return responseHandler(authResponse);
+      return getCookieForwarder(ctx)((opts) => auth.api.signInAnonymous(opts));
     }),
   loginCredentials: publicProcedureHttp
     .use(rateLimitMiddlewares.auth_login)
     .input(loginSchemaForm)
     .mutation(async ({ ctx, input }) => {
-      const { options } = getAuthHelpers(ctx);
-      let authResponse;
+      const cookieForwarder = getCookieForwarder(ctx);
       if (input.usernameOrEmail.includes("@")) {
-        authResponse = await auth.api.signInEmail({
-          body: {
-            email: input.usernameOrEmail,
-            password: input.password,
-            rememberMe: input.rememberMe,
-          },
-          ...options,
-        });
+        return cookieForwarder((opts) =>
+          auth.api.signInEmail({
+            body: {
+              email: input.usernameOrEmail,
+              password: input.password,
+              rememberMe: input.rememberMe,
+            },
+            ...opts,
+          })
+        );
       } else {
-        authResponse = await auth.api.signInUsername({
-          body: {
-            username: input.usernameOrEmail,
-            password: input.password,
-            rememberMe: input.rememberMe,
-          },
-          ...options,
-        });
+        return cookieForwarder((opts) =>
+          auth.api.signInUsername({
+            body: {
+              username: input.usernameOrEmail,
+              password: input.password,
+              rememberMe: input.rememberMe,
+            },
+            ...opts,
+          })
+        );
       }
-
-      appendSetCookiesToNextRes(ctx.res, authResponse.headers);
-      return authResponse.response;
     }),
   logout: publicProcedureHttpDefaultRateLimit.mutation(async ({ ctx }) => {
-    const { options, responseHandler } = getAuthHelpers(ctx);
-    const authResponse = await auth.api.signOut({
-      ...options,
-    });
-
-    return responseHandler(authResponse);
+    return getCookieForwarder(ctx)((opts) =>
+      auth.api.signOut({
+        ...opts,
+      })
+    );
   }),
 
   googleLogin: publicProcedureHttp
     .use(rateLimitMiddlewares.auth_login)
     .mutation(async ({ ctx }) => {
-      const { options, responseHandler } = getAuthHelpers(ctx);
-
-      const authResponse = await auth.api.signInSocial({
-        body: {
-          provider: "google",
-        },
-        ...options,
-      });
-      return responseHandler(authResponse);
+      return getCookieForwarder(ctx)((opts) =>
+        auth.api.signInSocial({
+          body: {
+            provider: "google",
+            callbackURL: `${baseURL}/${ROUTES.oauthDone}?status=${oauthDoneStatus.success}`,
+            errorCallbackURL: `${baseURL}/${ROUTES.oauthDone}?status=${oauthDoneStatus.error}`,
+            newUserCallbackURL: `${baseURL}/${ROUTES.oauthDone}?status=${oauthDoneStatus.new_user}`,
+            // disableRedirect: true
+          },
+          ...opts,
+        })
+      );
     }),
 
   requestPasswordReset: publicProcedureHttp
@@ -190,12 +184,11 @@ export const authRouter = router({
   deleteUser: privateProcedureHttp
     .use(rateLimitMiddlewares.auth_sensitive)
     .mutation(async ({ ctx }) => {
-      const helpers = getAuthHelpers(ctx);
-      const authResponse = await auth.api.deleteUser({
-        body: {},
-        ...helpers.options,
-      });
-
-      return helpers.responseHandler(authResponse);
+      return getCookieForwarder(ctx)((opts) =>
+        auth.api.deleteUser({
+          body: {},
+          ...opts,
+        })
+      );
     }),
 });
