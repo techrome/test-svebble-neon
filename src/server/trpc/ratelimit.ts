@@ -29,7 +29,7 @@ const extractFirstIp = (header: string | string[] | undefined) =>
       ? header[0].trim()
       : "";
 
-const getIp = (req: IncomingMessage | undefined): string => {
+const getIp = (req: IncomingMessage | undefined) => {
   if (req) {
     const xff = extractFirstIp(req.headers["x-forwarded-for"]);
     if (isIP(xff)) return xff;
@@ -43,12 +43,15 @@ const getIp = (req: IncomingMessage | undefined): string => {
   return "server-side-ip";
 };
 
-const getHashedIp = (req: IncomingMessage | undefined): string => {
-  const ip = getIp(req);
-
+export const hashString = (key: string) => {
   return createHmac("sha256", env.RATELIMIT_IP_SALT!)
-    .update(ip)
+    .update(key)
     .digest("base64url");
+};
+
+const getHashedIp = (req: IncomingMessage | undefined) => {
+  const ip = getIp(req);
+  return hashString(ip);
 };
 
 const makeRatelimitMiddleware = (spec: WindowSpec, prefix: string) => {

@@ -795,7 +795,7 @@ const NavbarInner = () => {
           message: (
             <HorizontalStack addClassName="items-center">
               {
-                "Please add an email so that you can restore your account if you forget your password. Accounts without en email have limited capabilities."
+                "Please add an email so that you can restore your account if you forget your password. Accounts without an email have limited capabilities."
               }
               <Link href={ROUTES.private_myProfile} color="textPrimary">
                 <Button

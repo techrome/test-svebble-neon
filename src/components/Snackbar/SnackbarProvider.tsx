@@ -1,5 +1,4 @@
 import Snackbar from "@/components/Snackbar/Snackbar";
-import { useMediaQuery } from "@mui/material";
 import { SnackbarProvider as NotistackSnackbarProvider } from "notistack";
 import React from "react";
 
@@ -8,14 +7,12 @@ type Props = {
 };
 
 const SnackbarProvider = (props: Props) => {
-  const isLargeScreen = useMediaQuery((theme) => theme.breakpoints.up("md"));
-
   return (
     <NotistackSnackbarProvider
       maxSnack={6}
       anchorOrigin={{
         horizontal: "right",
-        vertical: isLargeScreen ? "bottom" : "top",
+        vertical: "bottom",
       }}
       Components={{
         error: Snackbar,
