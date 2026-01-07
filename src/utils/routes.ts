@@ -4,13 +4,15 @@ type DynamicRoute = (...args: string[]) => Route;
 
 export const privateRoutePrefix = "app";
 export const authRoutePrefix = "auth";
+export const oauthRoutePrefix = "oauth";
 
 export const ROUTES = {
   home: "/",
   about: "/about",
   terms: "/terms",
   privacyPolicy: "/privacy-policy",
-  oauthDone: "/oauth-done",
+  oauthStarting: `/${oauthRoutePrefix}/oauth-starting`,
+  oauthDone: `/${oauthRoutePrefix}/oauth-done`,
   logIn: `/${authRoutePrefix}/log-in`,
   signUp: `/${authRoutePrefix}/sign-up`,
   accountRecovery: `/${authRoutePrefix}/account-recovery`,

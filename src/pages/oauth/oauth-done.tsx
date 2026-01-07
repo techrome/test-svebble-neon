@@ -27,7 +27,7 @@ const OauthDone = () => {
     window.close();
   }, [router]);
 
-  return <div>Logging you in... you can close this window.</div>;
+  return <div>Logging you in... You can close this window.</div>;
 };
 
 export default OauthDone;
