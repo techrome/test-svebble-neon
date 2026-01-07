@@ -7,6 +7,8 @@ import { eq } from "drizzle-orm";
 // relative paths here because better-auth cli can't recognize TS path aliases
 import { db } from "../db/core";
 import * as authSchema from "../db/schema/auth";
+import { redis } from "../redis/redis";
+import { hashString } from "./ratelimit";
 import {
   passwordMinLength,
   signupSchemaForm,
@@ -41,7 +43,7 @@ export const SOME_AUTH_API_ROUTES = {
   callback: "callback",
   verifyEmail: "verify-email",
   signInAnonymous: "sign-in/anonymous",
-};
+} as const;
 
 type DbUserUpdate = Partial<(typeof authSchema.user)["$inferInsert"]>;
 
@@ -67,6 +69,29 @@ const setDbRandomUsername = async (name: string, userId: string) => {
     .where(eq(authSchema.user.id, userId));
 };
 
+type RateLimitValue = {
+  key: string;
+  count: number;
+  lastRequest: number;
+};
+
+const RL_PREFIX = "rl:ba:";
+const RL_MAX_TTL_SECONDS = minutes(2, true);
+
+const withPrefix = (key: string) => `${RL_PREFIX}${key}`;
+
+const parseMaybeJson = <T>(value: unknown): T | undefined => {
+  if (!value) return undefined;
+  if (typeof value === "string") {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return undefined;
+    }
+  }
+  return value as T;
+};
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema: { ...authSchema } }),
 
@@ -76,6 +101,7 @@ export const auth = betterAuth({
 
   socialProviders: {
     google: {
+      prompt: "select_account",
       clientId: env.GOOGLE_CLIENT_ID!,
       clientSecret: env.GOOGLE_CLIENT_SECRET!,
     },
@@ -152,6 +178,58 @@ export const auth = betterAuth({
 
       appendSetCookiesToHeaders(responseHeaders, refreshedSession.headers);
     }),
+  },
+
+  plugins: [
+    anonymous({
+      emailDomainName: PLACEHOLDER_EMAIL_DOMAIN,
+    }),
+    username({
+      maxUsernameLength: TEXT_LIMITS.handle,
+    }),
+  ],
+  advanced: {
+    database: {
+      generateId: "uuid",
+    },
+    ipAddress: {
+      ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+    },
+  },
+  rateLimit: {
+    enabled: true,
+    window: 60,
+    max: 100,
+    customRules: {
+      [`/${SOME_AUTH_API_ROUTES.callback}/*`]: {
+        window: 60,
+        max: 10,
+      },
+      [`/${SOME_AUTH_API_ROUTES.verifyEmail}`]: {
+        window: 60,
+        max: 5,
+      },
+    },
+    customStorage: {
+      get: async (key: string) => {
+        const raw = await redis.get(withPrefix(hashString(key)));
+        const stored = parseMaybeJson<Omit<RateLimitValue, "key">>(raw);
+        if (stored) {
+          return {
+            key,
+            ...stored,
+          };
+        }
+      },
+      set: async (key: string, value: RateLimitValue) => {
+        const { key: _unusedKey, ...valueToStore } = value;
+
+        // not storing the key prop inside the value directly to avoid IP leaks
+        await redis.set(withPrefix(hashString(key)), valueToStore, {
+          ex: RL_MAX_TTL_SECONDS,
+        });
+      },
+    },
   },
   databaseHooks: {
     user: {
@@ -242,20 +320,6 @@ export const auth = betterAuth({
           return { data: updatedUser };
         },
       },
-    },
-  },
-
-  plugins: [
-    anonymous({
-      emailDomainName: PLACEHOLDER_EMAIL_DOMAIN,
-    }),
-    username({
-      maxUsernameLength: TEXT_LIMITS.handle,
-    }),
-  ],
-  advanced: {
-    database: {
-      generateId: "uuid",
     },
   },
 });
