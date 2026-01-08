@@ -22,6 +22,7 @@ import { ROUTES } from "@/utils/routes";
 import { appendSetCookiesToNextRes } from "../helpers/cookies";
 import { generatePlaceholderEmail } from "../helpers/email";
 import { oauthDoneStatus } from "@/components/AuthForm/Helpers";
+import { basicProfileSchemaForm } from "@/pages/app/my-profile";
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
 type AuthCallResult<T> = { headers: Headers; response: T };
@@ -140,7 +141,6 @@ export const authRouter = router({
             callbackURL: `${baseURL}/${ROUTES.oauthDone}?status=${oauthDoneStatus.success}`,
             errorCallbackURL: `${baseURL}/${ROUTES.oauthDone}?status=${oauthDoneStatus.error}`,
             newUserCallbackURL: `${baseURL}/${ROUTES.oauthDone}?status=${oauthDoneStatus.new_user}`,
-            // disableRedirect: true
           },
           ...opts,
         })
@@ -181,6 +181,19 @@ export const authRouter = router({
       return response;
     }),
 
+  updateUser: privateProcedureHttp
+    .use(rateLimitMiddlewares.auth_normal)
+    .input(basicProfileSchemaForm)
+    .mutation(async ({ ctx, input }) => {
+      return getCookieForwarder(ctx)((opts) =>
+        auth.api.updateUser({
+          body: {
+            name: input.name,
+          },
+          ...opts,
+        })
+      );
+    }),
   deleteUser: privateProcedureHttp
     .use(rateLimitMiddlewares.auth_sensitive)
     .mutation(async ({ ctx }) => {

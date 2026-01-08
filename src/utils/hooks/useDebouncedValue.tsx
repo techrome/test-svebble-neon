@@ -3,12 +3,15 @@ import React from "react";
 export const useDebouncedValue = <T,>(
   value: T,
   timeoutMs: number,
-  options?: { instantOnFalsyValue?: boolean }
+  options?: { instantOnFalsyValue?: boolean; instantOnTruthyValue?: boolean }
 ): T => {
   const [debounced, setDebounced] = React.useState(value);
 
   React.useEffect(() => {
-    if (options?.instantOnFalsyValue && !value) {
+    if (
+      (options?.instantOnFalsyValue && !value) ||
+      (options?.instantOnTruthyValue && value)
+    ) {
       setDebounced(value);
       return;
     }

@@ -69,7 +69,6 @@ import Badge from "@/components/Badge/Badge";
 import Button from "@/components/Button/Button";
 import { countMeaningfulValues } from "@/utils/countMeaningfulValues";
 import DateTimePicker from "@/components/Fields/DateTimePicker";
-import { logger } from "@/utils/logger";
 import { normalizeText } from "@/utils/stringUtils";
 import dayjs from "@/utils/dayjs";
 import { Text } from "@/utils/validators/helpers/text";
@@ -213,6 +212,7 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
         <HorizontalStack
           addClassName={clsx("items-center", props.isNavbar && "max-md:hidden")}
         >
+          {!props.isNavbar && <Label className="mb-0">Authorization</Label>}
           <Button
             variant="outlined"
             onClick={() => {
@@ -504,7 +504,6 @@ const SearchOutsideForm = ({
         name="searchText"
         label="Search"
         type="text"
-        withHelperText={false}
         className="w-3xs"
         endAccessory="clear"
       />
