@@ -1,5 +1,5 @@
 import React from "react";
-import { Collapse, TextField, type TextFieldProps } from "@mui/material";
+import { TextField, type TextFieldProps } from "@mui/material";
 import {
   type FieldPath,
   type FieldValues,
@@ -13,7 +13,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import IconButton from "@/components/Button/IconButton";
 import { BasePropsBuilder } from "@/components/Fields/BasePicker";
 import Tooltip from "@/components/Tooltip/Tooltip";
-import ErrorLabel from "@/components/Fields/ErrorLabel";
+import HelperText from "@/components/Fields/HelperText";
 
 type Props<
   TFV extends FieldValues,
@@ -164,7 +164,14 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
       inputRef={ref}
       slotProps={{ input: { endAdornment } }}
       error={hasError}
-      helperText={<ErrorLabel hasError={hasError} error={error} />}
+      helperText={
+        <HelperText
+          hasError={hasError}
+          error={error}
+          helperText={props.helperText}
+          helperTextAlwaysShown={props.helperTextAlwaysShown}
+        />
+      }
     />
   );
 };

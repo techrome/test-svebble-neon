@@ -14,18 +14,19 @@ import ClearIcon from "@mui/icons-material/Clear";
 
 import IconButton from "@/components/Button/IconButton";
 import { InputAdornment, InputAdornmentProps } from "@mui/material";
-import ErrorLabel from "@/components/Fields/ErrorLabel";
+import HelperText from "@/components/Fields/HelperText";
 
 export type BasePropsBuilder<
   ComponentProps extends object,
   TFV extends FieldValues,
   TName extends FieldPath<TFV>,
-> = Omit<ComponentProps, "value" | "onChange" | "name"> & {
+> = Omit<ComponentProps, "value" | "onChange" | "name" | "helperText"> & {
   name: TName;
   control: Control<TFV>;
   rules?: RegisterOptions<TFV, TName>;
-  withHelperText?: boolean;
   autoDisableOnSubmit?: boolean;
+  helperText: React.ReactNode;
+  helperTextAlwaysShown?: boolean;
 };
 
 type AnyPickerProps = DateTimePickerProps | DatePickerProps | TimePickerProps;
@@ -186,7 +187,14 @@ export const useBaseProps = <
           ...pickerProps.slotProps?.textField,
           inputRef: ref,
           error: hasError,
-          helperText: <ErrorLabel hasError={hasError} error={error} />,
+          helperText: (
+            <HelperText
+              hasError={hasError}
+              error={error}
+              helperText={props.helperText}
+              helperTextAlwaysShown={props.helperTextAlwaysShown}
+            />
+          ),
         },
       },
     } satisfies typeof pickerProps & typeof fieldProps,

@@ -14,7 +14,7 @@ import {
   type FormControlProps,
 } from "@mui/material";
 import { BasePropsBuilder } from "@/components/Fields/BasePicker";
-import ErrorLabel from "@/components/Fields/ErrorLabel";
+import HelperText from "@/components/Fields/HelperText";
 
 type BaseMuiProps = {
   checkboxProps?: Omit<
@@ -86,7 +86,12 @@ const Checkbox = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
       />
 
       <FormHelperText>
-        <ErrorLabel hasError={hasError} error={fieldState.error} />
+        <HelperText
+          hasError={hasError}
+          error={fieldState.error}
+          helperText={props.helperText}
+          helperTextAlwaysShown={props.helperTextAlwaysShown}
+        />
       </FormHelperText>
     </FormControl>
   );
