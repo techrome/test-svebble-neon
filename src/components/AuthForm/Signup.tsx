@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  Path,
   SubmitHandler,
   useForm,
   UseFormReturn,
@@ -37,6 +38,7 @@ import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import { normalizeText } from "@/utils/stringUtils";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import useAppQuery from "@/utils/hooks/useAppQuery";
+import useUser from "@/trpc/hooks/useUser";
 
 type Props = {
   onSuccess?: () => void;
@@ -274,10 +276,23 @@ const PasswordStrengthMeter = ({
   );
 };
 
-const UsernameInput = ({ form }: { form: UseFormReturn<FormValues> }) => {
-  const [username] = useWatch({ control: form.control, name: ["username"] });
+type Username = Pick<FormValues, "username">;
 
-  const fieldState = form.getFieldState("username", form.formState);
+export const UsernameInput = <TFV extends Username>({
+  form,
+  disabled,
+}: {
+  form: UseFormReturn<TFV>;
+  disabled?: boolean;
+}) => {
+  // doing this cast hack to force RHF to allow different schemas with the same shared field
+  const USERNAME = "username" satisfies keyof Username as Path<TFV>;
+  const username = useWatch({
+    control: form.control,
+    name: USERNAME,
+  });
+  const user = useUser();
+  const fieldState = form.getFieldState(USERNAME, form.formState);
 
   const debouncedUsername = normalizeText(
     useDebouncedValue(username, 750)
@@ -285,7 +300,9 @@ const UsernameInput = ({ form }: { form: UseFormReturn<FormValues> }) => {
 
   const queryDisabled =
     !signupSchemaForm.shape.username.safeParse(debouncedUsername).success ||
-    (fieldState.error && fieldState.error?.type !== "availability");
+    (fieldState.error && fieldState.error?.type !== "availability") ||
+    debouncedUsername === user.data?.user?.username ||
+    disabled;
 
   const usernameAvailabilityQuery = useAppQuery(
     trpc.auth.checkUsernameAvailability.useQuery(
@@ -303,12 +320,12 @@ const UsernameInput = ({ form }: { form: UseFormReturn<FormValues> }) => {
     if (usernameAvailabilityQuery.data) {
       if (usernameAvailabilityQuery.data.available) {
         if (fieldState.error?.type === "availability") {
-          form.clearErrors("username");
+          form.clearErrors(USERNAME);
         }
       } else {
-        form.setError("username", {
+        form.setError(USERNAME, {
           type: "availability",
-          message: "Username is already taken",
+          message: "Username is already taken.",
         });
       }
     }
@@ -317,10 +334,11 @@ const UsernameInput = ({ form }: { form: UseFormReturn<FormValues> }) => {
   return (
     <Input
       control={form.control}
-      name="username"
+      name={USERNAME}
       label="Username"
       type="text"
       fullWidth
+      disabled={disabled}
       endAccessory={
         <>
           {usernameAvailabilityQuery.isFetching ? (
