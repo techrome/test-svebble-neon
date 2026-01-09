@@ -69,7 +69,7 @@ const setDbRandomUsername = async (data: {
       username: data.name.toLowerCase(),
       displayUsername: data.name,
       hasRandomUsername: true,
-      remainingUsernameChanges: data.canChangeUsername ? 1 : 0,
+      remainingUsernameChanges: data.canChangeUsername ? 1 : null,
     })
     .where(eq(authSchema.user.id, data.userId));
 };
@@ -132,7 +132,7 @@ export const auth = betterAuth({
 
   user: {
     additionalFields: {
-      remainingUsernameChanges: { type: "number", defaultValue: 0 },
+      remainingUsernameChanges: { type: "number", required: false },
       hasRandomUsername: { type: "boolean", defaultValue: false },
       pendingEmail: { type: "string", required: false },
       pendingEmailSetAt: { type: "date", required: false },

@@ -1,0 +1,1 @@
+ALTER TABLE "user" ALTER COLUMN "remaining_username_changes" DROP DEFAULT;
