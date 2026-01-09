@@ -62,6 +62,7 @@ export const withReqRes = trpc.middleware(({ ctx, next }) => {
 });
 
 export const withAuth = trpc.middleware(({ ctx, next }) => {
+  assertHasReqRes(ctx);
   assertIsAuthed(ctx);
   return next({ ctx });
 });

@@ -11,8 +11,9 @@ export const publicProcedureHttpDefaultRateLimit = publicProcedureHttp.use(
   rateLimitMiddlewares.default
 );
 
-export const privateProcedure = publicProcedure.use(withAuth);
-export const privateProcedureHttp = privateProcedure.use(withReqRes);
+export const privateProcedureHttp = publicProcedure
+  .use(withReqRes)
+  .use(withAuth);
 export const privateProcedureHttpDefaultRateLimit = privateProcedureHttp.use(
   rateLimitMiddlewares.default
 );
