@@ -11,7 +11,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 
 import IconButton from "@/components/Button/IconButton";
-import { BasePropsBuilder } from "@/components/Fields/BasePicker";
+import { type BasePropsBuilder } from "@/components/Fields/BasePropsBuilder";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import HelperText from "@/components/Fields/HelperText";
 

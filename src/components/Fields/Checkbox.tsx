@@ -13,7 +13,7 @@ import {
   type FormControlLabelProps,
   type FormControlProps,
 } from "@mui/material";
-import { BasePropsBuilder } from "@/components/Fields/BasePicker";
+import { type BasePropsBuilder } from "@/components/Fields/BasePropsBuilder";
 import HelperText from "@/components/Fields/HelperText";
 
 type BaseMuiProps = {
