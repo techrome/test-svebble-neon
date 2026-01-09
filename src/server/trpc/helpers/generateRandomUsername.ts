@@ -11,7 +11,7 @@ import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 export const generateRandomUsername = (isGuest: boolean) => {
   let result = "";
   if (isGuest) {
-    result = `guest_${randomUUID()}`;
+    result = `Guest_${randomUUID()}`;
   } else {
     const numberDictionary = NumberDictionary.generate({ min: 100, max: 9999 });
     result = uniqueNamesGenerator({
@@ -21,5 +21,5 @@ export const generateRandomUsername = (isGuest: boolean) => {
       style: "lowerCase",
     });
   }
-  return result.toLowerCase().replaceAll("-", "").slice(0, TEXT_LIMITS.handle);
+  return result.replaceAll("-", "").slice(0, TEXT_LIMITS.handle);
 };

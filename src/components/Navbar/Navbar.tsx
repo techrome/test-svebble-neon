@@ -148,7 +148,7 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
                 component="div"
                 textAlign="center"
               >
-                {user.data.user.username}
+                {user.data.user.displayUsername}
               </Typography>
             </div>
 
