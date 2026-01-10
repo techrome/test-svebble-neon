@@ -2,10 +2,12 @@ import { fromNodeHeaders } from "better-auth/node";
 import { NextApiRequest, NextApiResponse } from "next";
 
 import { router } from "../core";
+import { db } from "../../db/core";
+import * as schema from "../../db/schema";
 import {
-  publicProcedureHttp,
-  privateProcedureHttp,
-  publicProcedureHttpDefaultRateLimit,
+  publicProcedure,
+  privateProcedure,
+  publicProcedureDefaultRateLimit,
 } from "../procedures";
 import { auth } from "../auth";
 import { rateLimitMiddlewares } from "../ratelimit";
@@ -22,7 +24,12 @@ import { ROUTES } from "@/utils/routes";
 import { appendSetCookiesToNextRes } from "../helpers/cookies";
 import { generatePlaceholderEmail } from "../helpers/email";
 import { oauthDoneStatus } from "@/components/AuthForm/Helpers";
-import { basicProfileSchemaForm } from "@/pages/app/my-profile";
+import {
+  basicProfileSchemaForm,
+  usernameSchemaForm,
+} from "@/pages/app/my-profile";
+import { TRPCError } from "@trpc/server";
+import { eq } from "drizzle-orm";
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
 type AuthCallResult<T> = { headers: Headers; response: T };
@@ -43,10 +50,10 @@ const getCookieForwarder = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
 };
 
 export const authRouter = router({
-  user: publicProcedureHttpDefaultRateLimit.query(({ ctx }) => ({
+  user: publicProcedureDefaultRateLimit.query(({ ctx }) => ({
     user: ctx.user,
   })),
-  signUpCredentials: publicProcedureHttp
+  signUpCredentials: publicProcedure
     .use(rateLimitMiddlewares.auth_signUp)
     .input(signupSchemaForm)
     .mutation(async ({ ctx, input }) => {
@@ -65,7 +72,7 @@ export const authRouter = router({
         })
       );
     }),
-  changeEmail: privateProcedureHttp
+  changeEmail: privateProcedure
     .use(rateLimitMiddlewares.auth_changeEmail)
     .input(
       z.object({
@@ -89,12 +96,12 @@ export const authRouter = router({
       }
       return { email: input.email };
     }),
-  loginAnonymous: publicProcedureHttp
+  loginAnonymous: publicProcedure
     .use(rateLimitMiddlewares.auth_signUp)
     .mutation(async ({ ctx }) => {
       return getCookieForwarder(ctx)((opts) => auth.api.signInAnonymous(opts));
     }),
-  loginCredentials: publicProcedureHttp
+  loginCredentials: publicProcedure
     .use(rateLimitMiddlewares.auth_login)
     .input(loginSchemaForm)
     .mutation(async ({ ctx, input }) => {
@@ -123,7 +130,7 @@ export const authRouter = router({
         );
       }
     }),
-  logout: publicProcedureHttpDefaultRateLimit.mutation(async ({ ctx }) => {
+  logout: publicProcedureDefaultRateLimit.mutation(async ({ ctx }) => {
     return getCookieForwarder(ctx)((opts) =>
       auth.api.signOut({
         ...opts,
@@ -131,7 +138,7 @@ export const authRouter = router({
     );
   }),
 
-  googleLogin: publicProcedureHttp
+  googleLogin: publicProcedure
     .use(rateLimitMiddlewares.auth_login)
     .mutation(async ({ ctx }) => {
       return getCookieForwarder(ctx)((opts) =>
@@ -147,7 +154,7 @@ export const authRouter = router({
       );
     }),
 
-  requestPasswordReset: publicProcedureHttp
+  requestPasswordReset: publicProcedure
     .use(rateLimitMiddlewares.auth_requestPasswordReset)
     .input(forgotPasswordSchemaForm)
     .mutation(async ({ input }) => {
@@ -165,7 +172,7 @@ export const authRouter = router({
         status: true,
       };
     }),
-  checkUsernameAvailability: publicProcedureHttp
+  checkUsernameAvailability: publicProcedure
     .use(rateLimitMiddlewares.auth_usernameCheck)
     .input(
       z.object({
@@ -181,7 +188,7 @@ export const authRouter = router({
       return response;
     }),
 
-  updateUser: privateProcedureHttp
+  updateUserBasicInfo: privateProcedure
     .use(rateLimitMiddlewares.auth_normal)
     .input(basicProfileSchemaForm)
     .mutation(async ({ ctx, input }) => {
@@ -194,7 +201,63 @@ export const authRouter = router({
         })
       );
     }),
-  deleteUser: privateProcedureHttp
+  updateUserUsername: privateProcedure
+    .use(rateLimitMiddlewares.auth_normal)
+    .input(usernameSchemaForm)
+    .mutation(async ({ ctx, input }) => {
+      const userRows = await db
+        .select({
+          username: schema.user.username,
+          remainingUsernameChanges: schema.user.remainingUsernameChanges,
+        })
+        .from(schema.user)
+        .where(eq(schema.user.id, ctx.user.id))
+        .limit(1);
+      const currentUserRow = userRows[0];
+
+      if (!currentUserRow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found.",
+        });
+      }
+      const currentRemainingUsernameChanges =
+        currentUserRow.remainingUsernameChanges;
+
+      if (
+        !currentRemainingUsernameChanges ||
+        currentRemainingUsernameChanges < 1
+      ) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: "You cannot change your username.",
+        });
+      }
+
+      if (
+        input.username.toLowerCase() === currentUserRow.username?.toLowerCase()
+      ) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: "New username must be different than your current username.",
+        });
+      }
+
+      return getCookieForwarder(ctx)((opts) =>
+        auth.api.updateUser({
+          body: {
+            username: input.username,
+            hasRandomUsername: false,
+            remainingUsernameChanges: Math.max(
+              0,
+              currentRemainingUsernameChanges - 1
+            ),
+          },
+          ...opts,
+        })
+      );
+    }),
+  deleteUser: privateProcedure
     .use(rateLimitMiddlewares.auth_sensitive)
     .mutation(async ({ ctx }) => {
       return getCookieForwarder(ctx)((opts) =>

@@ -343,11 +343,11 @@ export const UsernameInput = <TFV extends Username>({
         <>
           {usernameAvailabilityQuery.isFetching ? (
             <CircularProgress size={24} />
-          ) : usernameAvailabilityQuery.data ? (
+          ) : usernameAvailabilityQuery.data && !queryDisabled ? (
             usernameAvailabilityQuery.data.available ? (
               <CheckCircleIcon color="success" />
             ) : (
-              <Tooltip title="Username is already taken">
+              <Tooltip title={fieldState.error?.message}>
                 <ErrorIcon color="error" />
               </Tooltip>
             )

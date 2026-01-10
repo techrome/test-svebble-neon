@@ -1,19 +1,19 @@
 import { trpc, withAuth, withReqRes } from "./core";
 import { rateLimitMiddlewares } from "./ratelimit";
 
-export const publicProcedure = trpc.procedure;
+export const publicProcedureSSR = trpc.procedure;
+export const publicProcedureSSRDefaultRateLimit = publicProcedureSSR.use(
+  rateLimitMiddlewares.default
+);
+
+export const publicProcedure = publicProcedureSSR.use(withReqRes);
 export const publicProcedureDefaultRateLimit = publicProcedure.use(
   rateLimitMiddlewares.default
 );
 
-export const publicProcedureHttp = publicProcedure.use(withReqRes);
-export const publicProcedureHttpDefaultRateLimit = publicProcedureHttp.use(
-  rateLimitMiddlewares.default
-);
-
-export const privateProcedureHttp = publicProcedure
+export const privateProcedure = publicProcedureSSR
   .use(withReqRes)
   .use(withAuth);
-export const privateProcedureHttpDefaultRateLimit = privateProcedureHttp.use(
+export const privateProcedureDefaultRateLimit = privateProcedure.use(
   rateLimitMiddlewares.default
 );

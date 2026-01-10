@@ -18,7 +18,7 @@ export const generateRandomUsername = (isGuest: boolean) => {
       dictionaries: [adjectives, animals, numberDictionary],
       length: 3,
       separator: "_",
-      style: "lowerCase",
+      style: "capital",
     });
   }
   return result.replaceAll("-", "").slice(0, TEXT_LIMITS.handle);

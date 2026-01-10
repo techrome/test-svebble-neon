@@ -5,8 +5,8 @@ import { db } from "../../db/core";
 import * as schema from "../../db/schema";
 import { router } from "../core";
 import {
+  publicProcedureSSRDefaultRateLimit,
   publicProcedureDefaultRateLimit,
-  publicProcedureHttpDefaultRateLimit,
 } from "../procedures";
 import * as sharedCommentsValidations from "@/utils/validators/shared/comments";
 import { authRouter } from "./auth";
@@ -40,7 +40,7 @@ const generateRandomText = (
 };
 
 export const appRouter = router({
-  hello: publicProcedureDefaultRateLimit
+  hello: publicProcedureSSRDefaultRateLimit
     .input(
       z.object({
         text: z.string(),
@@ -51,17 +51,17 @@ export const appRouter = router({
         greeting: `hello ${opts.input.text}`,
       };
     }),
-  globalData: publicProcedureDefaultRateLimit.query(() => ({
+  globalData: publicProcedureSSRDefaultRateLimit.query(() => ({
     links: ["a1", "a2", "a3"],
   })),
-  commentsGet: publicProcedureDefaultRateLimit.query(async () => {
+  commentsGet: publicProcedureSSRDefaultRateLimit.query(async () => {
     const comments = await db
       .select()
       .from(schema.commentsSchema)
       .orderBy(desc(schema.commentsSchema.created_at));
     return comments;
   }),
-  commentCreateSpam: publicProcedureHttpDefaultRateLimit
+  commentCreateSpam: publicProcedureDefaultRateLimit
     .input(
       z
         .object({
@@ -90,12 +90,12 @@ export const appRouter = router({
         }
       }
     }),
-  commentCreate: publicProcedureHttpDefaultRateLimit
+  commentCreate: publicProcedureDefaultRateLimit
     .input(sharedCommentsValidations.commentsCreate)
     .mutation(async ({ input }) => {
       await db.insert(schema.commentsSchema).values({ text: input.text });
     }),
-  commentUpdate: publicProcedureHttpDefaultRateLimit
+  commentUpdate: publicProcedureDefaultRateLimit
     .input(sharedCommentsValidations.commentsUpdate)
     .mutation(async ({ input }) => {
       const res = await db
@@ -104,14 +104,14 @@ export const appRouter = router({
         .where(eq(schema.commentsSchema.id, input.id));
       return res;
     }),
-  commentDelete: publicProcedureHttpDefaultRateLimit
+  commentDelete: publicProcedureDefaultRateLimit
     .input(sharedCommentsValidations.commentsDelete)
     .mutation(async ({ input }) => {
       await db
         .delete(schema.commentsSchema)
         .where(eq(schema.commentsSchema.id, input.id));
     }),
-  commentsDeleteAll: publicProcedureHttpDefaultRateLimit.mutation(async () => {
+  commentsDeleteAll: publicProcedureDefaultRateLimit.mutation(async () => {
     await db.delete(schema.commentsSchema);
   }),
   auth: authRouter,
