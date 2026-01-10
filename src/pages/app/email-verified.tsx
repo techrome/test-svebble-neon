@@ -2,7 +2,6 @@ import React from "react";
 import { Typography } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 
-import { trpc } from "@/trpc";
 import { VerticalStack } from "@/components/Layout/Containers";
 import Link from "@/components/Link/Link";
 import Button from "@/components/Button/Button";

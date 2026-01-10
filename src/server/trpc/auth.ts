@@ -58,15 +58,20 @@ type AdditionalUserFields = Pick<
   | "remainingUsernameChanges"
 >;
 
-const setDbRandomUsername = async (name: string, userId: string) => {
+const setDbRandomUsername = async (data: {
+  name: string;
+  userId: string;
+  canChangeUsername?: boolean;
+}) => {
   await db
     .update(authSchema.user)
     .set({
-      username: name,
+      username: data.name.toLowerCase(),
+      displayUsername: data.name,
       hasRandomUsername: true,
-      remainingUsernameChanges: 1,
+      remainingUsernameChanges: data.canChangeUsername ? 1 : null,
     })
-    .where(eq(authSchema.user.id, userId));
+    .where(eq(authSchema.user.id, data.userId));
 };
 
 type RateLimitValue = {
@@ -127,7 +132,7 @@ export const auth = betterAuth({
 
   user: {
     additionalFields: {
-      remainingUsernameChanges: { type: "number", defaultValue: 0 },
+      remainingUsernameChanges: { type: "number", required: false },
       hasRandomUsername: { type: "boolean", defaultValue: false },
       pendingEmail: { type: "string", required: false },
       pendingEmailSetAt: { type: "date", required: false },
@@ -183,6 +188,7 @@ export const auth = betterAuth({
   plugins: [
     anonymous({
       emailDomainName: PLACEHOLDER_EMAIL_DOMAIN,
+      generateName: () => "Guest",
     }),
     username({
       maxUsernameLength: TEXT_LIMITS.handle,
@@ -249,8 +255,7 @@ export const auth = betterAuth({
             allowedRoutes.some((path) => context?.path.startsWith(`/${path}`))
           ) {
             for (let i = 0; i <= maxAttempts; i++) {
-              const randomUsername =
-                generateRandomUsername(isGuest).toLowerCase();
+              const randomUsername = generateRandomUsername(isGuest);
 
               if (
                 !signupSchemaForm.shape.username.safeParse(randomUsername)
@@ -263,7 +268,11 @@ export const auth = betterAuth({
                 continue;
               }
               try {
-                await setDbRandomUsername(randomUsername, updatedUser.id);
+                await setDbRandomUsername({
+                  name: randomUsername,
+                  userId: updatedUser.id,
+                  canChangeUsername: !isGuest,
+                });
 
                 return;
               } catch (err) {
@@ -280,7 +289,6 @@ export const auth = betterAuth({
             }
 
             const fallbackUsername = updatedUser.id
-              .toLowerCase()
               .replaceAll("-", "")
               .slice(0, TEXT_LIMITS.handle);
 
@@ -294,7 +302,11 @@ export const auth = betterAuth({
               );
               return;
             }
-            await setDbRandomUsername(fallbackUsername, updatedUser.id);
+            await setDbRandomUsername({
+              name: fallbackUsername,
+              userId: updatedUser.id,
+              canChangeUsername: !isGuest,
+            });
           }
         },
       },

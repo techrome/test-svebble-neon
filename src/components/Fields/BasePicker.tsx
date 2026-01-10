@@ -2,10 +2,8 @@ import React from "react";
 import {
   useController,
   UseControllerReturn,
-  type Control,
   type FieldPath,
   type FieldValues,
-  type RegisterOptions,
 } from "react-hook-form";
 import { type DateTimePickerProps } from "@mui/x-date-pickers/DateTimePicker";
 import { type DatePickerProps } from "@mui/x-date-pickers/DatePicker";
@@ -14,19 +12,8 @@ import ClearIcon from "@mui/icons-material/Clear";
 
 import IconButton from "@/components/Button/IconButton";
 import { InputAdornment, InputAdornmentProps } from "@mui/material";
-import ErrorLabel from "@/components/Fields/ErrorLabel";
-
-export type BasePropsBuilder<
-  ComponentProps extends object,
-  TFV extends FieldValues,
-  TName extends FieldPath<TFV>,
-> = Omit<ComponentProps, "value" | "onChange" | "name"> & {
-  name: TName;
-  control: Control<TFV>;
-  rules?: RegisterOptions<TFV, TName>;
-  withHelperText?: boolean;
-  autoDisableOnSubmit?: boolean;
-};
+import HelperText from "@/components/Fields/HelperText";
+import { type BasePropsBuilder } from "@/components/Fields/BasePropsBuilder";
 
 type AnyPickerProps = DateTimePickerProps | DatePickerProps | TimePickerProps;
 
@@ -186,7 +173,14 @@ export const useBaseProps = <
           ...pickerProps.slotProps?.textField,
           inputRef: ref,
           error: hasError,
-          helperText: <ErrorLabel hasError={hasError} error={error} />,
+          helperText: (
+            <HelperText
+              hasError={hasError}
+              error={error}
+              helperText={props.helperText}
+              helperTextAlwaysShown={props.helperTextAlwaysShown}
+            />
+          ),
         },
       },
     } satisfies typeof pickerProps & typeof fieldProps,

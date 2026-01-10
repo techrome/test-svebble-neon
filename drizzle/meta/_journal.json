@@ -15,6 +15,13 @@
       "when": 1767634653131,
       "tag": "0001_lowly_supreme_intelligence",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767986597863,
+      "tag": "0002_furry_leper_queen",
+      "breakpoints": true
     }
   ]
 }
