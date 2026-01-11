@@ -26,10 +26,13 @@ import { generatePlaceholderEmail } from "../helpers/email";
 import { oauthDoneStatus } from "@/components/AuthForm/Helpers";
 import {
   basicProfileSchemaForm,
+  makePasswordSchemaForm,
+  passwordSchemaForm,
   usernameSchemaForm,
 } from "@/pages/app/my-profile";
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
+import { PROVIDER_IDS } from "@/utils/constants";
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
 type AuthCallResult<T> = { headers: Headers; response: T };
@@ -48,6 +51,17 @@ const getCookieForwarder = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
     return authResponse.response;
   };
 };
+
+function throwIfZodError<TInput>(
+  parseResult: z.ZodSafeParseResult<TInput>
+): asserts parseResult is z.ZodSafeParseSuccess<TInput> {
+  if (!parseResult.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      cause: parseResult.error,
+    });
+  }
+}
 
 export const authRouter = router({
   user: publicProcedureDefaultRateLimit.query(({ ctx }) => ({
@@ -257,6 +271,56 @@ export const authRouter = router({
         })
       );
     }),
+  changeUserPassword: privateProcedure
+    .use(rateLimitMiddlewares.auth_sensitive)
+    .input(passwordSchemaForm)
+    .mutation(async ({ input, ctx }) => {
+      const cookieForwarder = getCookieForwarder(ctx);
+
+      const userAccounts = await cookieForwarder((opts) =>
+        auth.api.listUserAccounts({ ...opts })
+      );
+
+      const hasOldPassword = userAccounts.some(
+        (account) => account.providerId === PROVIDER_IDS.credential
+      );
+      if (hasOldPassword) {
+        throwIfZodError(
+          makePasswordSchemaForm(hasOldPassword).safeParse(input)
+        );
+        return cookieForwarder((opts) =>
+          auth.api.changePassword({
+            body: {
+              currentPassword: input.oldPassword,
+              newPassword: input.password,
+            },
+            ...opts,
+          })
+        );
+      } else {
+        return cookieForwarder((opts) =>
+          auth.api.setPassword({
+            body: { newPassword: input.password },
+            ...opts,
+          })
+        );
+      }
+    }),
+  listUserAccounts: privateProcedure
+    .use(rateLimitMiddlewares.auth_normal)
+    .input(
+      z.object({
+        // unused id just for cache busting on the client
+        id: z.string(),
+      })
+    )
+    .query(({ ctx }) =>
+      getCookieForwarder(ctx)((opts) =>
+        auth.api.listUserAccounts({
+          ...opts,
+        })
+      )
+    ),
   deleteUser: privateProcedure
     .use(rateLimitMiddlewares.auth_sensitive)
     .mutation(async ({ ctx }) => {

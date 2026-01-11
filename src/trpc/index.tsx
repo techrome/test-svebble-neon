@@ -36,7 +36,7 @@ const getErrorInfo = (
   const message = shouldLogout
     ? "Your session has expired. Please log in again."
     : hasZodError
-      ? `Error: ${error?.data?.code} - ${error?.data?.path}`
+      ? `Error: ${error?.data?.zodError?.issues?.[0].message} (${error?.data?.zodError?.issues?.[0].path.join(".")})`
       : error.message;
 
   const details = (
