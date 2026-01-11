@@ -33,5 +33,23 @@
     "strings": "on"
   },
   "editor.snippetSuggestions": "inline",
-  "editor.suggestSelection": "first"
+  "editor.suggestSelection": "first",
+  "folder-path-color.folders": [
+    {
+      "path": "src/components",
+      "color": "cyan"
+    },
+    {
+      "path": "src/pages",
+      "color": "magenta"
+    },
+    {
+      "path": "src/server",
+      "color": "yellow"
+    },
+    {
+      "path": "src/utils",
+      "color": "green"
+    }
+  ]
 }
