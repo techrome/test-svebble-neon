@@ -23,6 +23,19 @@
 }
 .notistack-SnackbarContainer {
   max-height: initial !important;
+
+  & > div {
+    transition: none;
+  }
+
+  .notistack-CollapseWrapper {
+    transition: none !important;
+    padding: 0 !important;
+  }
+
+  .MuiCollapse-wrapperInner {
+    @apply py-1!;
+  }
 }
 
 .snackbar-progress-wrapper {
