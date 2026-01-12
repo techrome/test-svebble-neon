@@ -64,6 +64,7 @@ export const SnackbarListener = () => {
 
       displayedItemKeysRef.current.push(snack.id);
     });
+    // eslint-disable-next-line
   }, [items]);
 
   return null;

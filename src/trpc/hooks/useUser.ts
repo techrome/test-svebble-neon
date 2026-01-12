@@ -1,5 +1,3 @@
-import React from "react";
-
 import { trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
 import { CACHE_TIME } from "@/utils/cacheTime";

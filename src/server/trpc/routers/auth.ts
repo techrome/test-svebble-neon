@@ -105,7 +105,7 @@ export const authRouter = router({
             ...opts,
           })
         );
-      } catch (err) {
+      } catch (_err) {
         // intentionally do nothing so that the user won't know whether
         // the email already exists (prevents email enumeration attacks)
       }
@@ -179,7 +179,7 @@ export const authRouter = router({
             redirectTo: `${baseURL}/${ROUTES.resetPassword}`,
           },
         });
-      } catch (err) {
+      } catch (_err) {
         // intentionally ignoring any error here
       }
       return {

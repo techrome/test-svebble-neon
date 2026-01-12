@@ -45,6 +45,7 @@ const useAppQuery = <
     return () => {
       removeQueryKey();
     };
+    // eslint-disable-next-line
   }, [queryData.isFetching]);
 
   return queryData;

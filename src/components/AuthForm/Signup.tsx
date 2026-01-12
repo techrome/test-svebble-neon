@@ -336,6 +336,7 @@ export const UsernameInput = <TFV extends Username>({
         });
       }
     }
+    // eslint-disable-next-line
   }, [debouncedUsername, usernameAvailabilityQuery.data]);
 
   return (

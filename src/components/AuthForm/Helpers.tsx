@@ -89,7 +89,7 @@ export const AuthWrapper = (props: WrapperProps) => {
   const clearPopup = () => {
     try {
       oauthPopupRef.current?.close();
-    } catch (e) {}
+    } catch (_e) {}
     oauthPopupRef.current = null;
   };
 
@@ -110,7 +110,7 @@ export const AuthWrapper = (props: WrapperProps) => {
       try {
         popup.focus();
         popup.location.href = data.url;
-      } catch (err) {
+      } catch (_e) {
         window.location.href = data.url;
         return;
       }

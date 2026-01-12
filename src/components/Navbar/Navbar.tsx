@@ -499,6 +499,7 @@ const SearchOutsideForm = ({
       return;
     }
     onDebouncedValue(debouncedSearchText);
+    // eslint-disable-next-line
   }, [debouncedSearchText, filterPopover.isOpen]);
 
   return (
@@ -582,6 +583,7 @@ const SystemNotifications = () => {
 
   React.useEffect(() => {
     dispatch(readAllSystemNotifications());
+    // eslint-disable-next-line
   }, []);
 
   return (
@@ -826,6 +828,7 @@ const NavbarInner = () => {
         );
       }
     }
+    // eslint-disable-next-line
   }, [hasAuthenticated]);
 
   useEffect(() => {

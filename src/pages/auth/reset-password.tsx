@@ -57,6 +57,7 @@ const ResetPassword = () => {
     if (token) {
       form.setValue("token", token);
     }
+    // eslint-disable-next-line
   }, [token]);
 
   if (!router.isReady) {

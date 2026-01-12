@@ -1,5 +1,3 @@
-import React from "react";
-
 import useUser from "@/trpc/hooks/useUser";
 
 const useAuthedUserData = () => {
