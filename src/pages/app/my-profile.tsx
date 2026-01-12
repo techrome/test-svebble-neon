@@ -1,8 +1,14 @@
 import React from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CircularProgress, Paper, Typography } from "@mui/material";
+import { Chip, CircularProgress, Paper, Typography } from "@mui/material";
 import z from "zod";
+import Image from "next/image";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AccountCircleIcon from "@mui/icons-material/Person";
+import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
+import LockIcon from "@mui/icons-material/Lock";
 
 import {
   defaultPadding,
@@ -16,9 +22,6 @@ import { RouterOutput, trpc } from "@/trpc";
 import Input from "@/components/Fields/Input";
 import Button from "@/components/Button/Button";
 import { useAppSnackbar } from "@/utils/snackbar";
-import Image from "next/image";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
 import ButtonBase from "@/components/Button/ButtonBase";
 import { signupSchemaForm } from "@/utils/validators/shared/auth";
 import {
@@ -87,7 +90,7 @@ const BasicProfileForm = () => {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
       <Typography variant="h6" component="h2" className="mb-2">
-        Basic information
+        <AccountCircleIcon className="align-sub" /> Basic information
       </Typography>
       <VerticalStack>
         <div className="mb-2">
@@ -234,27 +237,31 @@ const UsernameForm = () => {
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
-      <Typography variant="h6" component="h2" className="mb-2">
-        Username
-      </Typography>
-      <VerticalStack>
-        <Typography
-          variant="subtitle2"
-          color={isDisabled ? "warning" : "success"}
-        >
-          {typeof remainingChanges === "number" ? (
-            remainingChanges > 0 ? (
-              <>
-                Username can be changed <strong>{remainingChanges} </strong>
-                time(s).
-              </>
-            ) : (
-              `Username cannot be changed anymore.`
-            )
-          ) : (
-            "Changing username is not available."
-          )}
+      <HorizontalStack addClassName="mb-3">
+        <Typography variant="h6" component="h2">
+          <AlternateEmailIcon className="align-sub" /> Username
         </Typography>
+        <Chip
+          className="w-fit"
+          label={
+            typeof remainingChanges === "number" ? (
+              remainingChanges > 0 ? (
+                <>
+                  Can be changed <strong>{remainingChanges} </strong>
+                  time{remainingChanges > 1 && "s"}
+                </>
+              ) : (
+                `Cannot be changed anymore`
+              )
+            ) : (
+              "Changing username is not available"
+            )
+          }
+          variant={isDisabled ? "filled" : "outlined"}
+          color={isDisabled ? "default" : "success"}
+        />
+      </HorizontalStack>
+      <VerticalStack>
         <UsernameInput form={form} disabled={isDisabled} />
         <Button
           variant="contained"
@@ -270,9 +277,8 @@ const UsernameForm = () => {
   );
 };
 
-export const passwordSchemaForm = z
+export const basePasswordSchemaForm = z
   .object({
-    oldPassword: signupSchemaForm.shape.password.or(z.literal("")),
     password: signupSchemaForm.shape.password,
     passwordConfirm: signupSchemaForm.shape.password,
   })
@@ -285,6 +291,10 @@ export const passwordSchemaForm = z
       });
     }
   });
+
+export const passwordSchemaForm = basePasswordSchemaForm.safeExtend({
+  oldPassword: signupSchemaForm.shape.password.or(z.literal("")),
+});
 
 export const makePasswordSchemaForm = (hasOldPassword: boolean) => {
   if (hasOldPassword) {
@@ -353,7 +363,7 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
       <Typography variant="h6" component="h2" className="mb-2">
-        Password
+        <LockIcon className="align-sub" /> Password
       </Typography>
       <VerticalStack>
         <Typography variant="subtitle2">
@@ -375,7 +385,7 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
           <Input
             control={form.control}
             name="password"
-            label="New Password"
+            label="New password"
             fullWidth
             type="password"
             endAccessory="passwordVisibility"
@@ -391,7 +401,7 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
         <Input
           control={form.control}
           name="passwordConfirm"
-          label="Password confirmation"
+          label="New password confirmation"
           fullWidth
           type="password"
           endAccessory="passwordVisibility"

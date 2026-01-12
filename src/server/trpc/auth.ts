@@ -43,6 +43,7 @@ export const SOME_AUTH_API_ROUTES = {
   callback: "callback",
   verifyEmail: "verify-email",
   signInAnonymous: "sign-in/anonymous",
+  resetPassword: "reset-password",
 } as const;
 
 type DbUserUpdate = Partial<(typeof authSchema.user)["$inferInsert"]>;
@@ -212,6 +213,10 @@ export const auth = betterAuth({
         max: 10,
       },
       [`/${SOME_AUTH_API_ROUTES.verifyEmail}`]: {
+        window: 60,
+        max: 5,
+      },
+      [`/${SOME_AUTH_API_ROUTES.resetPassword}/*`]: {
         window: 60,
         max: 5,
       },

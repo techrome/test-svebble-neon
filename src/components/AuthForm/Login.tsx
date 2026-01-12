@@ -14,6 +14,7 @@ import Input from "@/components/Fields/Input";
 import { loginSchemaForm } from "@/utils/validators/shared/auth";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
 import { trpc } from "@/trpc";
+import useIsDesktop from "@/utils/hooks/useIsDesktop";
 
 type Props = {
   onSuccess?: () => void;
@@ -33,6 +34,8 @@ const Login = (props: Props) => {
     defaultValues: emptyFormValues,
     resolver: zodResolver(loginSchemaForm),
   });
+
+  const isDesktop = useIsDesktop();
 
   const utils = trpc.useUtils();
   const loginMutation = trpc.auth.loginCredentials.useMutation({
@@ -63,7 +66,7 @@ const Login = (props: Props) => {
               label="Username or email"
               type="text"
               fullWidth
-              autoFocus
+              autoFocus={isDesktop}
             />
             <Input
               control={form.control}

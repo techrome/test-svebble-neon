@@ -33,6 +33,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { PROVIDER_IDS } from "@/utils/constants";
+import { resetPasswordSchemaForm } from "@/pages/auth/reset-password";
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
 type AuthCallResult<T> = { headers: Headers; response: T };
@@ -167,7 +168,6 @@ export const authRouter = router({
         })
       );
     }),
-
   requestPasswordReset: publicProcedure
     .use(rateLimitMiddlewares.auth_requestPasswordReset)
     .input(forgotPasswordSchemaForm)
@@ -185,6 +185,19 @@ export const authRouter = router({
       return {
         status: true,
       };
+    }),
+  resetPassword: publicProcedure
+    .use(rateLimitMiddlewares.auth_resetPassword)
+    .input(resetPasswordSchemaForm)
+    .mutation(async ({ input }) => {
+      const res = await auth.api.resetPassword({
+        body: {
+          newPassword: input.password,
+          token: input.token,
+        },
+      });
+
+      return res;
     }),
   checkUsernameAvailability: publicProcedure
     .use(rateLimitMiddlewares.auth_usernameCheck)
