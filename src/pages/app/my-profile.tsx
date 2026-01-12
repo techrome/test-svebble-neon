@@ -70,19 +70,30 @@ const BasicProfileForm = () => {
     defaultValues: { name: userData.name },
     resolver: zodResolver(basicProfileSchemaForm),
   });
+  const formIsDirty = form.formState.isDirty;
+
   const { addAppSnackbar } = useAppSnackbar();
   const utils = trpc.useUtils();
   const basicInfoUpdateMutation = trpc.auth.updateUserBasicInfo.useMutation({
-    async onSuccess() {
+    async onSuccess(_data, variables) {
       await utils.auth.user.invalidate();
       addAppSnackbar({
         message: "Profile updated",
         variant: "success",
       });
+      form.reset({
+        name: variables.name,
+      });
     },
   });
 
   const onSubmit: SubmitHandler<BasicProfileFormValues> = async (values) => {
+    if (!formIsDirty) {
+      addAppSnackbar({
+        message: "Profile is already up to date",
+      });
+      return;
+    }
     basicInfoUpdateMutation.mutate(values);
   };
 
@@ -368,8 +379,8 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
       <VerticalStack>
         <Typography variant="subtitle2">
           {hasOldPassword
-            ? "You can change your password here."
-            : `You can set a password to be able to log in with credentials.`}
+            ? "Change your password here."
+            : `Set a password to be able to log in with credentials.`}
         </Typography>
         {hasOldPassword && (
           <Input
