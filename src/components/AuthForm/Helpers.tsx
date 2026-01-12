@@ -86,10 +86,18 @@ export const AuthWrapper = (props: WrapperProps) => {
     oauthPopupRef.current = popup;
   };
 
+  const clearPopup = () => {
+    try {
+      oauthPopupRef.current?.close();
+    } catch (e) {}
+    oauthPopupRef.current = null;
+  };
+
   const googleLoginMutation = trpc.auth.googleLogin.useMutation({
     async onSuccess(data) {
       if (!data.url) {
         addAppSnackbar({ message: "Something went wrong.", variant: "error" });
+        clearPopup();
         return;
       }
 
@@ -113,10 +121,7 @@ export const AuthWrapper = (props: WrapperProps) => {
       const cleanup = () => {
         if (onMessage) window.removeEventListener("message", onMessage);
         if (closedPopupInterval) window.clearInterval(closedPopupInterval);
-        oauthPopupRef.current = null;
-        try {
-          popup.close();
-        } catch (e) {}
+        clearPopup();
       };
 
       const handleSuccess = () => {
@@ -162,7 +167,7 @@ export const AuthWrapper = (props: WrapperProps) => {
     },
     onError() {
       addAppSnackbar({ message: "Something went wrong.", variant: "error" });
-      oauthPopupRef.current = null;
+      clearPopup();
     },
   });
   const guestLoginMutation = trpc.auth.loginAnonymous.useMutation({

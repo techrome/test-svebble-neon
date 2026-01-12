@@ -108,6 +108,12 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
     }
   };
 
+  const clearUser = () => {
+    utils.auth.user.setData(undefined, { user: null });
+    utils.auth.user.invalidate();
+    utils.auth.listUserAccounts.invalidate();
+  };
+
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess() {
       moveFromPrivatePage();
@@ -115,15 +121,13 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
       addAppSnackbar({
         message: "You have logged out.",
       });
-      utils.auth.user.setData(undefined, { user: null });
-      utils.auth.user.invalidate();
+      clearUser();
     },
   });
   const deleteAccountMutation = trpc.auth.deleteUser.useMutation({
     onSuccess() {
       moveFromPrivatePage();
-      utils.auth.user.setData(undefined, { user: null });
-      utils.auth.user.invalidate();
+      clearUser();
       addAppSnackbar({
         message: "Your account has been deleted.",
         variant: "success",

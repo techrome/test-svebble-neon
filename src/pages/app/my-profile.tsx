@@ -1,8 +1,14 @@
 import React from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Paper, Typography } from "@mui/material";
+import { Chip, CircularProgress, Paper, Typography } from "@mui/material";
 import z from "zod";
+import Image from "next/image";
+import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AccountCircleIcon from "@mui/icons-material/Person";
+import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
+import LockIcon from "@mui/icons-material/Lock";
 
 import {
   defaultPadding,
@@ -16,13 +22,17 @@ import { RouterOutput, trpc } from "@/trpc";
 import Input from "@/components/Fields/Input";
 import Button from "@/components/Button/Button";
 import { useAppSnackbar } from "@/utils/snackbar";
-import Image from "next/image";
-import EditIcon from "@mui/icons-material/Edit";
-import DeleteIcon from "@mui/icons-material/Delete";
 import ButtonBase from "@/components/Button/ButtonBase";
 import { signupSchemaForm } from "@/utils/validators/shared/auth";
-import { UsernameInput } from "@/components/AuthForm/Signup";
+import {
+  PasswordStrengthMeter,
+  UsernameInput,
+} from "@/components/AuthForm/Signup";
 import avatarPlaceholderSrc from "@@/public/images/user-placeholder.webp";
+import { useGlobalModal } from "@/utils/hooks/useOverlay";
+import Confirm from "@/components/ModalTemplates/Confirm";
+import { CACHE_TIME } from "@/utils/cacheTime";
+import { PROVIDER_IDS } from "@/utils/constants";
 
 const SectionWrapper = (props: { children: React.ReactNode }) => {
   return (
@@ -54,25 +64,36 @@ export const basicProfileSchemaForm = z.object({
 
 type BasicProfileFormValues = z.infer<typeof basicProfileSchemaForm>;
 
-const ProfileForm = () => {
-  const user = useAuthedUser();
+const BasicProfileForm = () => {
+  const userData = useAuthedUser();
   const form = useForm<BasicProfileFormValues>({
-    defaultValues: { name: user.name },
+    defaultValues: { name: userData.name },
     resolver: zodResolver(basicProfileSchemaForm),
   });
+  const formIsDirty = form.formState.isDirty;
+
   const { addAppSnackbar } = useAppSnackbar();
   const utils = trpc.useUtils();
   const basicInfoUpdateMutation = trpc.auth.updateUserBasicInfo.useMutation({
-    async onSuccess() {
+    async onSuccess(_data, variables) {
       await utils.auth.user.invalidate();
       addAppSnackbar({
-        message: "Profile updated.",
+        message: "Profile updated",
         variant: "success",
+      });
+      form.reset({
+        name: variables.name,
       });
     },
   });
 
   const onSubmit: SubmitHandler<BasicProfileFormValues> = async (values) => {
+    if (!formIsDirty) {
+      addAppSnackbar({
+        message: "Profile is already up to date",
+      });
+      return;
+    }
     basicInfoUpdateMutation.mutate(values);
   };
 
@@ -80,7 +101,7 @@ const ProfileForm = () => {
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
       <Typography variant="h6" component="h2" className="mb-2">
-        Basic information
+        <AccountCircleIcon className="align-sub" /> Basic information
       </Typography>
       <VerticalStack>
         <div className="mb-2">
@@ -88,10 +109,11 @@ const ProfileForm = () => {
             <div className="group relative w-full max-w-32 h-32 rounded-full border-4 border-[var(--mui-palette-text-secondary)]">
               <Image
                 className="rounded-full "
-                src={user.image || avatarPlaceholderSrc}
+                src={userData.image || avatarPlaceholderSrc}
                 alt="user-avatar"
                 fill
                 sizes="128px"
+                quality={100}
               />
               <ButtonBase
                 focusRipple
@@ -109,7 +131,7 @@ const ProfileForm = () => {
                 >
                   Change avatar
                 </Button>
-                {Boolean(user.image) && (
+                {Boolean(userData.image) && (
                   <Button
                     variant="outlined"
                     color="error"
@@ -171,27 +193,52 @@ const UsernameForm = () => {
   const form = useForm<UsernameFormValues>({
     defaultValues: { username: user.displayUsername || undefined },
     resolver: zodResolver(schema),
-    context: { user },
   });
   const { addAppSnackbar } = useAppSnackbar();
+  const { openModal, closeModal } = useGlobalModal();
   const utils = trpc.useUtils();
   const usernameUpdateMutation = trpc.auth.updateUserUsername.useMutation({
     async onSuccess() {
       await utils.auth.user.invalidate();
       addAppSnackbar({
-        message: "Username successfully updated.",
+        message: "Username successfully updated",
         variant: "success",
       });
     },
   });
 
-  const onSubmit: SubmitHandler<UsernameFormValues> = async (values) => {
+  const onConfirmSubmit = async (values: UsernameFormValues) => {
+    closeModal();
+    usernameUpdateMutation.mutate(values);
+  };
+
+  const onSubmit: SubmitHandler<UsernameFormValues> = (values) => {
     const usernameError = form.formState.errors.username;
     if (usernameError) {
       form.setError("username", { ...usernameError }, { shouldFocus: true });
       return;
     }
-    usernameUpdateMutation.mutate(values);
+    openModal({
+      content: (
+        <Confirm
+          message={
+            <div className="text-center">
+              Your new username will be: <br />
+              <strong>{values.username}</strong>
+              <br />
+              Do you want to proceed?
+            </div>
+          }
+          onCancel={closeModal}
+          onConfirm={() => {
+            onConfirmSubmit(values);
+          }}
+        />
+      ),
+      props: {
+        title: "Username change confirmation",
+      },
+    });
   };
 
   const remainingChanges = user.remainingUsernameChanges;
@@ -201,27 +248,31 @@ const UsernameForm = () => {
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
-      <Typography variant="h6" component="h2" className="mb-2">
-        Username
-      </Typography>
-      <VerticalStack>
-        <Typography
-          variant="subtitle2"
-          color={isDisabled ? "warning" : "success"}
-        >
-          {typeof remainingChanges === "number" ? (
-            remainingChanges > 0 ? (
-              <>
-                Username can be changed <strong>{remainingChanges} </strong>
-                time(s).
-              </>
-            ) : (
-              `Username cannot be changed anymore.`
-            )
-          ) : (
-            "Changing username is not available."
-          )}
+      <HorizontalStack addClassName="mb-3">
+        <Typography variant="h6" component="h2">
+          <AlternateEmailIcon className="align-sub" /> Username
         </Typography>
+        <Chip
+          className="w-fit"
+          label={
+            typeof remainingChanges === "number" ? (
+              remainingChanges > 0 ? (
+                <>
+                  Can be changed <strong>{remainingChanges} </strong>
+                  time{remainingChanges > 1 && "s"}
+                </>
+              ) : (
+                `Cannot be changed anymore`
+              )
+            ) : (
+              "Changing username is not available"
+            )
+          }
+          variant={isDisabled ? "filled" : "outlined"}
+          color={isDisabled ? "default" : "success"}
+        />
+      </HorizontalStack>
+      <VerticalStack>
         <UsernameInput form={form} disabled={isDisabled} />
         <Button
           variant="contained"
@@ -237,6 +288,180 @@ const UsernameForm = () => {
   );
 };
 
+export const basePasswordSchemaForm = z
+  .object({
+    password: signupSchemaForm.shape.password,
+    passwordConfirm: signupSchemaForm.shape.password,
+  })
+  .superRefine((data, ctx) => {
+    if (data.password !== data.passwordConfirm) {
+      ctx.addIssue({
+        code: "custom",
+        message: "New passwords do not match.",
+        path: ["passwordConfirm"],
+      });
+    }
+  });
+
+export const passwordSchemaForm = basePasswordSchemaForm.safeExtend({
+  oldPassword: signupSchemaForm.shape.password.or(z.literal("")),
+});
+
+export const makePasswordSchemaForm = (hasOldPassword: boolean) => {
+  if (hasOldPassword) {
+    return passwordSchemaForm
+      .safeExtend({
+        oldPassword: passwordSchemaForm.shape.password,
+      })
+      .superRefine((data, ctx) => {
+        if (data.oldPassword === data.password) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "New password must be different than the current password.",
+            path: ["password"],
+          });
+        }
+      });
+  } else {
+    return passwordSchemaForm;
+  }
+};
+
+type PasswordFormValues = z.infer<typeof passwordSchemaForm>;
+
+const emptyPasswordFormValues: PasswordFormValues = {
+  oldPassword: "",
+  password: "",
+  passwordConfirm: "",
+};
+
+const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
+  const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
+    React.useState(false);
+
+  const schema = React.useMemo(
+    () => makePasswordSchemaForm(hasOldPassword),
+    [hasOldPassword]
+  );
+  const form = useForm<PasswordFormValues>({
+    defaultValues: emptyPasswordFormValues,
+    resolver: zodResolver(schema),
+  });
+
+  const { addAppSnackbar } = useAppSnackbar();
+  const utils = trpc.useUtils();
+
+  const passwordUpdateMutation = trpc.auth.changeUserPassword.useMutation({
+    async onSuccess() {
+      await utils.auth.user.invalidate();
+      await utils.auth.listUserAccounts.invalidate();
+      addAppSnackbar({
+        message: "Password updated",
+        variant: "success",
+      });
+      form.reset(emptyPasswordFormValues, { keepDefaultValues: true });
+      setPasswordFieldWasFocused(false);
+    },
+  });
+
+  const onSubmit: SubmitHandler<PasswordFormValues> = async (values) => {
+    passwordUpdateMutation.mutate(values);
+  };
+
+  const isSubmitting = passwordUpdateMutation.isPending;
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      <Typography variant="h6" component="h2" className="mb-2">
+        <LockIcon className="align-sub" /> Password
+      </Typography>
+      <VerticalStack>
+        <Typography variant="subtitle2">
+          {hasOldPassword
+            ? "Change your password here."
+            : `Set a password to be able to log in with credentials.`}
+        </Typography>
+        {hasOldPassword && (
+          <Input
+            control={form.control}
+            name="oldPassword"
+            label="Current password"
+            fullWidth
+            type="password"
+            endAccessory="passwordVisibility"
+          />
+        )}
+        <div>
+          <Input
+            control={form.control}
+            name="password"
+            label="New password"
+            fullWidth
+            type="password"
+            endAccessory="passwordVisibility"
+            onFocus={() => {
+              setPasswordFieldWasFocused(true);
+            }}
+          />
+          <PasswordStrengthMeter
+            form={form}
+            passwordFieldWasFocused={passwordFieldWasFocused}
+          />
+        </div>
+        <Input
+          control={form.control}
+          name="passwordConfirm"
+          label="New password confirmation"
+          fullWidth
+          type="password"
+          endAccessory="passwordVisibility"
+        />
+        <Button
+          variant="contained"
+          type="submit"
+          size="large"
+          isLoading={isSubmitting}
+        >
+          Save
+        </Button>
+      </VerticalStack>
+    </form>
+  );
+};
+
+const PasswordFormWrapper = () => {
+  const userData = useAuthedUser();
+  const userAccounts = trpc.auth.listUserAccounts.useQuery(
+    { id: userData.id },
+    {
+      staleTime: CACHE_TIME.NORMAL,
+    }
+  );
+
+  if (userAccounts.isPending) {
+    return (
+      <div className="w-full flex justify-center items-center">
+        <CircularProgress />
+      </div>
+    );
+  }
+
+  if (userAccounts.error || !userAccounts.data?.length) {
+    return (
+      <div className="w-full flex justify-center items-center">
+        <Typography>No user accounts found.</Typography>
+      </div>
+    );
+  }
+
+  const hasOldPassword = userAccounts.data.some(
+    (account) => account.providerId === PROVIDER_IDS.credential
+  );
+
+  return <PasswordForm hasOldPassword={hasOldPassword} />;
+};
+
 const MyProfile = () => {
   return (
     <Section addClassName="flex justify-center">
@@ -246,10 +471,13 @@ const MyProfile = () => {
             My Profile
           </Typography>
           <SectionWrapper>
-            <ProfileForm />
+            <BasicProfileForm />
           </SectionWrapper>
           <SectionWrapper>
             <UsernameForm />
+          </SectionWrapper>
+          <SectionWrapper>
+            <PasswordFormWrapper />
           </SectionWrapper>
         </VerticalStack>
       </div>

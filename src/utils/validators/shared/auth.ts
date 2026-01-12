@@ -41,7 +41,7 @@ export const signupSchemaForm = z
     username: zUsername,
     email: zEmail.optional().or(z.literal("")),
     password: zPassword,
-    passwordConfirm: Text.Title({ shouldTrim: false, required: true }),
+    passwordConfirm: zPassword,
   })
   .refine((data) => data.password === data.passwordConfirm, {
     error: "Passwords do not match",
@@ -53,7 +53,7 @@ export const loginSchemaForm = z.object({
     3,
     "Username or email must be at least 3 characters"
   ),
-  password: Text.Title({ shouldTrim: false, required: true }),
+  password: zPassword,
   rememberMe: z.boolean(),
 });
 

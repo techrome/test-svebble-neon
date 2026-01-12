@@ -19,6 +19,7 @@ const WHITELISTED_PREFIXES = [
   SOME_AUTH_API_ROUTES.error,
   SOME_AUTH_API_ROUTES.callback,
   SOME_AUTH_API_ROUTES.verifyEmail,
+  SOME_AUTH_API_ROUTES.resetPassword,
 ];
 
 const limitedApiHandler: NextApiHandler = (req, res) => {

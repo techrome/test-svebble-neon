@@ -36,7 +36,7 @@ const getErrorInfo = (
   const message = shouldLogout
     ? "Your session has expired. Please log in again."
     : hasZodError
-      ? `Error: ${error?.data?.code} - ${error?.data?.path}`
+      ? `Error: ${error?.data?.zodError?.issues?.[0].message} (${error?.data?.zodError?.issues?.[0].path.join(".")})`
       : error.message;
 
   const details = (
@@ -104,10 +104,11 @@ const handleError = (qc: QueryClient, error: Error) => {
 
   if (error instanceof TRPCClientError) {
     const userKey = getQueryKey(trpc.auth.user, undefined, "query");
-    const currentUserData = qc.getQueryData(
-      userKey
-    ) as RouterOutput["auth"]["user"];
-    const errorInfo = getErrorInfo(error, Boolean(currentUserData.user));
+    const currentUserData = qc.getQueryData(userKey) as
+      | RouterOutput["auth"]["user"]
+      | undefined;
+    const errorInfo = getErrorInfo(error, Boolean(currentUserData?.user));
+
     store.dispatch(
       addSnackbar({
         message: errorInfo.message,
@@ -136,7 +137,8 @@ const createQueryClient = () => {
       },
     }),
     mutationCache: new MutationCache({
-      onError: (error) => {
+      onError: (error, _variables, _onMutateResult, mutation, _context) => {
+        if (mutation.options.onError) return;
         handleError(queryClient, error);
       },
     }),

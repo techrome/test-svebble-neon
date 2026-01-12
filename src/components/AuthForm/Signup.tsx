@@ -39,6 +39,7 @@ import { normalizeText } from "@/utils/stringUtils";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import useAppQuery from "@/utils/hooks/useAppQuery";
 import useUser from "@/trpc/hooks/useUser";
+import useIsDesktop from "@/utils/hooks/useIsDesktop";
 
 type Props = {
   onSuccess?: () => void;
@@ -176,14 +177,18 @@ const emptyFormValues: FormValues = {
   passwordConfirm: "",
 };
 
-const PasswordStrengthMeter = ({
+type Password = Pick<FormValues, "password">;
+
+export const PasswordStrengthMeter = <TFV extends Password>({
   form,
   passwordFieldWasFocused,
 }: {
-  form: UseFormReturn<FormValues>;
+  form: UseFormReturn<TFV>;
   passwordFieldWasFocused: boolean;
 }) => {
-  const [password] = useWatch({ control: form.control, name: ["password"] });
+  // doing this cast hack to force RHF to allow different schemas with the same shared field
+  const PASSWORD = "password" satisfies keyof Password as Path<TFV>;
+  const password = useWatch({ control: form.control, name: PASSWORD });
 
   const passwordStrengthInfo = React.useMemo(() => {
     let anyRequiredRuleFailed = false;
@@ -281,9 +286,11 @@ type Username = Pick<FormValues, "username">;
 export const UsernameInput = <TFV extends Username>({
   form,
   disabled,
+  autoFocus,
 }: {
   form: UseFormReturn<TFV>;
   disabled?: boolean;
+  autoFocus?: boolean;
 }) => {
   // doing this cast hack to force RHF to allow different schemas with the same shared field
   const USERNAME = "username" satisfies keyof Username as Path<TFV>;
@@ -339,6 +346,7 @@ export const UsernameInput = <TFV extends Username>({
       type="text"
       fullWidth
       disabled={disabled}
+      autoFocus={autoFocus}
       endAccessory={
         <>
           {usernameAvailabilityQuery.isFetching ? (
@@ -361,6 +369,8 @@ export const UsernameInput = <TFV extends Username>({
 const Signup = (props: Props) => {
   const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
     React.useState(false);
+
+  const isDesktop = useIsDesktop();
 
   const form = useForm<FormValues>({
     defaultValues: emptyFormValues,
@@ -422,7 +432,7 @@ const Signup = (props: Props) => {
       >
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <VerticalStack>
-            <UsernameInput form={form} />
+            <UsernameInput form={form} autoFocus={isDesktop} />
             <Input
               control={form.control}
               name="email"
