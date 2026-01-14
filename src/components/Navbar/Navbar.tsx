@@ -84,6 +84,8 @@ import { useAppSnackbar } from "@/utils/snackbar";
 import { useUser } from "@/trpc/hooks/useUser";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import usePrevious from "@/utils/hooks/usePrevious";
+import { useQueryClient } from "@tanstack/react-query";
+import { userLogoutLifecycle } from "@/utils/userLifecyle";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -100,19 +102,12 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
   const router = useRouter();
   const isPrivatePage = router.pathname.startsWith(`/${privateRoutePrefix}`);
   const user = useUser();
-  const utils = trpc.useUtils();
+  const qc = useQueryClient();
 
   const moveFromPrivatePage = () => {
     if (isPrivatePage) {
       router.push(ROUTES.home);
     }
-  };
-
-  const clearUser = () => {
-    utils.auth.user.setData(undefined, { user: null });
-    utils.auth.user.invalidate();
-    utils.auth.freshUser.invalidate();
-    utils.auth.listUserAccounts.invalidate();
   };
 
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -122,17 +117,17 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
       addAppSnackbar({
         message: "You have logged out.",
       });
-      clearUser();
+      userLogoutLifecycle(qc);
     },
   });
   const deleteAccountMutation = trpc.auth.deleteUser.useMutation({
     onSuccess() {
       moveFromPrivatePage();
-      clearUser();
       addAppSnackbar({
         message: "Your account has been deleted.",
         variant: "success",
       });
+      userLogoutLifecycle(qc);
     },
   });
 

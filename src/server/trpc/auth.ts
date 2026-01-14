@@ -22,7 +22,7 @@ import {
   appendSetCookiesToHeaders,
   cookieHeaderFromSetCookie,
 } from "./helpers/cookies";
-import { PLACEHOLDER_EMAIL_DOMAIN } from "./helpers/email";
+import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
 
 const getBaseURL = () => {
   if (env.BASE_URL) {

@@ -40,6 +40,8 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import useAppQuery from "@/utils/hooks/useAppQuery";
 import { useUser } from "@/trpc/hooks/useUser";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
+import { userLoginLifecycle } from "@/utils/userLifecyle";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {
   onSuccess?: () => void;
@@ -380,7 +382,7 @@ const Signup = (props: Props) => {
   });
 
   const { addAppSnackbar } = useAppSnackbar();
-  const utils = trpc.useUtils();
+  const qc = useQueryClient();
 
   const changeEmailMutation = trpc.auth.changeEmail.useMutation({
     onSuccess(data) {
@@ -409,7 +411,7 @@ const Signup = (props: Props) => {
       } else {
         props.onSuccess?.();
       }
-      utils.auth.user.invalidate();
+      userLoginLifecycle(qc);
     },
   });
 

@@ -15,6 +15,8 @@ import { loginSchemaForm } from "@/utils/validators/shared/auth";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
 import { trpc } from "@/trpc";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
+import { userLoginLifecycle } from "@/utils/userLifecyle";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {
   onSuccess?: () => void;
@@ -37,10 +39,10 @@ const Login = (props: Props) => {
 
   const isDesktop = useIsDesktop();
 
-  const utils = trpc.useUtils();
+  const qc = useQueryClient();
   const loginMutation = trpc.auth.loginCredentials.useMutation({
     onSuccess() {
-      utils.auth.user.invalidate();
+      userLoginLifecycle(qc);
       props.onSuccess?.();
     },
   });

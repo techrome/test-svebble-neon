@@ -15,7 +15,6 @@ import {
   forgotPasswordSchemaForm,
   loginSchemaForm,
   signupSchemaForm,
-  zEmail,
   zUsername,
 } from "@/utils/validators/shared/auth";
 import z from "zod";
@@ -26,6 +25,8 @@ import { generatePlaceholderEmail } from "../helpers/email";
 import { oauthDoneStatus } from "@/components/AuthForm/Helpers";
 import {
   basicProfileSchemaForm,
+  emailSchemaForm,
+  makeEmailChangeSchemaForm,
   makePasswordSchemaForm,
   passwordSchemaForm,
   usernameSchemaForm,
@@ -68,6 +69,21 @@ export const authRouter = router({
   user: publicProcedureDefaultRateLimit.query(({ ctx }) => ({
     user: ctx.user,
   })),
+  freshUser: publicProcedure
+    .use(rateLimitMiddlewares.auth_sensitive)
+    .query(async ({ ctx }) => {
+      const cookieForwarder = getCookieForwarder(ctx);
+      const authResponse = await cookieForwarder((opts) =>
+        auth.api.getSession({
+          query: { disableCookieCache: true },
+          ...opts,
+        })
+      );
+
+      return {
+        user: authResponse?.user || null,
+      };
+    }),
   signUpCredentials: publicProcedure
     .use(rateLimitMiddlewares.auth_signUp)
     .input(signupSchemaForm)
@@ -89,14 +105,40 @@ export const authRouter = router({
     }),
   changeEmail: privateProcedure
     .use(rateLimitMiddlewares.auth_changeEmail)
-    .input(
-      z.object({
-        email: zEmail,
-      })
-    )
+    .input(emailSchemaForm)
     .mutation(async ({ ctx, input }) => {
+      const cookieForwarder = getCookieForwarder(ctx);
+
+      const currentUserRow = await db
+        .select({
+          email: schema.user.email,
+        })
+        .from(schema.user)
+        .where(eq(schema.user.id, ctx.user.id))
+        .then((users) => users[0]);
+
+      if (!currentUserRow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found.",
+        });
+      }
+
+      throwIfZodError(
+        makeEmailChangeSchemaForm(currentUserRow.email).safeParse(input)
+      );
+
+      await cookieForwarder((opts) =>
+        auth.api.updateUser({
+          body: {
+            pendingEmail: input.email || null,
+            pendingEmailSetAt: input.email ? new Date() : null,
+          },
+          ...opts,
+        })
+      );
       try {
-        await getCookieForwarder(ctx)((opts) =>
+        await cookieForwarder((opts) =>
           auth.api.changeEmail({
             body: {
               newEmail: input.email,
@@ -110,6 +152,19 @@ export const authRouter = router({
         // the email already exists (prevents email enumeration attacks)
       }
       return { email: input.email };
+    }),
+  cancelPendingEmail: privateProcedure
+    .use(rateLimitMiddlewares.auth_changeEmail)
+    .mutation(async ({ ctx }) => {
+      return getCookieForwarder(ctx)((opts) =>
+        auth.api.updateUser({
+          body: {
+            pendingEmail: null,
+            pendingEmailSetAt: null,
+          },
+          ...opts,
+        })
+      );
     }),
   loginAnonymous: publicProcedure
     .use(rateLimitMiddlewares.auth_signUp)
@@ -232,15 +287,14 @@ export const authRouter = router({
     .use(rateLimitMiddlewares.auth_normal)
     .input(usernameSchemaForm)
     .mutation(async ({ ctx, input }) => {
-      const userRows = await db
+      const currentUserRow = await db
         .select({
           username: schema.user.username,
           remainingUsernameChanges: schema.user.remainingUsernameChanges,
         })
         .from(schema.user)
         .where(eq(schema.user.id, ctx.user.id))
-        .limit(1);
-      const currentUserRow = userRows[0];
+        .then((users) => users[0]);
 
       if (!currentUserRow) {
         throw new TRPCError({
