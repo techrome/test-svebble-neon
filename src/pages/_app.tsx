@@ -10,6 +10,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import "dayjs/locale/en-gb";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/router";
+// import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import { trpc } from "@/trpc";
 import Navbar from "@/components/Navbar/Navbar";
@@ -83,6 +84,7 @@ const App = ({ Component, pageProps }: AppProps) => {
                 </ErrorBoundary>
               </LocalizationProvider>
             </SnackbarProvider>
+            {/* <ReactQueryDevtools initialIsOpen={false} /> */}
           </ThemeProvider>
         </StyledEngineProvider>
       </ReduxProvider>
