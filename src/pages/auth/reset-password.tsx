@@ -119,6 +119,7 @@ const ResetPassword = () => {
                   label="New password"
                   fullWidth
                   type="password"
+                  autoComplete="new-password"
                   endAccessory="passwordVisibility"
                   onFocus={() => {
                     setPasswordFieldWasFocused(true);
@@ -135,6 +136,7 @@ const ResetPassword = () => {
                 label="New password confirmation"
                 fullWidth
                 type="password"
+                autoComplete="new-password"
                 endAccessory="passwordVisibility"
               />
               <Button

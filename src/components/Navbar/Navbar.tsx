@@ -81,7 +81,7 @@ import AuthForm, {
 } from "@/components/AuthForm/AuthForm";
 import { trpc } from "@/trpc";
 import { useAppSnackbar } from "@/utils/snackbar";
-import useUser from "@/trpc/hooks/useUser";
+import { useUser } from "@/trpc/hooks/useUser";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import usePrevious from "@/utils/hooks/usePrevious";
 
@@ -111,6 +111,7 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
   const clearUser = () => {
     utils.auth.user.setData(undefined, { user: null });
     utils.auth.user.invalidate();
+    utils.auth.freshUser.invalidate();
     utils.auth.listUserAccounts.invalidate();
   };
 
@@ -423,6 +424,7 @@ const FilterForm = ({
             type="text"
             fullWidth
             autoFocus
+            autoComplete="off"
             endAccessory="clear"
           />
           <DateTimePicker
@@ -511,6 +513,7 @@ const SearchOutsideForm = ({
         type="text"
         className="w-3xs"
         endAccessory="clear"
+        autoComplete="off"
       />
     </form>
   );
@@ -800,7 +803,7 @@ const NavbarInner = () => {
           message: (
             <HorizontalStack addClassName="items-center">
               {
-                "Please add an email so that you can restore your account if you forget your password. Accounts without an email have limited capabilities."
+                "Please add an email so you can recover your account if you forget your password. Accounts without an email have limited capabilities."
               }
               <Link href={ROUTES.private_myProfile} color="textPrimary">
                 <Button

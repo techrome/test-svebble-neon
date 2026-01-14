@@ -72,6 +72,7 @@ const Login = (props: Props) => {
               control={form.control}
               name="password"
               label="Password"
+              autoComplete="current-password"
               fullWidth
               type="password"
               endAccessory="passwordVisibility"

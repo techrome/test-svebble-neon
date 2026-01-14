@@ -38,7 +38,7 @@ import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import { normalizeText } from "@/utils/stringUtils";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import useAppQuery from "@/utils/hooks/useAppQuery";
-import useUser from "@/trpc/hooks/useUser";
+import { useUser } from "@/trpc/hooks/useUser";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
 
 type Props = {
@@ -343,6 +343,7 @@ export const UsernameInput = <TFV extends Username>({
     <Input
       control={form.control}
       name={USERNAME}
+      autoComplete={USERNAME}
       label="Username"
       type="text"
       fullWidth
@@ -439,6 +440,7 @@ const Signup = (props: Props) => {
               name="email"
               label="Email (optional)"
               type="email"
+              autoComplete="email"
               fullWidth
             />
             <div>
@@ -448,6 +450,7 @@ const Signup = (props: Props) => {
                 label="Password"
                 fullWidth
                 type="password"
+                autoComplete="new-password"
                 endAccessory="passwordVisibility"
                 onFocus={() => {
                   setPasswordFieldWasFocused(true);
@@ -464,6 +467,7 @@ const Signup = (props: Props) => {
               label="Password confirmation"
               fullWidth
               type="password"
+              autoComplete="new-password"
               endAccessory="passwordVisibility"
             />
             <Button
