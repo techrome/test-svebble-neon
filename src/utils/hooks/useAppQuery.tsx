@@ -5,7 +5,7 @@ import { TRPCClientErrorLike } from "@trpc/client";
 import { LoadingBoundaryContext } from "@/utils/loadingBoundaryContext";
 import type { AppRouter } from "@/server";
 
-type Options = {
+export type UseAppQueryOptions = {
   disableLoadingBoundary?: boolean;
 };
 
@@ -13,7 +13,7 @@ const useAppQuery = <
   T extends UseTRPCQueryResult<unknown, TRPCClientErrorLike<AppRouter>>,
 >(
   queryData: T,
-  options: Options = {}
+  options: UseAppQueryOptions = {}
 ): T => {
   const uniqueKey = useId();
   const { setQueryKeys } = useContext(LoadingBoundaryContext);
