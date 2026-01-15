@@ -85,7 +85,7 @@ import { useUser } from "@/trpc/hooks/useUser";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import usePrevious from "@/utils/hooks/usePrevious";
 import { useQueryClient } from "@tanstack/react-query";
-import { userLogoutLifecycle } from "@/utils/userLifecyle";
+import { userLogoutLifecycle } from "@/utils/userLifecycle";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,

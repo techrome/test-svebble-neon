@@ -40,7 +40,7 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import useAppQuery from "@/utils/hooks/useAppQuery";
 import { useUser } from "@/trpc/hooks/useUser";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
-import { userLoginLifecycle } from "@/utils/userLifecyle";
+import { userLoginLifecycle } from "@/utils/userLifecycle";
 import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {

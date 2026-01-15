@@ -14,7 +14,7 @@ import { addSnackbar } from "@/redux/slices/snackbars";
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import { VerticalStack } from "@/components/Layout/Containers";
 import { Typography } from "@mui/material";
-import { userLogoutLifecycle } from "@/utils/userLifecyle";
+import { userLogoutLifecycle } from "@/utils/userLifecycle";
 
 export type MutationMeta = {
   keepDefaultErrorHandling?: boolean;

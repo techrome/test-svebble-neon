@@ -82,7 +82,7 @@ const makeRatelimitMiddleware = <S extends WindowSpec>(
       logger.error("Error in ratelimit.ts: ", err);
     }
 
-    if (rateLimitResponse && !rateLimitResponse.success) {
+    if (!isDev && rateLimitResponse && !rateLimitResponse.success) {
       let retryAfterSeconds = 0;
       if (isDev) {
         retryAfterSeconds = Math.max(

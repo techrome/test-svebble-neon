@@ -2,11 +2,7 @@ import React from "react";
 import { trpc } from "@/trpc";
 import useAppQuery, { UseAppQueryOptions } from "@/utils/hooks/useAppQuery";
 import { CACHE_TIME } from "@/utils/cacheTime";
-
-type TRPCQueryOptions = Omit<
-  NonNullable<Parameters<typeof trpc.auth.user.useQuery>[1]>,
-  "select"
->;
+import { TRPCQueryOptions } from "@/trpc/hooks/useUser";
 
 export const useFreshUser = (
   trpcQueryOptions?: TRPCQueryOptions,
