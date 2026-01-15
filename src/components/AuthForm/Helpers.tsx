@@ -13,7 +13,7 @@ import { useAppSnackbar } from "@/utils/snackbar";
 import { trpc } from "@/trpc";
 import { useUser } from "@/trpc/hooks/useUser";
 import { useRouter } from "next/router";
-import { userLoginLifecycle } from "@/utils/userLifecyle";
+import { userLoginLifecycle } from "@/utils/userLifecycle";
 import { useQueryClient } from "@tanstack/react-query";
 
 type WrapperProps = {

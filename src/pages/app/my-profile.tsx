@@ -498,8 +498,7 @@ export const makeEmailChangeSchemaForm = (activeEmail?: string) => {
 export type EmailFormValues = z.infer<typeof emailSchemaForm>;
 
 const EmailForm = () => {
-  const [pollingStartedTime, setPollingStartedTime] =
-    React.useState<Dayjs | null>(null);
+  const pollingStartedTime = React.useRef<Dayjs | null>(null);
   const freshUserData = useFreshAuthedUserData(
     {
       refetchInterval: (data) => {
@@ -508,17 +507,17 @@ const EmailForm = () => {
         );
 
         if (!shouldStartPolling) {
-          setPollingStartedTime(null);
+          pollingStartedTime.current = null;
           return false;
         }
 
-        if (!pollingStartedTime) {
-          setPollingStartedTime(dayjs());
+        if (!pollingStartedTime.current) {
+          pollingStartedTime.current = dayjs();
           return seconds(30);
         }
 
         const elapsedMs = Math.abs(
-          dayjs().diff(pollingStartedTime, "milliseconds", true)
+          dayjs().diff(pollingStartedTime.current, "milliseconds", true)
         );
 
         // making polling less frequent if it takes too long not to spam the server
@@ -580,7 +579,6 @@ const EmailForm = () => {
 
   const onSubmit: SubmitHandler<EmailFormValues> = (values) => {
     emailUpdateMutation.mutate(values);
-    setPollingStartedTime(null);
   };
 
   const anySubmitting =
@@ -661,7 +659,6 @@ const EmailForm = () => {
                           emailUpdateMutation.mutate({
                             email: freshUserData.pendingEmail,
                           });
-                          setPollingStartedTime(null);
                         }
                       }}
                       isLoading={emailUpdateMutation.isPending}
@@ -740,11 +737,11 @@ const EmailForm = () => {
 };
 
 const EmailFormWrapper = () => {
-  const freshUserData = useFreshUser(undefined, {
+  const freshUser = useFreshUser(undefined, {
     disableLoadingBoundary: true,
   });
 
-  if (freshUserData.isPending) {
+  if (freshUser.isPending) {
     return (
       <div className="w-full flex justify-center items-center">
         <CircularProgress />
@@ -752,7 +749,7 @@ const EmailFormWrapper = () => {
     );
   }
 
-  if (freshUserData.error || !freshUserData.data?.user) {
+  if (freshUser.error || !freshUser.data?.user) {
     return (
       <div className="w-full flex justify-center items-center">
         <Typography>Error fetching user data.</Typography>
