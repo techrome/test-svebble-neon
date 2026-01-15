@@ -38,8 +38,10 @@ import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import { normalizeText } from "@/utils/stringUtils";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import useAppQuery from "@/utils/hooks/useAppQuery";
-import useUser from "@/trpc/hooks/useUser";
+import { useUser } from "@/trpc/hooks/useUser";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
+import { userLoginLifecycle } from "@/utils/userLifecyle";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {
   onSuccess?: () => void;
@@ -336,12 +338,14 @@ export const UsernameInput = <TFV extends Username>({
         });
       }
     }
+    // eslint-disable-next-line
   }, [debouncedUsername, usernameAvailabilityQuery.data]);
 
   return (
     <Input
       control={form.control}
       name={USERNAME}
+      autoComplete={USERNAME}
       label="Username"
       type="text"
       fullWidth
@@ -378,7 +382,7 @@ const Signup = (props: Props) => {
   });
 
   const { addAppSnackbar } = useAppSnackbar();
-  const utils = trpc.useUtils();
+  const qc = useQueryClient();
 
   const changeEmailMutation = trpc.auth.changeEmail.useMutation({
     onSuccess(data) {
@@ -407,7 +411,7 @@ const Signup = (props: Props) => {
       } else {
         props.onSuccess?.();
       }
-      utils.auth.user.invalidate();
+      userLoginLifecycle(qc);
     },
   });
 
@@ -438,6 +442,7 @@ const Signup = (props: Props) => {
               name="email"
               label="Email (optional)"
               type="email"
+              autoComplete="email"
               fullWidth
             />
             <div>
@@ -447,6 +452,7 @@ const Signup = (props: Props) => {
                 label="Password"
                 fullWidth
                 type="password"
+                autoComplete="new-password"
                 endAccessory="passwordVisibility"
                 onFocus={() => {
                   setPasswordFieldWasFocused(true);
@@ -463,6 +469,7 @@ const Signup = (props: Props) => {
               label="Password confirmation"
               fullWidth
               type="password"
+              autoComplete="new-password"
               endAccessory="passwordVisibility"
             />
             <Button

@@ -19,6 +19,7 @@ import {
 import dayjs from "@/utils/dayjs";
 import { dateTimeFormatFullDisplay } from "@/utils/dateFormats";
 import { useRerenderOnInterval } from "@/utils/hooks/useRerenderOnInterval";
+import { seconds } from "@/utils/cacheTime";
 
 type SnackbarProps = {
   isSystemNotification?: false | undefined;
@@ -33,7 +34,7 @@ type SystemNotificationProps = {
 type Props = SnackbarProps | SystemNotificationProps;
 
 const AutoRefreshingTime = ({ createdAt }: Pick<Props, "createdAt">) => {
-  useRerenderOnInterval();
+  useRerenderOnInterval(seconds(30));
 
   return (
     <Tooltip title={dayjs(createdAt).format(dateTimeFormatFullDisplay)}>

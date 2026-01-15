@@ -11,8 +11,10 @@ import { Divider } from "@/components/Layout/Dividers";
 import { AuthType } from "@/components/AuthForm/AuthForm";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { trpc } from "@/trpc";
-import useUser from "@/trpc/hooks/useUser";
+import { useUser } from "@/trpc/hooks/useUser";
 import { useRouter } from "next/router";
+import { userLoginLifecycle } from "@/utils/userLifecyle";
+import { useQueryClient } from "@tanstack/react-query";
 
 type WrapperProps = {
   authType: AuthType;
@@ -58,7 +60,7 @@ export const AuthWrapper = (props: WrapperProps) => {
   const isLogin = props.authType === "login";
 
   const { addAppSnackbar } = useAppSnackbar();
-  const utils = trpc.useUtils();
+  const qc = useQueryClient();
 
   const oauthPopupRef = React.useRef<Window | null>(null);
 
@@ -89,7 +91,7 @@ export const AuthWrapper = (props: WrapperProps) => {
   const clearPopup = () => {
     try {
       oauthPopupRef.current?.close();
-    } catch (e) {}
+    } catch (_e) {}
     oauthPopupRef.current = null;
   };
 
@@ -110,7 +112,7 @@ export const AuthWrapper = (props: WrapperProps) => {
       try {
         popup.focus();
         popup.location.href = data.url;
-      } catch (err) {
+      } catch (_e) {
         window.location.href = data.url;
         return;
       }
@@ -125,7 +127,7 @@ export const AuthWrapper = (props: WrapperProps) => {
       };
 
       const handleSuccess = () => {
-        utils.auth.user.invalidate();
+        userLoginLifecycle(qc);
         props.onSuccess?.();
       };
 
@@ -172,7 +174,7 @@ export const AuthWrapper = (props: WrapperProps) => {
   });
   const guestLoginMutation = trpc.auth.loginAnonymous.useMutation({
     onSuccess() {
-      utils.auth.user.invalidate();
+      userLoginLifecycle(qc);
       props.onSuccess?.();
     },
   });

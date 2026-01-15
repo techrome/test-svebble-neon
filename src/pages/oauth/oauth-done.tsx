@@ -22,7 +22,7 @@ const OauthDone = () => {
 
     try {
       window.opener?.postMessage(message, window.location.origin);
-    } catch (e) {}
+    } catch (_e) {}
 
     window.close();
   }, [router]);

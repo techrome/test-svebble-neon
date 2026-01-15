@@ -14,6 +14,12 @@ type Duration = Parameters<typeof Ratelimit.slidingWindow>[1];
 
 type WindowSpec = { max: number; window: Duration };
 
+type TrpcMiddleware = ReturnType<typeof trpc.middleware>;
+
+type MiddlewareWithSpec<S extends WindowSpec> = TrpcMiddleware & {
+  readonly spec: S;
+};
+
 const makeRatelimit = (spec: WindowSpec, prefix: string) => {
   return new Ratelimit({
     redis,
@@ -54,10 +60,13 @@ const getHashedIp = (req: IncomingMessage | undefined) => {
   return hashString(ip);
 };
 
-const makeRatelimitMiddleware = (spec: WindowSpec, prefix: string) => {
+const makeRatelimitMiddleware = <S extends WindowSpec>(
+  spec: S,
+  prefix: string
+) => {
   const limiter = makeRatelimit(spec, prefix);
 
-  return trpc.middleware(async ({ ctx, next }) => {
+  const middleware = trpc.middleware(async ({ ctx, next }) => {
     const requestId = ctx.user?.id
       ? `u:${ctx.user.id}`
       : `ip:${getHashedIp(ctx.req)}`;
@@ -93,6 +102,8 @@ const makeRatelimitMiddleware = (spec: WindowSpec, prefix: string) => {
     return next(); // not passing ctx since this middleware doesn't modify it
     // and preserves the narrowed req/res type
   });
+
+  return Object.assign(middleware, { spec });
 };
 
 const rateLimits = {
@@ -102,26 +113,27 @@ const rateLimits = {
   auth_normal: { max: 15, window: "60s" },
   auth_sensitive: { max: 7, window: "60s" },
   auth_signUp: { max: 3, window: "60s" },
-  auth_changeEmail: { max: 2, window: "60s" },
+  auth_changeEmail: { max: 2, window: "120s" },
   auth_requestPasswordReset: { max: 2, window: "60s" },
   auth_resetPassword: { max: 7, window: "60s" },
   auth_login: { max: 5, window: "60s" },
   auth_usernameCheck: { max: 15, window: "60s" },
 } as const satisfies Record<string, WindowSpec>;
 
+type RateLimitMiddlewares = {
+  [K in keyof typeof rateLimits]: MiddlewareWithSpec<(typeof rateLimits)[K]>;
+};
+
 type LimiterKey = keyof typeof rateLimits;
 
 export const rateLimitMiddlewares = (
   Object.keys(rateLimits) as LimiterKey[]
-).reduce(
-  (result, limiterKey) => {
-    return {
-      ...result,
-      [limiterKey]: makeRatelimitMiddleware(
-        rateLimits[limiterKey],
-        `rl:${limiterKey}`
-      ),
-    };
-  },
-  {} as Record<LimiterKey, ReturnType<typeof makeRatelimitMiddleware>>
-);
+).reduce((result, limiterKey) => {
+  return {
+    ...result,
+    [limiterKey]: makeRatelimitMiddleware(
+      rateLimits[limiterKey],
+      `rl:${limiterKey}`
+    ),
+  };
+}, {} as RateLimitMiddlewares);

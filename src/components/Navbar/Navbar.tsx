@@ -81,9 +81,11 @@ import AuthForm, {
 } from "@/components/AuthForm/AuthForm";
 import { trpc } from "@/trpc";
 import { useAppSnackbar } from "@/utils/snackbar";
-import useUser from "@/trpc/hooks/useUser";
+import { useUser } from "@/trpc/hooks/useUser";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import usePrevious from "@/utils/hooks/usePrevious";
+import { useQueryClient } from "@tanstack/react-query";
+import { userLogoutLifecycle } from "@/utils/userLifecyle";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -100,18 +102,12 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
   const router = useRouter();
   const isPrivatePage = router.pathname.startsWith(`/${privateRoutePrefix}`);
   const user = useUser();
-  const utils = trpc.useUtils();
+  const qc = useQueryClient();
 
   const moveFromPrivatePage = () => {
     if (isPrivatePage) {
       router.push(ROUTES.home);
     }
-  };
-
-  const clearUser = () => {
-    utils.auth.user.setData(undefined, { user: null });
-    utils.auth.user.invalidate();
-    utils.auth.listUserAccounts.invalidate();
   };
 
   const logoutMutation = trpc.auth.logout.useMutation({
@@ -121,17 +117,17 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
       addAppSnackbar({
         message: "You have logged out.",
       });
-      clearUser();
+      userLogoutLifecycle(qc);
     },
   });
   const deleteAccountMutation = trpc.auth.deleteUser.useMutation({
     onSuccess() {
       moveFromPrivatePage();
-      clearUser();
       addAppSnackbar({
         message: "Your account has been deleted.",
         variant: "success",
       });
+      userLogoutLifecycle(qc);
     },
   });
 
@@ -423,6 +419,7 @@ const FilterForm = ({
             type="text"
             fullWidth
             autoFocus
+            autoComplete="off"
             endAccessory="clear"
           />
           <DateTimePicker
@@ -499,6 +496,7 @@ const SearchOutsideForm = ({
       return;
     }
     onDebouncedValue(debouncedSearchText);
+    // eslint-disable-next-line
   }, [debouncedSearchText, filterPopover.isOpen]);
 
   return (
@@ -510,6 +508,7 @@ const SearchOutsideForm = ({
         type="text"
         className="w-3xs"
         endAccessory="clear"
+        autoComplete="off"
       />
     </form>
   );
@@ -582,6 +581,7 @@ const SystemNotifications = () => {
 
   React.useEffect(() => {
     dispatch(readAllSystemNotifications());
+    // eslint-disable-next-line
   }, []);
 
   return (
@@ -798,7 +798,7 @@ const NavbarInner = () => {
           message: (
             <HorizontalStack addClassName="items-center">
               {
-                "Please add an email so that you can restore your account if you forget your password. Accounts without an email have limited capabilities."
+                "Please add an email so you can recover your account if you forget your password. Accounts without an email have limited capabilities."
               }
               <Link href={ROUTES.private_myProfile} color="textPrimary">
                 <Button
@@ -826,6 +826,7 @@ const NavbarInner = () => {
         );
       }
     }
+    // eslint-disable-next-line
   }, [hasAuthenticated]);
 
   useEffect(() => {

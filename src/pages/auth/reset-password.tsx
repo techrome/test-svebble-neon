@@ -57,6 +57,7 @@ const ResetPassword = () => {
     if (token) {
       form.setValue("token", token);
     }
+    // eslint-disable-next-line
   }, [token]);
 
   if (!router.isReady) {
@@ -118,6 +119,7 @@ const ResetPassword = () => {
                   label="New password"
                   fullWidth
                   type="password"
+                  autoComplete="new-password"
                   endAccessory="passwordVisibility"
                   onFocus={() => {
                     setPasswordFieldWasFocused(true);
@@ -134,6 +136,7 @@ const ResetPassword = () => {
                 label="New password confirmation"
                 fullWidth
                 type="password"
+                autoComplete="new-password"
                 endAccessory="passwordVisibility"
               />
               <Button

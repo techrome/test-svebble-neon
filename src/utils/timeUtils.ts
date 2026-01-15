@@ -10,7 +10,7 @@ export const toISOString = (date: Dayjs) => {
   }
 };
 
-const getTimeDiff = (
+export const isWithinPeriod = (
   a: Dayjs,
   b: Dayjs,
   unit: QUnitType | OpUnitType,
@@ -18,4 +18,4 @@ const getTimeDiff = (
 ) => Math.abs(a.diff(b, unit, true)) <= diff;
 
 export const isWithinMinute = (a: Dayjs, b: Dayjs) =>
-  getTimeDiff(a, b, "minute", 1);
+  isWithinPeriod(a, b, "minute", 1);

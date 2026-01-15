@@ -1,4 +1,3 @@
-import React from "react";
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 const events = ["unusedEvent"] as const satisfies readonly string[];

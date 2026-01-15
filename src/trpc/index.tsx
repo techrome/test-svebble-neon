@@ -14,6 +14,17 @@ import { addSnackbar } from "@/redux/slices/snackbars";
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import { VerticalStack } from "@/components/Layout/Containers";
 import { Typography } from "@mui/material";
+import { userLogoutLifecycle } from "@/utils/userLifecyle";
+
+export type MutationMeta = {
+  keepDefaultErrorHandling?: boolean;
+};
+
+declare module "@tanstack/react-query" {
+  interface Register {
+    mutationMeta: MutationMeta;
+  }
+}
 
 const isBrowser = typeof window !== "undefined";
 
@@ -104,6 +115,7 @@ const handleError = (qc: QueryClient, error: Error) => {
 
   if (error instanceof TRPCClientError) {
     const userKey = getQueryKey(trpc.auth.user, undefined, "query");
+
     const currentUserData = qc.getQueryData(userKey) as
       | RouterOutput["auth"]["user"]
       | undefined;
@@ -117,7 +129,7 @@ const handleError = (qc: QueryClient, error: Error) => {
       })
     );
     if (errorInfo.internal.shouldLogout) {
-      qc.setQueryData(userKey, { user: null });
+      userLogoutLifecycle(qc);
     }
   } else {
     store.dispatch(
@@ -138,7 +150,12 @@ const createQueryClient = () => {
     }),
     mutationCache: new MutationCache({
       onError: (error, _variables, _onMutateResult, mutation, _context) => {
-        if (mutation.options.onError) return;
+        const shouldHandleError = mutation.options.meta
+          ?.keepDefaultErrorHandling
+          ? true
+          : !mutation.options.onError;
+        if (!shouldHandleError) return;
+
         handleError(queryClient, error);
       },
     }),

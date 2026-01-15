@@ -1,45 +1,64 @@
 import React from "react";
 
-const INTERVAL_MS = 30_000;
+type Store = {
+  subscribers: Set<() => void>;
+  tick: boolean;
+  intervalId: ReturnType<typeof setInterval> | null;
+};
 
-let subscribers = new Set<() => void>();
-let tick = false;
-let intervalId: ReturnType<typeof setInterval> | null = null;
+const stores: Record<string, Store> = {};
 
-const startInterval = () => {
-  if (intervalId !== null) {
-    return;
+const getStore = (intervalMs: number): Store => {
+  let store = stores[intervalMs];
+  if (!store) {
+    store = { subscribers: new Set(), tick: false, intervalId: null };
+    stores[intervalMs] = store;
   }
-
-  intervalId = setInterval(() => {
-    tick = !tick;
-    subscribers.forEach((fn) => fn());
-  }, INTERVAL_MS);
+  return store;
 };
 
-const stopInterval = () => {
-  if (intervalId !== null) {
-    clearInterval(intervalId);
-    intervalId = null;
-  }
+const startInterval = (store: Store, intervalMs: number) => {
+  if (store.intervalId !== null) return;
+
+  store.intervalId = setInterval(() => {
+    store.tick = !store.tick;
+    store.subscribers.forEach((onStoreChange) => onStoreChange());
+  }, intervalMs);
 };
 
-const subscribe = (onStoreChange: () => void) => {
-  subscribers.add(onStoreChange);
-  startInterval();
-
-  return () => {
-    subscribers.delete(onStoreChange);
-    if (subscribers.size < 1) {
-      stopInterval();
-    }
-  };
+const stopInterval = (store: Store) => {
+  if (store.intervalId === null) return;
+  clearInterval(store.intervalId);
+  store.intervalId = null;
 };
 
-const getSnapshot = () => tick;
+export const useRerenderOnInterval = (
+  intervalMs: number,
+  disabled?: boolean
+) => {
+  const store = getStore(intervalMs);
 
-// using React.useSyncExternalStore so that many subscribing components could read the same value
-// and re-render at the same time without creating hook timer for each of them
-export const useRerenderOnInterval = () => {
+  const subscribe = React.useCallback(
+    (onStoreChange: () => void) => {
+      if (disabled) return () => {};
+
+      store.subscribers.add(onStoreChange);
+      startInterval(store, intervalMs);
+
+      return () => {
+        store.subscribers.delete(onStoreChange);
+        if (store.subscribers.size < 1) stopInterval(store);
+      };
+    },
+    [store, intervalMs, disabled]
+  );
+
+  const getSnapshot = React.useCallback(
+    () => (disabled ? false : store.tick),
+    [store, disabled]
+  );
+
+  // using React.useSyncExternalStore so that many subscribing components could read the same value
+  // and re-render at the same time without creating hook timer for each of them
   return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 };

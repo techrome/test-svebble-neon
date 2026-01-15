@@ -6,6 +6,18 @@ export default defineConfig([
   ...nextVitals,
   ...nextTs,
   {
-    rules: { "prefer-const": "off", "react/display-name": "off" },
+    rules: {
+      "prefer-const": "off",
+      "react/display-name": "off",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          ignoreRestSiblings: true,
+        },
+      ],
+    },
   },
 ]);
