@@ -15,11 +15,11 @@ import {
 } from "../../utils/validators/shared/auth";
 import { TEXT_LIMITS } from "../../utils/validators/helpers/text";
 import { env } from "../env";
-import { minutes } from "@/utils/cacheTime";
+import { days, minutes } from "@/utils/cacheTime";
 import { generateRandomUsername } from "./helpers/generateRandomUsername";
 import { logger } from "@/utils/logger";
 import {
-  appendSetCookiesToHeaders,
+  mergeSetCookiesToHeaders,
   cookieHeaderFromSetCookie,
 } from "./helpers/cookies";
 import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
@@ -117,6 +117,8 @@ export const auth = betterAuth({
       enabled: true,
       maxAge: minutes(5, true),
     },
+    expiresIn: days(7, true),
+    updateAge: days(1, true),
   },
   emailAndPassword: {
     enabled: true,
@@ -156,16 +158,19 @@ export const auth = betterAuth({
   },
 
   hooks: {
-    // invalidating cookie cache for routes that modify user
+    // invalidating cookie cache for routes that modify user but don't automatically refresh the cookie
     after: createAuthMiddleware(async (context) => {
       const allowedRoutes = [
         SOME_AUTH_API_ROUTES.callback,
         SOME_AUTH_API_ROUTES.verifyEmail,
         SOME_AUTH_API_ROUTES.signInAnonymous,
       ];
-      if (!allowedRoutes.some((path) => context.path.startsWith(`/${path}`)))
+      if (
+        !allowedRoutes.some((path) => context.path.startsWith(`/${path}`)) ||
+        !context.context.newSession
+      ) {
         return;
-      if (!context.context.newSession) return;
+      }
 
       const responseHeaders = context.context.responseHeaders;
       if (!responseHeaders) return;
@@ -182,7 +187,7 @@ export const auth = betterAuth({
         asResponse: true,
       });
 
-      appendSetCookiesToHeaders(responseHeaders, refreshedSession.headers);
+      mergeSetCookiesToHeaders(responseHeaders, refreshedSession.headers);
     }),
   },
 

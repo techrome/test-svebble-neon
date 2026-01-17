@@ -4,7 +4,6 @@ import z, { ZodError } from "zod";
 
 import { isDev } from "@@/scripts/helpers/isDev";
 import { type TRPCContext } from "./context";
-import { assertHasReqRes, assertIsAuthed } from "./helpers/assert";
 import { APIError } from "better-auth";
 
 export const trpc = initTRPC.context<TRPCContext>().create({
@@ -54,17 +53,6 @@ export const trpc = initTRPC.context<TRPCContext>().create({
       },
     };
   },
-});
-
-export const withReqRes = trpc.middleware(({ ctx, next }) => {
-  assertHasReqRes(ctx);
-  return next({ ctx });
-});
-
-export const withAuth = trpc.middleware(({ ctx, next }) => {
-  assertHasReqRes(ctx);
-  assertIsAuthed(ctx);
-  return next({ ctx });
 });
 
 export const router = trpc.router;

@@ -67,8 +67,9 @@ const makeRatelimitMiddleware = <S extends WindowSpec>(
   const limiter = makeRatelimit(spec, prefix);
 
   const middleware = trpc.middleware(async ({ ctx, next }) => {
-    const requestId = ctx.user?.id
-      ? `u:${ctx.user.id}`
+    const cachedAuth = await ctx.getCachedAuth();
+    const requestId = cachedAuth?.response?.user.id
+      ? `u:${cachedAuth.response.user.id}`
       : `ip:${getHashedIp(ctx.req)}`;
 
     let rateLimitResponse: Awaited<ReturnType<typeof limiter.limit>> | null =

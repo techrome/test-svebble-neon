@@ -2,12 +2,11 @@ import { fromNodeHeaders } from "better-auth/node";
 import { NextApiRequest, NextApiResponse } from "next";
 
 import { router } from "../core";
-import { db } from "../../db/core";
-import * as schema from "../../db/schema";
 import {
   publicProcedure,
   privateProcedure,
   publicProcedureDefaultRateLimit,
+  privateCachedProcedure,
 } from "../procedures";
 import { auth } from "../auth";
 import { rateLimitMiddlewares } from "../ratelimit";
@@ -20,7 +19,7 @@ import {
 import z from "zod";
 import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
-import { appendSetCookiesToNextRes } from "../helpers/cookies";
+import { mergeSetCookiesToNextRes } from "../helpers/cookies";
 import { generatePlaceholderEmail } from "../helpers/email";
 import { oauthDoneStatus } from "@/components/AuthForm/Helpers";
 import {
@@ -32,14 +31,13 @@ import {
   usernameSchemaForm,
 } from "@/pages/app/my-profile";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
 import { PROVIDER_IDS } from "@/utils/constants";
 import { resetPasswordSchemaForm } from "@/pages/auth/reset-password";
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };
-type AuthCallResult<T> = { headers: Headers; response: T };
+export type AuthCallResult<T> = { headers: Headers; response: T };
 
-const getCookieForwarder = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
+export const getCookieForwarder = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
   const baseOptions = {
     returnHeaders: true,
     headers: fromNodeHeaders(ctx.req.headers),
@@ -49,7 +47,7 @@ const getCookieForwarder = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
     betterAuthFunction: (opts: typeof baseOptions) => Promise<AuthCallResult<T>>
   ): Promise<T> => {
     const authResponse = await betterAuthFunction(baseOptions);
-    appendSetCookiesToNextRes(ctx.res, authResponse.headers);
+    mergeSetCookiesToNextRes(ctx.res, authResponse.headers);
     return authResponse.response;
   };
 };
@@ -66,22 +64,18 @@ function throwIfZodError<TInput>(
 }
 
 export const authRouter = router({
-  user: publicProcedureDefaultRateLimit.query(({ ctx }) => ({
-    user: ctx.user,
-  })),
-  freshUser: publicProcedure
+  user: publicProcedureDefaultRateLimit.query(async ({ ctx }) => {
+    const authResponse = await ctx.getCachedAuth();
+
+    return {
+      user: authResponse?.response?.user,
+    };
+  }),
+  freshUser: privateProcedure
     .use(rateLimitMiddlewares.auth_sensitive)
     .query(async ({ ctx }) => {
-      const cookieForwarder = getCookieForwarder(ctx);
-      const authResponse = await cookieForwarder((opts) =>
-        auth.api.getSession({
-          query: { disableCookieCache: true },
-          ...opts,
-        })
-      );
-
       return {
-        user: authResponse?.user || null,
+        user: ctx.user,
       };
     }),
   signUpCredentials: publicProcedure
@@ -109,23 +103,8 @@ export const authRouter = router({
     .mutation(async ({ ctx, input }) => {
       const cookieForwarder = getCookieForwarder(ctx);
 
-      const currentUserRow = await db
-        .select({
-          email: schema.user.email,
-        })
-        .from(schema.user)
-        .where(eq(schema.user.id, ctx.user.id))
-        .then((users) => users[0]);
-
-      if (!currentUserRow) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "User not found.",
-        });
-      }
-
       throwIfZodError(
-        makeEmailChangeSchemaForm(currentUserRow.email).safeParse(input)
+        makeEmailChangeSchemaForm(ctx.user.email).safeParse(input)
       );
 
       await cookieForwarder((opts) =>
@@ -153,7 +132,7 @@ export const authRouter = router({
       }
       return { email: input.email };
     }),
-  cancelPendingEmail: privateProcedure
+  cancelPendingEmail: privateCachedProcedure
     .use(rateLimitMiddlewares.auth_changeEmail)
     .mutation(async ({ ctx }) => {
       return getCookieForwarder(ctx)((opts) =>
@@ -207,7 +186,6 @@ export const authRouter = router({
       })
     );
   }),
-
   googleLogin: publicProcedure
     .use(rateLimitMiddlewares.auth_login)
     .mutation(async ({ ctx }) => {
@@ -270,7 +248,7 @@ export const authRouter = router({
       return response;
     }),
 
-  updateUserBasicInfo: privateProcedure
+  updateUserBasicInfo: privateCachedProcedure
     .use(rateLimitMiddlewares.auth_normal)
     .input(basicProfileSchemaForm)
     .mutation(async ({ ctx, input }) => {
@@ -287,23 +265,16 @@ export const authRouter = router({
     .use(rateLimitMiddlewares.auth_normal)
     .input(usernameSchemaForm)
     .mutation(async ({ ctx, input }) => {
-      const currentUserRow = await db
-        .select({
-          username: schema.user.username,
-          remainingUsernameChanges: schema.user.remainingUsernameChanges,
-        })
-        .from(schema.user)
-        .where(eq(schema.user.id, ctx.user.id))
-        .then((users) => users[0]);
+      const currentUser = ctx.user;
 
-      if (!currentUserRow) {
+      if (!currentUser) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "User not found.",
         });
       }
       const currentRemainingUsernameChanges =
-        currentUserRow.remainingUsernameChanges;
+        currentUser.remainingUsernameChanges;
 
       if (
         !currentRemainingUsernameChanges ||
@@ -316,7 +287,7 @@ export const authRouter = router({
       }
 
       if (
-        input.username.toLowerCase() === currentUserRow.username?.toLowerCase()
+        input.username.toLowerCase() === currentUser.username?.toLowerCase()
       ) {
         throw new TRPCError({
           code: "UNPROCESSABLE_CONTENT",
@@ -338,7 +309,7 @@ export const authRouter = router({
         })
       );
     }),
-  changeUserPassword: privateProcedure
+  changeUserPassword: privateCachedProcedure
     .use(rateLimitMiddlewares.auth_sensitive)
     .input(passwordSchemaForm)
     .mutation(async ({ input, ctx }) => {
@@ -373,7 +344,7 @@ export const authRouter = router({
         );
       }
     }),
-  listUserAccounts: privateProcedure
+  listUserAccounts: privateCachedProcedure
     .use(rateLimitMiddlewares.auth_normal)
     .input(
       z.object({
