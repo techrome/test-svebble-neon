@@ -2,7 +2,11 @@ import React from "react";
 import { trpc } from "@/trpc";
 import useAppQuery, { UseAppQueryOptions } from "@/utils/hooks/useAppQuery";
 import { CACHE_TIME } from "@/utils/cacheTime";
-import { TRPCQueryOptions } from "@/trpc/hooks/useUser";
+
+type TRPCQueryOptions = Omit<
+  NonNullable<Parameters<typeof trpc.auth.freshUser.useQuery>[1]>,
+  "select"
+>;
 
 export const useFreshUser = (
   trpcQueryOptions?: TRPCQueryOptions,
@@ -27,19 +31,4 @@ export const useFreshUser = (
   }, [freshUser.dataUpdatedAt]);
 
   return freshUser;
-};
-
-export const useFreshAuthedUserData = (
-  trpcQueryOptions?: TRPCQueryOptions,
-  appQueryOptions?: UseAppQueryOptions
-) => {
-  const freshUser = useFreshUser(trpcQueryOptions, appQueryOptions);
-
-  if (!freshUser.data?.user) {
-    throw new Error(
-      "useFreshAuthedUserData must be guaranteed to have the user data."
-    );
-  }
-
-  return freshUser.data.user;
 };

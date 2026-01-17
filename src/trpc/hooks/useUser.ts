@@ -1,8 +1,10 @@
+import React from "react";
 import { trpc } from "@/trpc";
 import useAppQuery, { UseAppQueryOptions } from "@/utils/hooks/useAppQuery";
 import { CACHE_TIME } from "@/utils/cacheTime";
+import { AuthedUserContext } from "@/components/PrivateRoute/PrivateRoute";
 
-export type TRPCQueryOptions = Omit<
+type TRPCQueryOptions = Omit<
   NonNullable<Parameters<typeof trpc.auth.user.useQuery>[1]>,
   "select"
 >;
@@ -22,17 +24,14 @@ export const useUser = (
   return user;
 };
 
-export const useAuthedUserData = (
-  trpcQueryOptions?: TRPCQueryOptions,
-  appQueryOptions?: UseAppQueryOptions
-) => {
-  const user = useUser(trpcQueryOptions, appQueryOptions);
+export const useAuthedUserData = () => {
+  const user = React.useContext(AuthedUserContext);
 
-  if (!user.data?.user) {
+  if (!user) {
     throw new Error(
       "useAuthedUserData must be guaranteed to have the user data."
     );
   }
 
-  return user.data.user;
+  return user;
 };

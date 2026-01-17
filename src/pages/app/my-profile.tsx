@@ -35,10 +35,7 @@ import Confirm from "@/components/ModalTemplates/Confirm";
 import { CACHE_TIME, minutes, seconds } from "@/utils/cacheTime";
 import { PROVIDER_IDS } from "@/utils/constants";
 import { isPlaceholderEmail } from "@/trpc/helpers/email";
-import {
-  useFreshAuthedUserData,
-  useFreshUser,
-} from "@/trpc/hooks/useFreshUser";
+import { useFreshUser } from "@/trpc/hooks/useFreshUser";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import dayjs from "@/utils/dayjs";
 import { Dayjs } from "dayjs";
@@ -499,7 +496,7 @@ export type EmailFormValues = z.infer<typeof emailSchemaForm>;
 
 const EmailForm = () => {
   const pollingStartedTime = React.useRef<Dayjs | null>(null);
-  const freshUserData = useFreshAuthedUserData(
+  useFreshUser(
     {
       refetchInterval: (data) => {
         const shouldStartPolling = Boolean(
@@ -536,6 +533,7 @@ const EmailForm = () => {
     },
     { disableLoadingBoundary: true }
   );
+  const freshUserData = useAuthedUserData();
 
   const schema = React.useMemo(() => {
     return makeEmailChangeSchemaForm(freshUserData.email);
