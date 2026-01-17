@@ -14,6 +14,7 @@ type EnvVar =
   | "DATABASE_URL_DOMAIN"
   | "DATABASE_URL_PORT"
   | "DATABASE_URL"
+  | "APPLICATION_NAME"
   | "DATABASE_URL_UNPOOLED"
   | "SENTRY_AUTH_TOKEN"
   | "BETTER_AUTH_SECRET"
@@ -40,6 +41,7 @@ export const env = createEnv({
     DATABASE_URL_PORT: requiredForDev(),
     PGADMIN_DEFAULT_EMAIL: z.email().optional(),
     PGADMIN_DEFAULT_PASSWORD: z.string().optional(),
+    APPLICATION_NAME: z.string().optional(),
 
     // prod
     DATABASE_URL: z.string().optional(),

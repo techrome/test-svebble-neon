@@ -15,6 +15,6 @@ if (!isDev && !prodUrl) {
 
 export const getDBURL = () =>
   prodUrl ||
-  `postgres://${env.POSTGRES_USER}:${env.POSTGRES_PASSWORD}@${env.DATABASE_URL_DOMAIN}:${env.DATABASE_URL_PORT}/${env.POSTGRES_DB}`;
+  `postgres://${env.POSTGRES_USER}:${env.POSTGRES_PASSWORD}@${env.DATABASE_URL_DOMAIN}:${env.DATABASE_URL_PORT}/${env.POSTGRES_DB}${env.APPLICATION_NAME ? `?application_name=${env.APPLICATION_NAME}` : ""}`;
 
 export const getDBURLPrimary = () => prodUrlPrimary || getDBURL();
