@@ -15,7 +15,7 @@ import { loginSchemaForm } from "@/utils/validators/shared/auth";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
 import { trpc } from "@/trpc";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
-import { userLoginLifecycle } from "@/utils/userLifecycle";
+import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
 import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {

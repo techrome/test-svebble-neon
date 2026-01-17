@@ -14,7 +14,7 @@ import { addSnackbar } from "@/redux/slices/snackbars";
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
 import { VerticalStack } from "@/components/Layout/Containers";
 import { Typography } from "@mui/material";
-import { userLogoutLifecycle } from "@/utils/userLifecycle";
+import { userLogoutLifecycle } from "@/trpc/helpers/userLifecycle";
 
 export type MutationMeta = {
   keepDefaultErrorHandling?: boolean;
@@ -161,7 +161,16 @@ const createQueryClient = () => {
     }),
     defaultOptions: {
       queries: {
-        retry: 1,
+        retry: (failureCount, error) => {
+          if (
+            error instanceof TRPCClientError &&
+            (error.data?.code === "UNAUTHORIZED" ||
+              error.data?.httpStatus === 401)
+          ) {
+            return false;
+          }
+          return failureCount < 1;
+        },
       },
     },
   });
