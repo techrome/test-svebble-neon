@@ -13,6 +13,14 @@
   "prettier.requireConfig": true,
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "javascript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.preferences.autoImportSpecifierExcludeRegexes": [
+    "^@/server/",
+    "^src/server/"
+  ],
+  "javascript.preferences.autoImportSpecifierExcludeRegexes": [
+    "^@/server/",
+    "^src/server/"
+  ],
   "files.eol": "\n",
   "files.associations": {
     ".env": "properties",
