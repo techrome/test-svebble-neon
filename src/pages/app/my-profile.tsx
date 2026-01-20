@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Chip, CircularProgress, Paper, Typography } from "@mui/material";
@@ -10,6 +10,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
 import MailIcon from "@mui/icons-material/Mail";
 import LockIcon from "@mui/icons-material/Lock";
+import FileUploadIcon from "@mui/icons-material/FileUpload";
 
 import {
   defaultPadding,
@@ -30,7 +31,7 @@ import {
   UsernameInput,
 } from "@/components/AuthForm/Signup";
 import avatarPlaceholderSrc from "@@/public/images/user-placeholder.webp";
-import { useGlobalModal } from "@/utils/hooks/useOverlay";
+import { useGlobalModal, useLocalModal } from "@/utils/hooks/useOverlay";
 import Confirm from "@/components/ModalTemplates/Confirm";
 import { CACHE_TIME, minutes, seconds } from "@/utils/cacheTime";
 import { PROVIDER_IDS } from "@/utils/constants";
@@ -44,6 +45,12 @@ import {
   BroadcastChannelEvent,
   BroadcastChannels,
 } from "@/pages/app/email-verified";
+import Tooltip from "@/components/Tooltip/Tooltip";
+import HelperText from "@/components/Fields/HelperText";
+import { megabytes } from "@/utils/storageUnits";
+import { env } from "@/utils/env";
+
+const GOOGLE_AVATAR_PREFIX = "https://lh3.googleusercontent.com/";
 
 const SectionWrapper = (props: { children: React.ReactNode }) => {
   return (
@@ -53,6 +60,92 @@ const SectionWrapper = (props: { children: React.ReactNode }) => {
     >
       {props.children}
     </Paper>
+  );
+};
+
+export const allowedAvatarExtensionsMap = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+} as const;
+
+export const avatarUploadUrlSchema = z.object({
+  fileType: z.enum(
+    Object.keys(
+      allowedAvatarExtensionsMap
+    ) as (keyof typeof allowedAvatarExtensionsMap)[],
+    { error: "Unsupported file type." }
+  ),
+  fileSize: z
+    .number()
+    .int()
+    .positive()
+    .max(megabytes(1), { error: "File must be less than 1MB in size." }),
+});
+
+type AvatarUploadUrlSchemaForm = z.infer<typeof avatarUploadUrlSchema>;
+
+const AvatarChangeModal = ({
+  avatarFile,
+  onAvatarChange,
+  validateFile,
+  onCancel,
+  onConfirm,
+}: {
+  avatarFile: File | null;
+  onAvatarChange: (file: File | null) => void;
+  validateFile: (
+    file: File | null
+  ) => z.ZodSafeParseSuccess<AvatarUploadUrlSchemaForm> | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) => {
+  return (
+    <VerticalStack>
+      <div>
+        <Button
+          variant="contained"
+          color="primary"
+          component="label"
+          startIcon={<FileUploadIcon />}
+        >
+          Choose file
+          <input
+            hidden
+            type="file"
+            accept={Object.keys(allowedAvatarExtensionsMap).join(",")}
+            onClick={(e) => {
+              e.currentTarget.value = "";
+            }}
+            onChange={(e) => {
+              const file = e.currentTarget.files?.[0];
+
+              if (!file) return;
+
+              const parseResult = validateFile(file);
+              if (!parseResult) return;
+              onAvatarChange(file);
+            }}
+          />
+        </Button>
+        <HelperText
+          helperText={`Selected file: ${avatarFile?.name}`}
+          helperTextAlwaysShown
+        />
+        <HelperText
+          helperText={`Max size: 1MB. Allowed formats: ${Object.values(allowedAvatarExtensionsMap).join(", ")}.`}
+          helperTextAlwaysShown
+        />
+      </div>
+      <HorizontalStack addClassName="justify-between items-center">
+        <Button variant="outlined" color="primary" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button variant="contained" color="primary" onClick={onConfirm}>
+          Save
+        </Button>
+      </HorizontalStack>
+    </VerticalStack>
   );
 };
 
@@ -81,34 +174,94 @@ const BasicProfileForm = () => {
     defaultValues: { name: userData.name },
     resolver: zodResolver(basicProfileSchemaForm),
   });
-  const formIsDirty = form.formState.isDirty;
+  const nameIsDirty = form.formState.dirtyFields.name;
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarWasChanged, setAvatarWasChanged] = useState<boolean>(false);
 
   const { addAppSnackbar } = useAppSnackbar();
+  const avatarEditModal = useLocalModal();
   const utils = trpc.useUtils();
-  const basicInfoUpdateMutation = trpc.auth.updateUserBasicInfo.useMutation({
-    async onSuccess(_data, variables) {
-      await utils.auth.user.invalidate();
+  const basicInfoUpdateMutation = trpc.user.updateUserBasicInfo.useMutation();
+  const createAvatarUploadUrlMutation =
+    trpc.user.createAvatarUploadUrl.useMutation();
+
+  const validateAvatarFile = (file: File | null) => {
+    const parseResult = avatarUploadUrlSchema.safeParse({
+      fileSize: file?.size,
+      fileType: file?.type,
+    });
+
+    if (!parseResult.success) {
       addAppSnackbar({
-        message: "Profile updated",
-        variant: "success",
+        message: parseResult.error?.issues?.[0].message,
+        variant: "error",
       });
-      form.reset({
-        name: variables.name,
+      return null;
+    }
+
+    return parseResult;
+  };
+
+  const handleCreateAvatarUploadUrl = async () => {
+    const parseResult = validateAvatarFile(avatarFile);
+    if (!parseResult) return;
+    const data = await createAvatarUploadUrlMutation.mutateAsync(
+      parseResult.data
+    );
+    try {
+      await fetch(data.uploadUrl, {
+        method: "PUT",
+        headers: data.requiredHeaders,
+        body: avatarFile,
       });
-    },
-  });
+      return data.bucketKey;
+    } catch (_err) {
+      addAppSnackbar({
+        message: "Failed to upload the image",
+        variant: "error",
+      });
+    }
+  };
+
+  const resetAvatarState = () => {
+    setAvatarFile(null);
+    setAvatarWasChanged(false);
+  };
 
   const onSubmit: SubmitHandler<BasicProfileFormValues> = async (values) => {
-    if (!formIsDirty) {
+    if (!nameIsDirty && !userData.image && !avatarFile) {
       addAppSnackbar({
         message: "Profile is already up to date",
       });
       return;
     }
-    basicInfoUpdateMutation.mutate(values);
+
+    let avatarBucketKey = undefined;
+    if (avatarWasChanged) {
+      if (avatarFile) {
+        avatarBucketKey = await handleCreateAvatarUploadUrl();
+      } else {
+        avatarBucketKey = null;
+      }
+    }
+
+    await basicInfoUpdateMutation.mutateAsync({
+      ...values,
+      ...(avatarBucketKey !== undefined ? { image: avatarBucketKey } : {}),
+    });
+
+    await utils.auth.user.invalidate();
+    addAppSnackbar({
+      message: "Profile updated",
+      variant: "success",
+    });
+    form.reset({
+      name: values.name,
+    });
+    resetAvatarState();
   };
 
-  const isSubmitting = basicInfoUpdateMutation.isPending;
+  const isSubmitting = form.formState.isSubmitting;
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
       <Typography variant="h6" component="h2" className="mb-2">
@@ -119,16 +272,25 @@ const BasicProfileForm = () => {
           <HorizontalStack addClassName="items-center">
             <div className="group relative w-full max-w-32 h-32 rounded-full border-4 border-[var(--mui-palette-text-secondary)]">
               <Image
-                className="rounded-full "
-                src={userData.image || avatarPlaceholderSrc}
+                className="rounded-full"
+                src={
+                  userData.image
+                    ? userData.image.startsWith(GOOGLE_AVATAR_PREFIX)
+                      ? userData.image
+                      : `${env.NEXT_PUBLIC_CDN_URL}/${userData.image}`
+                    : avatarPlaceholderSrc
+                }
                 alt="user-avatar"
                 fill
                 sizes="128px"
                 quality={100}
+                unoptimized={Boolean(userData.image)}
               />
               <ButtonBase
                 focusRipple
                 className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 bg-[rgb(var(--mui-palette-background-defaultChannel)/0.6)] text-[var(--mui-palette-text-primary)] transition absolute inset-0 rounded-full flex justify-center items-center"
+                type="button"
+                onClick={avatarEditModal.openModal}
               >
                 <EditIcon />
               </ButtonBase>
@@ -138,7 +300,9 @@ const BasicProfileForm = () => {
                 <Button
                   variant="contained"
                   color="inherit"
+                  type="button"
                   startIcon={<EditIcon />}
+                  onClick={avatarEditModal.openModal}
                 >
                   Change avatar
                 </Button>
@@ -146,6 +310,11 @@ const BasicProfileForm = () => {
                   <Button
                     variant="outlined"
                     color="error"
+                    type="button"
+                    onClick={() => {
+                      setAvatarFile(null);
+                      setAvatarWasChanged(true);
+                    }}
                     startIcon={<DeleteIcon />}
                   >
                     Remove avatar
@@ -171,6 +340,21 @@ const BasicProfileForm = () => {
         >
           Save
         </Button>
+        <avatarEditModal.ReadyComponent title="Change Avatar">
+          <AvatarChangeModal
+            avatarFile={avatarFile}
+            onAvatarChange={(file) => {
+              setAvatarFile(file);
+              setAvatarWasChanged(true);
+            }}
+            validateFile={validateAvatarFile}
+            onCancel={() => {
+              setAvatarFile(null);
+              avatarEditModal.closeModal();
+            }}
+            onConfirm={avatarEditModal.closeModal}
+          />
+        </avatarEditModal.ReadyComponent>
       </VerticalStack>
     </form>
   );
@@ -208,7 +392,7 @@ const UsernameForm = () => {
   const { addAppSnackbar } = useAppSnackbar();
   const { openModal, closeModal } = useGlobalModal();
   const utils = trpc.useUtils();
-  const usernameUpdateMutation = trpc.auth.updateUserUsername.useMutation({
+  const usernameUpdateMutation = trpc.user.updateUserUsername.useMutation({
     async onSuccess() {
       await utils.auth.user.invalidate();
       addAppSnackbar({
@@ -363,10 +547,10 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
   const { addAppSnackbar } = useAppSnackbar();
   const utils = trpc.useUtils();
 
-  const passwordUpdateMutation = trpc.auth.changeUserPassword.useMutation({
+  const passwordUpdateMutation = trpc.user.changeUserPassword.useMutation({
     async onSuccess() {
       await utils.auth.user.invalidate();
-      await utils.auth.listUserAccounts.invalidate();
+      await utils.user.listUserAccounts.invalidate();
       addAppSnackbar({
         message: "Password updated",
         variant: "success",
@@ -446,7 +630,7 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
 
 const PasswordFormWrapper = () => {
   const userData = useAuthedUserData();
-  const userAccounts = trpc.auth.listUserAccounts.useQuery(
+  const userAccounts = trpc.user.listUserAccounts.useQuery(
     { id: userData.id },
     {
       staleTime: CACHE_TIME.NORMAL,
@@ -547,7 +731,7 @@ const EmailForm = () => {
   const { addAppSnackbar } = useAppSnackbar();
 
   const utils = trpc.useUtils();
-  const emailUpdateMutation = trpc.auth.changeEmail.useMutation({
+  const emailUpdateMutation = trpc.user.changeEmail.useMutation({
     meta: { keepDefaultErrorHandling: true },
     async onSuccess(_data, variables) {
       await utils.auth.freshUser.invalidate();
@@ -569,7 +753,7 @@ const EmailForm = () => {
       resendTimer.reset();
     },
   });
-  const cancelPendingEmailMutation = trpc.auth.cancelPendingEmail.useMutation({
+  const cancelPendingEmailMutation = trpc.user.cancelPendingEmail.useMutation({
     async onSuccess() {
       await utils.auth.freshUser.invalidate();
     },
@@ -649,85 +833,112 @@ const EmailForm = () => {
                         Waiting for email confirmation...
                       </Typography>
                     </div>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={() => {
-                        if (freshUserData.pendingEmail) {
-                          emailUpdateMutation.mutate({
-                            email: freshUserData.pendingEmail,
-                          });
-                        }
-                      }}
-                      isLoading={emailUpdateMutation.isPending}
-                      disabled={anySubmitting || resendTimer.isCoolingDown}
-                      className={resendTimer.isCoolingDown ? "normal-case" : ""}
-                      endIcon={
-                        resendTimer.isCoolingDown && (
-                          <CircularProgress
-                            size={20}
-                            variant="determinate"
-                            value={resendTimer.progress}
-                            enableTrackSlot
-                          />
-                        )
+                    <Tooltip
+                      title={
+                        resendTimer.isCoolingDown
+                          ? `You can resend the link in ${resendTimer.remainingSeconds} seconds.`
+                          : ""
                       }
                     >
-                      {resendTimer.isCoolingDown
-                        ? `${resendTimer.remainingSeconds}s`
-                        : "Resend link"}
-                    </Button>
-                    <Button
-                      variant="contained"
-                      color="inherit"
-                      onClick={() => {
-                        cancelPendingEmailMutation.mutate();
-                      }}
-                      isLoading={cancelPendingEmailMutation.isPending}
-                      disabled={anySubmitting}
-                    >
-                      Cancel
-                    </Button>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        type="button"
+                        onClick={() => {
+                          if (freshUserData.pendingEmail) {
+                            emailUpdateMutation.mutate({
+                              email: freshUserData.pendingEmail,
+                            });
+                          }
+                        }}
+                        isLoading={emailUpdateMutation.isPending}
+                        disabled={anySubmitting || resendTimer.isCoolingDown}
+                        className={
+                          resendTimer.isCoolingDown ? "normal-case" : ""
+                        }
+                        endIcon={
+                          resendTimer.isCoolingDown && (
+                            <CircularProgress
+                              size={20}
+                              variant="determinate"
+                              value={resendTimer.progress}
+                              enableTrackSlot
+                            />
+                          )
+                        }
+                      >
+                        {resendTimer.isCoolingDown
+                          ? `${resendTimer.remainingSeconds}s`
+                          : "Resend link"}
+                      </Button>
+                    </Tooltip>
+                    <Tooltip title="Cancel and use a different email.">
+                      <Button
+                        variant="contained"
+                        color="inherit"
+                        type="button"
+                        onClick={() => {
+                          cancelPendingEmailMutation.mutate();
+                        }}
+                        isLoading={cancelPendingEmailMutation.isPending}
+                        disabled={anySubmitting}
+                      >
+                        Cancel
+                      </Button>
+                    </Tooltip>
                   </HorizontalStack>
                 </>
               )}
             </VerticalStack>
           ) : null}
-          <Input
-            control={form.control}
-            name="email"
-            label="New email"
-            type="email"
-            autoComplete="email"
-            fullWidth
-            helperText={
-              anyEmail
-                ? "We’ll send a verification link to this address. Your current email stays active until you verify the new one."
-                : "We’ll send a verification link to this address. Verify this email to finish setting up your account."
-            }
-          />
-          <Button
-            variant="contained"
-            type="submit"
-            size="large"
-            isLoading={emailUpdateMutation.isPending}
-            disabled={anySubmitting || resendTimer.isCoolingDown}
-            className={resendTimer.isCoolingDown ? "normal-case" : ""}
-            endIcon={
-              resendTimer.isCoolingDown && (
-                <CircularProgress
-                  size={20}
-                  variant="determinate"
-                  value={resendTimer.progress}
-                  enableTrackSlot
-                />
-              )
-            }
-          >
-            {resendTimer.isCoolingDown
-              ? `${resendTimer.remainingSeconds}s`
-              : "Send verification link"}
-          </Button>
+          {!freshUserData.pendingEmail && (
+            <>
+              <Input
+                control={form.control}
+                name="email"
+                label="New email"
+                type="email"
+                autoComplete="email"
+                fullWidth
+                helperText={
+                  anyEmail
+                    ? "We’ll send a verification link to this address. Your current email stays active until you verify the new one."
+                    : "We’ll send a verification link to this address. Verify this email to finish setting up your account."
+                }
+              />
+              <Tooltip
+                title={
+                  resendTimer.isCoolingDown
+                    ? `You can send the link in ${resendTimer.remainingSeconds} seconds.`
+                    : ""
+                }
+              >
+                <Button
+                  variant="contained"
+                  type="submit"
+                  size="large"
+                  fullWidth
+                  isLoading={emailUpdateMutation.isPending}
+                  disabled={anySubmitting || resendTimer.isCoolingDown}
+                  className={resendTimer.isCoolingDown ? "normal-case" : ""}
+                  endIcon={
+                    resendTimer.isCoolingDown && (
+                      <CircularProgress
+                        size={20}
+                        variant="determinate"
+                        value={resendTimer.progress}
+                        enableTrackSlot
+                      />
+                    )
+                  }
+                >
+                  {resendTimer.isCoolingDown
+                    ? `${resendTimer.remainingSeconds}s`
+                    : "Send verification link"}
+                </Button>
+              </Tooltip>
+            </>
+          )}
         </VerticalStack>
       </form>
     </>
