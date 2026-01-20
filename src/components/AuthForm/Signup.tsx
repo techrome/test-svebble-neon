@@ -314,7 +314,7 @@ export const UsernameInput = <TFV extends Username>({
     disabled;
 
   const usernameAvailabilityQuery = useAppQuery(
-    trpc.auth.checkUsernameAvailability.useQuery(
+    trpc.user.checkUsernameAvailability.useQuery(
       { username: debouncedUsername },
       { staleTime: CACHE_TIME.NORMAL, retry: false, enabled: !queryDisabled }
     ),
@@ -384,7 +384,7 @@ const Signup = (props: Props) => {
   const { addAppSnackbar } = useAppSnackbar();
   const qc = useQueryClient();
 
-  const changeEmailMutation = trpc.auth.changeEmail.useMutation({
+  const changeEmailMutation = trpc.user.changeEmail.useMutation({
     onSuccess(data) {
       addAppSnackbar({
         message: (

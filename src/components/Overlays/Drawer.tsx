@@ -42,6 +42,7 @@ const Drawer = ({
         paper: { className: "w-full sm:w-md max-w-full" },
       }}
       anchor="right"
+      disableEnforceFocus
       {...muiDrawerProps}
     >
       <DialogTitle

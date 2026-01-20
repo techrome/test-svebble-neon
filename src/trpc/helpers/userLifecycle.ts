@@ -18,7 +18,7 @@ export const userLogoutLifecycle = async (qc: QueryClient) => {
   const userKey = getQueryKey(trpc.auth.user, undefined, "query");
   const freshUserKey = getQueryKey(trpc.auth.freshUser, undefined, "query");
   const listUserAccountsKey = getQueryKey(
-    trpc.auth.listUserAccounts,
+    trpc.user.listUserAccounts,
     undefined,
     "query"
   );

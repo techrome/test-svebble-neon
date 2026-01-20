@@ -10,6 +10,7 @@ import {
 } from "../procedures";
 import * as sharedCommentsValidations from "@/utils/validators/shared/comments";
 import { authRouter } from "./auth";
+import { userRouter } from "./user";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -115,6 +116,7 @@ export const appRouter = router({
     await db.delete(schema.commentsSchema);
   }),
   auth: authRouter,
+  user: userRouter,
 });
 
 export type AppRouter = typeof appRouter;

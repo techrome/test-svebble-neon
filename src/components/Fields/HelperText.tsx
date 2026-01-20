@@ -5,7 +5,7 @@ import Collapse from "@/components/Collapse/Collapse";
 import { useFormControl } from "@mui/material";
 
 type Props = {
-  hasError: boolean;
+  hasError?: boolean;
   error?: FieldError;
   helperText?: React.ReactNode;
   helperTextAlwaysShown?: boolean;

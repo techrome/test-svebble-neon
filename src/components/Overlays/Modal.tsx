@@ -40,6 +40,7 @@ const Modal = ({
       onClose={onClose}
       fullWidth
       slotProps={{ transition: { onExited } }}
+      disableEnforceFocus
       {...dialogProps}
     >
       <DialogTitle

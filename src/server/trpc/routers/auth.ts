@@ -52,16 +52,16 @@ export const getCookieForwarder = <THttpCtx extends HttpCtx>(ctx: THttpCtx) => {
   };
 };
 
-function throwIfZodError<TInput>(
+export const throwIfZodError: <TInput>(
   parseResult: z.ZodSafeParseResult<TInput>
-): asserts parseResult is z.ZodSafeParseSuccess<TInput> {
+) => asserts parseResult is z.ZodSafeParseSuccess<TInput> = (parseResult) => {
   if (!parseResult.success) {
     throw new TRPCError({
       code: "BAD_REQUEST",
       cause: parseResult.error,
     });
   }
-}
+};
 
 export const authRouter = router({
   user: publicProcedureDefaultRateLimit.query(async ({ ctx }) => {
@@ -92,54 +92,6 @@ export const authRouter = router({
             password: input.password,
             pendingEmail: input.email || null,
             pendingEmailSetAt: input.email ? new Date() : null,
-          },
-          ...opts,
-        })
-      );
-    }),
-  changeEmail: privateProcedure
-    .use(rateLimitMiddlewares.auth_changeEmail)
-    .input(emailSchemaForm)
-    .mutation(async ({ ctx, input }) => {
-      const cookieForwarder = getCookieForwarder(ctx);
-
-      throwIfZodError(
-        makeEmailChangeSchemaForm(ctx.user.email).safeParse(input)
-      );
-
-      await cookieForwarder((opts) =>
-        auth.api.updateUser({
-          body: {
-            pendingEmail: input.email || null,
-            pendingEmailSetAt: input.email ? new Date() : null,
-          },
-          ...opts,
-        })
-      );
-      try {
-        await cookieForwarder((opts) =>
-          auth.api.changeEmail({
-            body: {
-              newEmail: input.email,
-              callbackURL: `${baseURL}/${ROUTES.private_emailVerified}`,
-            },
-            ...opts,
-          })
-        );
-      } catch (_err) {
-        // intentionally do nothing so that the user won't know whether
-        // the email already exists (prevents email enumeration attacks)
-      }
-      return { email: input.email };
-    }),
-  cancelPendingEmail: privateCachedProcedure
-    .use(rateLimitMiddlewares.auth_changeEmail)
-    .mutation(async ({ ctx }) => {
-      return getCookieForwarder(ctx)((opts) =>
-        auth.api.updateUser({
-          body: {
-            pendingEmail: null,
-            pendingEmailSetAt: null,
           },
           ...opts,
         })
@@ -231,142 +183,5 @@ export const authRouter = router({
       });
 
       return res;
-    }),
-  checkUsernameAvailability: publicProcedure
-    .use(rateLimitMiddlewares.auth_usernameCheck)
-    .input(
-      z.object({
-        username: zUsername,
-      })
-    )
-    .query(async ({ input }) => {
-      const response = await auth.api.isUsernameAvailable({
-        body: {
-          username: input.username,
-        },
-      });
-      return response;
-    }),
-
-  updateUserBasicInfo: privateCachedProcedure
-    .use(rateLimitMiddlewares.auth_normal)
-    .input(basicProfileSchemaForm)
-    .mutation(async ({ ctx, input }) => {
-      return getCookieForwarder(ctx)((opts) =>
-        auth.api.updateUser({
-          body: {
-            name: input.name,
-          },
-          ...opts,
-        })
-      );
-    }),
-  updateUserUsername: privateProcedure
-    .use(rateLimitMiddlewares.auth_normal)
-    .input(usernameSchemaForm)
-    .mutation(async ({ ctx, input }) => {
-      const currentUser = ctx.user;
-
-      if (!currentUser) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "User not found.",
-        });
-      }
-      const currentRemainingUsernameChanges =
-        currentUser.remainingUsernameChanges;
-
-      if (
-        !currentRemainingUsernameChanges ||
-        currentRemainingUsernameChanges < 1
-      ) {
-        throw new TRPCError({
-          code: "UNPROCESSABLE_CONTENT",
-          message: "You cannot change your username.",
-        });
-      }
-
-      if (
-        input.username.toLowerCase() === currentUser.username?.toLowerCase()
-      ) {
-        throw new TRPCError({
-          code: "UNPROCESSABLE_CONTENT",
-          message: "New username must be different than your current username.",
-        });
-      }
-
-      return getCookieForwarder(ctx)((opts) =>
-        auth.api.updateUser({
-          body: {
-            username: input.username,
-            hasRandomUsername: false,
-            remainingUsernameChanges: Math.max(
-              0,
-              currentRemainingUsernameChanges - 1
-            ),
-          },
-          ...opts,
-        })
-      );
-    }),
-  changeUserPassword: privateCachedProcedure
-    .use(rateLimitMiddlewares.auth_sensitive)
-    .input(passwordSchemaForm)
-    .mutation(async ({ input, ctx }) => {
-      const cookieForwarder = getCookieForwarder(ctx);
-
-      const userAccounts = await cookieForwarder((opts) =>
-        auth.api.listUserAccounts({ ...opts })
-      );
-
-      const hasOldPassword = userAccounts.some(
-        (account) => account.providerId === PROVIDER_IDS.credential
-      );
-      if (hasOldPassword) {
-        throwIfZodError(
-          makePasswordSchemaForm(hasOldPassword).safeParse(input)
-        );
-        return cookieForwarder((opts) =>
-          auth.api.changePassword({
-            body: {
-              currentPassword: input.oldPassword,
-              newPassword: input.password,
-            },
-            ...opts,
-          })
-        );
-      } else {
-        return cookieForwarder((opts) =>
-          auth.api.setPassword({
-            body: { newPassword: input.password },
-            ...opts,
-          })
-        );
-      }
-    }),
-  listUserAccounts: privateCachedProcedure
-    .use(rateLimitMiddlewares.auth_normal)
-    .input(
-      z.object({
-        // unused id just for cache busting on the client
-        id: z.string(),
-      })
-    )
-    .query(({ ctx }) =>
-      getCookieForwarder(ctx)((opts) =>
-        auth.api.listUserAccounts({
-          ...opts,
-        })
-      )
-    ),
-  deleteUser: privateProcedure
-    .use(rateLimitMiddlewares.auth_sensitive)
-    .mutation(async ({ ctx }) => {
-      return getCookieForwarder(ctx)((opts) =>
-        auth.api.deleteUser({
-          body: {},
-          ...opts,
-        })
-      );
     }),
 });
