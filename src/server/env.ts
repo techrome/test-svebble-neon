@@ -3,7 +3,14 @@ import z from "zod";
 
 // relative paths here because this file is used in some cli and they can't recognize TS path aliases
 import { isDev } from "../../scripts/helpers/isDev";
-import { domain, required, requiredForDev } from "../utils/env";
+import {
+  ClientEnvVar,
+  domain,
+  required,
+  requiredForDev,
+  requiredForProd,
+  url,
+} from "@/utils/env";
 
 type EnvVar =
   | "POSTGRES_USER"
@@ -27,9 +34,15 @@ type EnvVar =
   | "GOOGLE_CLIENT_SECRET"
   | "UPSTASH_REDIS_REST_TOKEN"
   | "UPSTASH_REDIS_REST_URL"
-  | "RATELIMIT_IP_SALT";
+  | "RATELIMIT_IP_SALT"
+  | "BACKBLAZE_APP_KEY"
+  | "BACKBLAZE_APP_KEY_ID"
+  | "BACKBLAZE_BUCKET_NAME"
+  | "BACKBLAZE_REGION"
+  | "BACKBLAZE_ENDPOINT";
 
 type EnvRecord = Record<EnvVar, z.ZodType>;
+type ClientEnvRecord = Omit<Record<ClientEnvVar, z.ZodType>, "NODE_ENV">;
 
 export const env = createEnv({
   server: {
@@ -48,8 +61,13 @@ export const env = createEnv({
     DATABASE_URL_UNPOOLED: z.string().optional(),
     VERCEL: z.string().optional(),
     VERCEL_ENV: z.enum(["development", "production", "preview"]).optional(),
-    VERCEL_URL: domain().optional(),
-    VERCEL_PROJECT_PRODUCTION_URL: domain().optional(),
+    VERCEL_URL: domain(false),
+    VERCEL_PROJECT_PRODUCTION_URL: domain(false),
+    BACKBLAZE_APP_KEY: requiredForProd(),
+    BACKBLAZE_APP_KEY_ID: requiredForProd(),
+    BACKBLAZE_BUCKET_NAME: requiredForProd(),
+    BACKBLAZE_ENDPOINT: url(!isDev),
+    BACKBLAZE_REGION: requiredForProd(),
 
     // common
     BASE_URL: z.url().optional(),
@@ -61,7 +79,12 @@ export const env = createEnv({
     UPSTASH_REDIS_REST_URL: z.url(),
     RATELIMIT_IP_SALT: required(),
   } satisfies EnvRecord,
-  experimental__runtimeEnv: {},
+  shared: {
+    NEXT_PUBLIC_CDN_URL: url(!isDev),
+  } satisfies ClientEnvRecord,
+  experimental__runtimeEnv: {
+    NEXT_PUBLIC_CDN_URL: process.env.NEXT_PUBLIC_CDN_URL,
+  },
   emptyStringAsUndefined: true,
   createFinalSchema: (shape) =>
     z.object(shape).superRefine((all, ctx) => {
