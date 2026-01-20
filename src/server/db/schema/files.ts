@@ -33,6 +33,7 @@ export const filesSchema = pgTable(
     purpose: filePurposeEnum("purpose").notNull(),
     object_key: varchar({ length: TEXT_LIMITS.long }).notNull().unique(),
     deleted_at: timestamp({ withTimezone: true, precision: 3 }),
+    error_text: varchar({ length: TEXT_LIMITS.long }),
   }),
   (table) => [
     index("cleanup_index").on(table.status, table.created_at),
