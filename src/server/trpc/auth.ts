@@ -139,6 +139,7 @@ export const auth = betterAuth({
       hasRandomUsername: { type: "boolean", defaultValue: false },
       pendingEmail: { type: "string", required: false },
       pendingEmailSetAt: { type: "date", required: false },
+      deletedAt: { type: "date", required: false },
     },
     changeEmail: {
       enabled: true,

@@ -43,6 +43,13 @@
       "when": 1768946268420,
       "tag": "0005_blue_dark_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1768988981799,
+      "tag": "0006_chemical_black_tom",
+      "breakpoints": true
     }
   ]
 }

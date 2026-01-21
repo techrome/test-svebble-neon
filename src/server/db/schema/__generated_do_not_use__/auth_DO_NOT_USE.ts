@@ -29,6 +29,7 @@ export const user = pgTable("user", {
   hasRandomUsername: boolean("has_random_username").default(false),
   pendingEmail: text("pending_email"),
   pendingEmailSetAt: timestamp("pending_email_set_at"),
+  deletedAt: timestamp("deleted_at"),
 });
 
 export const session = pgTable(
