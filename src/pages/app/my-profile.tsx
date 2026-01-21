@@ -47,7 +47,7 @@ import {
 } from "@/pages/app/email-verified";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import HelperText from "@/components/Fields/HelperText";
-import { megabytes } from "@/utils/storageUnits";
+import { mebibytes } from "@/utils/storageUnits";
 import { env } from "@/utils/env";
 
 const GOOGLE_AVATAR_PREFIX = "https://lh3.googleusercontent.com/";
@@ -80,7 +80,7 @@ export const avatarUploadUrlSchema = z.object({
     .number()
     .int()
     .positive()
-    .max(megabytes(1), { error: "File must be less than 1MB in size." }),
+    .max(mebibytes(1), { error: "File must be less than 1MB in size." }),
 });
 
 type AvatarUploadUrlSchemaForm = z.infer<typeof avatarUploadUrlSchema>;
@@ -215,7 +215,7 @@ const BasicProfileForm = () => {
         body: avatarFile,
       });
       return data.bucketKey;
-    } catch (_err) {
+    } catch {
       addAppSnackbar({
         message: "Failed to upload the image",
         variant: "error",
@@ -229,36 +229,38 @@ const BasicProfileForm = () => {
   };
 
   const onSubmit: SubmitHandler<BasicProfileFormValues> = async (values) => {
-    if (!nameIsDirty && !userData.image && !avatarFile) {
-      addAppSnackbar({
-        message: "Profile is already up to date",
-      });
-      return;
-    }
-
-    let avatarBucketKey = undefined;
-    if (avatarWasChanged) {
-      if (avatarFile) {
-        avatarBucketKey = await handleCreateAvatarUploadUrl();
-      } else {
-        avatarBucketKey = null;
+    try {
+      if (!nameIsDirty && !avatarWasChanged) {
+        addAppSnackbar({
+          message: "Profile is already up to date",
+        });
+        return;
       }
-    }
 
-    await basicInfoUpdateMutation.mutateAsync({
-      ...values,
-      ...(avatarBucketKey !== undefined ? { image: avatarBucketKey } : {}),
-    });
+      let avatarBucketKey = undefined;
+      if (avatarWasChanged) {
+        if (avatarFile) {
+          avatarBucketKey = await handleCreateAvatarUploadUrl();
+        } else {
+          avatarBucketKey = null;
+        }
+      }
 
-    await utils.auth.user.invalidate();
-    addAppSnackbar({
-      message: "Profile updated",
-      variant: "success",
-    });
-    form.reset({
-      name: values.name,
-    });
-    resetAvatarState();
+      await basicInfoUpdateMutation.mutateAsync({
+        ...values,
+        ...(avatarBucketKey !== undefined ? { image: avatarBucketKey } : {}),
+      });
+
+      await utils.auth.user.invalidate();
+      addAppSnackbar({
+        message: "Profile updated",
+        variant: "success",
+      });
+      form.reset({
+        name: values.name,
+      });
+      resetAvatarState();
+    } catch {}
   };
 
   const isSubmitting = form.formState.isSubmitting;

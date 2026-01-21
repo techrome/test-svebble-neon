@@ -1,25 +1,17 @@
-import { fromNodeHeaders } from "better-auth/node";
-import { NextApiRequest, NextApiResponse } from "next";
 import z from "zod";
 import { randomUUID } from "node:crypto";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { router } from "../core";
 import {
   publicProcedure,
   privateProcedure,
-  publicProcedureDefaultRateLimit,
   privateCachedProcedure,
 } from "../procedures";
 import { auth } from "../auth";
 import { rateLimitMiddlewares } from "../ratelimit";
-import {
-  forgotPasswordSchemaForm,
-  loginSchemaForm,
-  signupSchemaForm,
-  zUsername,
-} from "@/utils/validators/shared/auth";
+import { zUsername } from "@/utils/validators/shared/auth";
 import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
 import {
@@ -38,6 +30,11 @@ import { getCookieForwarder, throwIfZodError } from "./auth";
 import { s3Client } from "../../storage/s3";
 import { env } from "../../env";
 import { days, minutes } from "@/utils/cacheTime";
+import { db, schema } from "../../db";
+import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/misc";
+import { and, eq } from "drizzle-orm";
+import { logger } from "@/utils/logger";
+import { openAI } from "../helpers/openai";
 
 const cacheControl = `public, max-age=${days(2, true)}`;
 
@@ -53,9 +50,8 @@ export const validateUserFileKey = (userId: string, key: string): boolean => {
 
   const [, ownerId, fileId] = match;
 
-  if (ownerId !== userId) return false;
-
   if (
+    ownerId !== userId ||
     !uuidSchema.safeParse(ownerId).success ||
     !uuidSchema.safeParse(fileId).success
   ) {
@@ -63,6 +59,20 @@ export const validateUserFileKey = (userId: string, key: string): boolean => {
   }
 
   return true;
+};
+
+const moderateImage = async (url: string) => {
+  const result = await openAI.moderations.create({
+    model: "omni-moderation-latest",
+    input: [
+      {
+        type: "image_url",
+        image_url: { url },
+      },
+    ],
+  });
+  console.log("RESULT:", result.results);
+  return result;
 };
 
 export const userRouter = router({
@@ -81,26 +91,123 @@ export const userRouter = router({
       });
       return response;
     }),
-  updateUserBasicInfo: privateCachedProcedure
-    .use(rateLimitMiddlewares.auth_normal)
+  updateUserBasicInfo: privateProcedure
+    .use(rateLimitMiddlewares.auth_sensitive)
     .input(
       basicProfileSchemaForm.safeExtend({
         image: z.string().nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const newAvatarKey = input.image;
+
+      if (newAvatarKey && ctx.user.image !== newAvatarKey) {
+        if (!validateUserFileKey(ctx.user.id, newAvatarKey)) {
+          throw new TRPCError({
+            code: "UNPROCESSABLE_CONTENT",
+            message: "Invalid avatar key.",
+          });
+        }
+        const [foundPendingAvatarFile] = await db
+          .select()
+          .from(schema.filesSchema)
+          .where(
+            and(
+              eq(schema.filesSchema.object_key, newAvatarKey),
+              eq(schema.filesSchema.owner_user_id, ctx.user.id),
+              eq(schema.filesSchema.status, FILE_STATUS.issued)
+            )
+          );
+        if (!foundPendingAvatarFile) {
+          throw new TRPCError({
+            code: "UNPROCESSABLE_CONTENT",
+            message: "Invalid avatar key.",
+          });
+        }
+
+        let moderationResult: Awaited<ReturnType<typeof moderateImage>>;
+        try {
+          moderationResult = await moderateImage(
+            `${env.NEXT_PUBLIC_CDN_URL}/${newAvatarKey}`
+          );
+        } catch (err) {
+          logger.error(
+            "Error moderating avatar",
+            err,
+            "STRINGIFIED:",
+            JSON.stringify(err)
+          );
+          // if(String(err).includes("")){}
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
+
+        const flagged = moderationResult.results?.[0]?.flagged;
+        if (flagged) {
+          try {
+            await s3Client.send(
+              new DeleteObjectCommand({
+                Bucket: env.BACKBLAZE_BUCKET_NAME!,
+                Key: newAvatarKey,
+              })
+            );
+            await db
+              .update(schema.filesSchema)
+              .set({
+                status: FILE_STATUS.deleted,
+                error_text: `Moderation rejected. Details: ${JSON.stringify(moderationResult.results?.[0])}`,
+              })
+              .where(eq(schema.filesSchema.object_key, newAvatarKey));
+          } catch (err) {
+            const errorText = `Failed to delete the avatar image from the bucket. Key was: ${newAvatarKey}. Error: ${JSON.stringify(err)}`;
+            logger.error(errorText);
+            await db
+              .update(schema.filesSchema)
+              .set({
+                status: FILE_STATUS.error,
+                error_text: errorText,
+              })
+              .where(eq(schema.filesSchema.object_key, newAvatarKey));
+          }
+          throw new TRPCError({
+            code: "UNPROCESSABLE_CONTENT",
+            message:
+              "Avatar rejected by moderation. Please try a different image.",
+          });
+        }
+
+        await db.transaction(async (tx) => {
+          await tx
+            .update(schema.filesSchema)
+            .set({ status: FILE_STATUS.inactive })
+            .where(
+              and(
+                eq(schema.filesSchema.owner_user_id, ctx.user.id),
+                eq(schema.filesSchema.purpose, FILE_PURPOSE.avatar),
+                eq(schema.filesSchema.status, FILE_STATUS.active)
+              )
+            );
+
+          await tx
+            .update(schema.filesSchema)
+            .set({ status: FILE_STATUS.active })
+            .where(eq(schema.filesSchema.object_key, newAvatarKey));
+        });
+      }
+
       return getCookieForwarder(ctx)((opts) =>
         auth.api.updateUser({
           body: {
             name: input.name,
-            ...(input.image !== undefined ? { image: input.image } : {}),
+            ...(newAvatarKey !== undefined ? { image: newAvatarKey } : {}),
           },
           ...opts,
         })
       );
     }),
   updateUserUsername: privateProcedure
-    .use(rateLimitMiddlewares.auth_normal)
+    .use(rateLimitMiddlewares.auth_sensitive)
     .input(usernameSchemaForm)
     .mutation(async ({ ctx, input }) => {
       const currentUser = ctx.user;
@@ -266,7 +373,14 @@ export const userRouter = router({
 
       const uploadUrl = await getSignedUrl(s3Client, uploadCommand, {
         expiresIn,
-        signableHeaders: new Set(["cache-control"]),
+        signableHeaders: new Set(["content-type", "cache-control"]),
+      });
+
+      await db.insert(schema.filesSchema).values({
+        object_key: bucketKey,
+        owner_user_id: userId,
+        purpose: FILE_PURPOSE.avatar,
+        status: FILE_STATUS.issued,
       });
 
       return {
