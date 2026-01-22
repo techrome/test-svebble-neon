@@ -71,6 +71,13 @@
       "when": 1769086618619,
       "tag": "0009_milky_alice",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1769086667482,
+      "tag": "0010_wealthy_the_leader",
+      "breakpoints": true
     }
   ]
 }
