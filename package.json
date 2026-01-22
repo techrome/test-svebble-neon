@@ -23,12 +23,14 @@
     "docker-run": "docker compose -f docker/dev/compose.yaml up -d --build",
     "add-custom-migration": "cross-env NODE_ENV=development cross-var drizzle-kit generate --custom --name=$npm_config_name",
     "patch-drizzle-orm": "patch-package drizzle-orm",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "test-cron": "npm run call-script:dev -- scripts/trigger-cron.ts"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.0.3",
     "@tailwindcss/postcss": "^4.1.3",
     "@tanstack/react-query-devtools": "^5.69.0",
+    "@types/humanize-duration": "^3.27.4",
     "@types/lodash": "^4.17.21",
     "@types/node": "^20",
     "@types/nprogress": "^0.2.3",
@@ -81,6 +83,7 @@
     "drizzle-orm": "0.41.0",
     "drizzle-zod": "0.8.3",
     "fuse.js": "^7.1.0",
+    "humanize-duration": "^3.33.2",
     "lodash": "^4.17.21",
     "motion": "^12.23.24",
     "next": "16.1.1",

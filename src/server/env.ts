@@ -40,7 +40,8 @@ type EnvVar =
   | "BACKBLAZE_BUCKET_NAME"
   | "BACKBLAZE_REGION"
   | "BACKBLAZE_ENDPOINT"
-  | "OPENAI_API_TOKEN";
+  | "OPENAI_API_TOKEN"
+  | "CRON_SECRET";
 
 type EnvRecord = Record<EnvVar, z.ZodType>;
 type ClientEnvRecord = Omit<Record<ClientEnvVar, z.ZodType>, "NODE_ENV">;
@@ -69,6 +70,7 @@ export const env = createEnv({
     BACKBLAZE_BUCKET_NAME: requiredForProd(),
     BACKBLAZE_ENDPOINT: url(!isDev),
     BACKBLAZE_REGION: requiredForProd(),
+    OPENAI_API_TOKEN: requiredForProd(),
 
     // common
     BASE_URL: z.url().optional(),
@@ -79,7 +81,7 @@ export const env = createEnv({
     UPSTASH_REDIS_REST_TOKEN: required(),
     UPSTASH_REDIS_REST_URL: z.url(),
     RATELIMIT_IP_SALT: required(),
-    OPENAI_API_TOKEN: requiredForProd(),
+    CRON_SECRET: required(),
   } satisfies EnvRecord,
   shared: {
     NEXT_PUBLIC_CDN_URL: url(!isDev),
