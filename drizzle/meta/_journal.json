@@ -64,6 +64,13 @@
       "when": 1769078669316,
       "tag": "0008_sudden_starjammers",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1769086618619,
+      "tag": "0009_milky_alice",
+      "breakpoints": true
     }
   ]
 }
