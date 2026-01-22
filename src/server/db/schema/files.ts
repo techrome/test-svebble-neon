@@ -34,6 +34,7 @@ export const files = pgTable(
     object_key: varchar({ length: TEXT_LIMITS.long }).notNull().unique(),
     deleted_at: timestamp({ withTimezone: true, precision: 3 }),
     error_text: varchar({ length: TEXT_LIMITS.long }),
+    info_text: varchar({ length: TEXT_LIMITS.long }),
   }),
   (table) => [
     index("cleanup_index")
