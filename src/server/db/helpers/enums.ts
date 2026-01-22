@@ -1,5 +1,4 @@
 import { sql } from "drizzle-orm";
-import { pgEnum } from "drizzle-orm/pg-core";
 
 export const FILE_STATUS = {
   issued: "issued",

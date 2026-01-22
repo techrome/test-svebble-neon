@@ -31,7 +31,7 @@ import { s3Client } from "../../storage/s3";
 import { env } from "../../env";
 import { days, minutes } from "@/utils/cacheTime";
 import { db, schema } from "../../db";
-import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/misc";
+import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/enums";
 import { and, eq } from "drizzle-orm";
 import { logger } from "@/utils/logger";
 import { openAI } from "../helpers/openai";

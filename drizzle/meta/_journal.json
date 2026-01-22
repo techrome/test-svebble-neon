@@ -50,6 +50,13 @@
       "when": 1768988981799,
       "tag": "0006_chemical_black_tom",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1769061356578,
+      "tag": "0007_lethal_captain_cross",
+      "breakpoints": true
     }
   ]
 }

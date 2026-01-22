@@ -18,7 +18,7 @@ import {
   FILE_STATUS,
   FILE_STATUSES_ENUM,
   literal,
-} from "../helpers/misc";
+} from "../helpers/enums";
 
 export const fileStatusEnum = pgEnum("file_status", FILE_STATUSES_ENUM);
 export const filePurposeEnum = pgEnum("file_purpose", FILE_PURPOSES_ENUM);
@@ -36,7 +36,11 @@ export const filesSchema = pgTable(
     error_text: varchar({ length: TEXT_LIMITS.long }),
   }),
   (table) => [
-    index("cleanup_index").on(table.status, table.created_at),
+    index("cleanup_index")
+      .on(table.created_at)
+      .where(
+        sql`${table.status} in ${[FILE_STATUS.issued, FILE_STATUS.inactive, FILE_STATUS.deleted, FILE_STATUS.error].map((v) => literal(v))}`
+      ),
     index("user_purpose_index").on(
       table.owner_user_id,
       table.purpose,
