@@ -36,20 +36,20 @@ export const files = pgTable(
     error_text: varchar({ length: TEXT_LIMITS.long }),
   }),
   (table) => [
-    // index("cleanup_index")
-    //   .on(table.created_at)
-    //   .where(
-    //     sql`${table.status} in ${[FILE_STATUS.issued, FILE_STATUS.inactive, FILE_STATUS.deleted, FILE_STATUS.error].map((v) => literal(v))}`
-    //   ),
-    // index("user_purpose_index").on(
-    //   table.owner_user_id,
-    //   table.purpose,
-    //   table.status
-    // ),
-    // uniqueIndex("active_avatar_unique_index")
-    //   .on(table.owner_user_id)
-    //   .where(
-    //     sql`${table.purpose} = ${literal(FILE_PURPOSE.avatar)} AND ${table.status} = ${literal(FILE_STATUS.active)}`
-    //   ),
+    index("cleanup_index")
+      .on(table.created_at)
+      .where(
+        sql`${table.status} in ${[FILE_STATUS.issued, FILE_STATUS.inactive, FILE_STATUS.deleted, FILE_STATUS.error].map((v) => literal(v))}`
+      ),
+    index("user_purpose_index").on(
+      table.owner_user_id,
+      table.purpose,
+      table.status
+    ),
+    uniqueIndex("active_avatar_unique_index")
+      .on(table.owner_user_id)
+      .where(
+        sql`${table.purpose} = ${literal(FILE_PURPOSE.avatar)} AND ${table.status} = ${literal(FILE_STATUS.active)}`
+      ),
   ]
 );

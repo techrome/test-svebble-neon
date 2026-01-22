@@ -78,6 +78,13 @@
       "when": 1769086667482,
       "tag": "0010_wealthy_the_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1769086770807,
+      "tag": "0011_bent_sharon_ventura",
+      "breakpoints": true
     }
   ]
 }

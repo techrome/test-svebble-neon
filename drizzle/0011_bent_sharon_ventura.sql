@@ -1,0 +1,3 @@
+CREATE INDEX "cleanup_index" ON "files" USING btree ("created_at") WHERE "files"."status" in ('issued', 'inactive', 'deleted', 'error');--> statement-breakpoint
+CREATE INDEX "user_purpose_index" ON "files" USING btree ("owner_user_id","purpose","status");--> statement-breakpoint
+CREATE UNIQUE INDEX "active_avatar_unique_index" ON "files" USING btree ("owner_user_id") WHERE "files"."purpose" = 'avatar' AND "files"."status" = 'active';
