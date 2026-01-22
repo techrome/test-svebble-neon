@@ -57,6 +57,13 @@
       "when": 1769061356578,
       "tag": "0007_lethal_captain_cross",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769078669316,
+      "tag": "0008_sudden_starjammers",
+      "breakpoints": true
     }
   ]
 }

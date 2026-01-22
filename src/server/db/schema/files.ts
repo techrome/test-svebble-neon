@@ -23,7 +23,7 @@ import {
 export const fileStatusEnum = pgEnum("file_status", FILE_STATUSES_ENUM);
 export const filePurposeEnum = pgEnum("file_purpose", FILE_PURPOSES_ENUM);
 
-export const filesSchema = pgTable(
+export const files = pgTable(
   "files",
   withDefaultColumns({
     owner_user_id: uuid()
@@ -46,10 +46,10 @@ export const filesSchema = pgTable(
       table.purpose,
       table.status
     ),
-    uniqueIndex("active_avatar_unique_index")
-      .on(table.owner_user_id)
-      .where(
-        sql`${table.purpose} = ${literal(FILE_PURPOSE.avatar)} AND ${table.status} = ${literal(FILE_STATUS.active)}`
-      ),
+    // uniqueIndex("active_avatar_unique_index")
+    //   .on(table.owner_user_id)
+    //   .where(
+    //     sql`${table.purpose} = ${literal(FILE_PURPOSE.avatar)} AND ${table.status} = ${literal(FILE_STATUS.active)}`
+    //   ),
   ]
 );

@@ -1,0 +1,1 @@
+DROP INDEX "active_avatar_unique_index";
