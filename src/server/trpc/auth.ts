@@ -17,7 +17,6 @@ import { TEXT_LIMITS } from "../../utils/validators/helpers/text";
 import { env } from "../env";
 import { days, minutes } from "@/utils/cacheTime";
 import { generateRandomUsername } from "./helpers/generateRandomUsername";
-import { logger } from "@/utils/logger";
 import {
   mergeSetCookiesToHeaders,
   cookieHeaderFromSetCookie,
@@ -272,7 +271,7 @@ export const auth = betterAuth({
                 !signupSchemaForm.shape.username.safeParse(randomUsername)
                   .success
               ) {
-                logger.error(
+                console.error(
                   "Error when validating random username, value was: ",
                   randomUsername
                 );
@@ -293,7 +292,7 @@ export const auth = betterAuth({
                 ) {
                   continue;
                 } else {
-                  logger.error("Error when creating a random username: ", err);
+                  console.error("Error when creating a random username: ", err);
                   throw err;
                 }
               }
@@ -307,7 +306,7 @@ export const auth = betterAuth({
               !signupSchemaForm.shape.username.safeParse(fallbackUsername)
                 .success
             ) {
-              logger.error(
+              console.error(
                 "Error when validating fallback username, value was: ",
                 fallbackUsername
               );

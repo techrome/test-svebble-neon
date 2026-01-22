@@ -6,7 +6,6 @@ import {
   publicProcedure,
   privateProcedure,
   publicProcedureDefaultRateLimit,
-  privateCachedProcedure,
 } from "../procedures";
 import { auth } from "../auth";
 import { rateLimitMiddlewares } from "../ratelimit";
@@ -14,7 +13,6 @@ import {
   forgotPasswordSchemaForm,
   loginSchemaForm,
   signupSchemaForm,
-  zUsername,
 } from "@/utils/validators/shared/auth";
 import z from "zod";
 import { baseURL } from "../auth";
@@ -22,16 +20,7 @@ import { ROUTES } from "@/utils/routes";
 import { mergeSetCookiesToNextRes } from "../helpers/cookies";
 import { generatePlaceholderEmail } from "../helpers/email";
 import { oauthDoneStatus } from "@/components/AuthForm/Helpers";
-import {
-  basicProfileSchemaForm,
-  emailSchemaForm,
-  makeEmailChangeSchemaForm,
-  makePasswordSchemaForm,
-  passwordSchemaForm,
-  usernameSchemaForm,
-} from "@/pages/app/my-profile";
 import { TRPCError } from "@trpc/server";
-import { PROVIDER_IDS } from "@/utils/constants";
 import { resetPasswordSchemaForm } from "@/pages/auth/reset-password";
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };

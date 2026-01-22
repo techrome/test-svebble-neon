@@ -7,7 +7,6 @@ import { createHmac } from "node:crypto";
 import { redis } from "../redis";
 import { trpc } from "./core";
 import { env } from "../env";
-import { logger } from "@/utils/logger";
 import { isDev } from "@@/scripts/helpers/isDev";
 
 type Duration = Parameters<typeof Ratelimit.slidingWindow>[1];
@@ -80,7 +79,7 @@ const makeRatelimitMiddleware = <S extends WindowSpec>(
     } catch (err) {
       // for the rare case that the free quota is exceeded
       // I want the app to continue working even when ratelimiter is unavailable
-      logger.error("Error in ratelimit.ts: ", err);
+      console.error("Error in ratelimit.ts: ", err);
     }
 
     if (!isDev && rateLimitResponse && !rateLimitResponse.success) {

@@ -60,7 +60,7 @@ export const createTRPCContext = async (options?: CreateNextContextOptions) => {
     req: options?.req,
     res: options?.res,
 
-    getCachedAuth: () => getAuth({ cached: true }),
+    getCachedAuth: () => getAuth({ cached: true }), // used for speed but may have stale user data
     getAuth: () => getAuth(),
   };
 };

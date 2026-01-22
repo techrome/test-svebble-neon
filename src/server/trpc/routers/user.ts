@@ -33,7 +33,6 @@ import { days, minutes } from "@/utils/cacheTime";
 import { db, schema } from "../../db";
 import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/enums";
 import { and, eq } from "drizzle-orm";
-import { logger } from "@/utils/logger";
 import { openAI } from "../helpers/openai";
 
 const cacheControl = `public, max-age=${days(2, true)}`;
@@ -100,8 +99,9 @@ export const userRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       const newAvatarKey = input.image;
+      const newAvatarIsDifferent = ctx.user.image !== newAvatarKey;
 
-      if (newAvatarKey && ctx.user.image !== newAvatarKey) {
+      if (newAvatarKey && newAvatarIsDifferent) {
         if (!validateUserFileKey(ctx.user.id, newAvatarKey)) {
           throw new TRPCError({
             code: "UNPROCESSABLE_CONTENT",
@@ -110,12 +110,12 @@ export const userRouter = router({
         }
         const [foundPendingAvatarFile] = await db
           .select()
-          .from(schema.filesSchema)
+          .from(schema.files)
           .where(
             and(
-              eq(schema.filesSchema.object_key, newAvatarKey),
-              eq(schema.filesSchema.owner_user_id, ctx.user.id),
-              eq(schema.filesSchema.status, FILE_STATUS.issued)
+              eq(schema.files.object_key, newAvatarKey),
+              eq(schema.files.owner_user_id, ctx.user.id),
+              eq(schema.files.status, FILE_STATUS.issued)
             )
           );
         if (!foundPendingAvatarFile) {
@@ -131,7 +131,7 @@ export const userRouter = router({
             `${env.NEXT_PUBLIC_CDN_URL}/${newAvatarKey}`
           );
         } catch (err) {
-          logger.error(
+          console.error(
             "Error moderating avatar",
             err,
             "STRINGIFIED:",
@@ -153,22 +153,22 @@ export const userRouter = router({
               })
             );
             await db
-              .update(schema.filesSchema)
+              .update(schema.files)
               .set({
                 status: FILE_STATUS.deleted,
                 error_text: `Moderation rejected. Details: ${JSON.stringify(moderationResult.results?.[0])}`,
               })
-              .where(eq(schema.filesSchema.object_key, newAvatarKey));
+              .where(eq(schema.files.object_key, newAvatarKey));
           } catch (err) {
             const errorText = `Failed to delete the avatar image from the bucket. Key was: ${newAvatarKey}. Error: ${JSON.stringify(err)}`;
-            logger.error(errorText);
+            console.error(errorText);
             await db
-              .update(schema.filesSchema)
+              .update(schema.files)
               .set({
                 status: FILE_STATUS.error,
                 error_text: errorText,
               })
-              .where(eq(schema.filesSchema.object_key, newAvatarKey));
+              .where(eq(schema.files.object_key, newAvatarKey));
           }
           throw new TRPCError({
             code: "UNPROCESSABLE_CONTENT",
@@ -179,21 +179,32 @@ export const userRouter = router({
 
         await db.transaction(async (tx) => {
           await tx
-            .update(schema.filesSchema)
+            .update(schema.files)
             .set({ status: FILE_STATUS.inactive })
             .where(
               and(
-                eq(schema.filesSchema.owner_user_id, ctx.user.id),
-                eq(schema.filesSchema.purpose, FILE_PURPOSE.avatar),
-                eq(schema.filesSchema.status, FILE_STATUS.active)
+                eq(schema.files.owner_user_id, ctx.user.id),
+                eq(schema.files.purpose, FILE_PURPOSE.avatar),
+                eq(schema.files.status, FILE_STATUS.active)
               )
             );
 
           await tx
-            .update(schema.filesSchema)
+            .update(schema.files)
             .set({ status: FILE_STATUS.active })
-            .where(eq(schema.filesSchema.object_key, newAvatarKey));
+            .where(eq(schema.files.object_key, newAvatarKey));
         });
+      } else if (newAvatarKey === null && newAvatarIsDifferent) {
+        await db
+          .update(schema.files)
+          .set({ status: FILE_STATUS.inactive })
+          .where(
+            and(
+              eq(schema.files.owner_user_id, ctx.user.id),
+              eq(schema.files.purpose, FILE_PURPOSE.avatar),
+              eq(schema.files.status, FILE_STATUS.active)
+            )
+          );
       }
 
       return getCookieForwarder(ctx)((opts) =>
@@ -376,7 +387,7 @@ export const userRouter = router({
         signableHeaders: new Set(["content-type", "cache-control"]),
       });
 
-      await db.insert(schema.filesSchema).values({
+      await db.insert(schema.files).values({
         object_key: bucketKey,
         owner_user_id: userId,
         purpose: FILE_PURPOSE.avatar,

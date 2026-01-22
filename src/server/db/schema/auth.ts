@@ -8,6 +8,7 @@ import {
   uuid,
   index,
 } from "drizzle-orm/pg-core";
+import { files } from "./files";
 
 export const user = pgTable("user", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -92,6 +93,7 @@ export const verification = pgTable(
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
+  files: many(files),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({

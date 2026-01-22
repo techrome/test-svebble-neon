@@ -1,4 +1,4 @@
-import { and, inArray } from "drizzle-orm";
+import { and, asc, inArray } from "drizzle-orm";
 import humanizeDuration from "humanize-duration";
 import { DeleteObjectsCommand } from "@aws-sdk/client-s3";
 
@@ -27,7 +27,7 @@ export const pruneFiles = async ({
     `[pruneFiles] Started. Pruning files older than ${humanizeDuration(howOldMs)} with statuses: ${statusesToDelete.join(", ")}`
   );
 
-  const limit = 1000;
+  const limit = 1000; // don't send more than 1000 in a single request to S3
 
   const filesToDelete = await db
     .select({
@@ -41,6 +41,7 @@ export const pruneFiles = async ({
         before(files.created_at, nowMinus(howOldMs))
       )
     )
+    .orderBy(asc(files.created_at))
     .limit(limit);
 
   if (!filesToDelete.length) {
