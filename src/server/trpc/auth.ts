@@ -56,6 +56,7 @@ type AdditionalUserFields = Pick<
   | "isAnonymous"
   | "hasRandomUsername"
   | "remainingUsernameChanges"
+  | "deletedAt"
 >;
 
 const setDbRandomUsername = async (data: {

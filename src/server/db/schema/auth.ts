@@ -10,26 +10,30 @@ import {
 } from "drizzle-orm/pg-core";
 import { files } from "./files";
 
-export const user = pgTable("user", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  email: text("email").notNull().unique(),
-  emailVerified: boolean("email_verified").default(false).notNull(),
-  image: text("image"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at")
-    .defaultNow()
-    .$onUpdate(() => sql`now()`)
-    .notNull(),
-  isAnonymous: boolean("is_anonymous").default(false),
-  username: text("username").unique(),
-  displayUsername: text("display_username"),
-  remainingUsernameChanges: integer("remaining_username_changes"),
-  hasRandomUsername: boolean("has_random_username").default(false),
-  pendingEmail: text("pending_email"),
-  pendingEmailSetAt: timestamp("pending_email_set_at"),
-  deletedAt: timestamp("deleted_at"),
-});
+export const user = pgTable(
+  "user",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    email: text("email").notNull().unique(),
+    emailVerified: boolean("email_verified").default(false).notNull(),
+    image: text("image"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => sql`now()`)
+      .notNull(),
+    isAnonymous: boolean("is_anonymous").default(false),
+    username: text("username").unique(),
+    displayUsername: text("display_username"),
+    remainingUsernameChanges: integer("remaining_username_changes"),
+    hasRandomUsername: boolean("has_random_username").default(false),
+    pendingEmail: text("pending_email"),
+    pendingEmailSetAt: timestamp("pending_email_set_at"),
+    deletedAt: timestamp("deleted_at"),
+  },
+  (table) => [index("deleted_at_index").on(table.deletedAt)]
+);
 
 export const session = pgTable(
   "session",

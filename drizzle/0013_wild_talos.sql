@@ -1,0 +1,1 @@
+CREATE INDEX "deleted_at_index" ON "user" USING btree ("deleted_at");
