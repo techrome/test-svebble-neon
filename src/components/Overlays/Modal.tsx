@@ -39,7 +39,7 @@ const Modal = ({
       open={isOpen}
       onClose={onClose}
       fullWidth
-      slotProps={{ transition: { onExited } }}
+      slotProps={{ transition: { onExited }, paper: { elevation: 16 } }}
       disableEnforceFocus
       {...dialogProps}
     >

@@ -200,7 +200,7 @@ export const AuthWrapper = (props: WrapperProps) => {
           isLoading={googleLoginMutation.isPending}
           disabled={isDisabled}
           color="inherit"
-          variant="outlined"
+          variant="contained"
           fullWidth
           size="large"
           onClick={onGoogleClick}
@@ -220,7 +220,7 @@ export const AuthWrapper = (props: WrapperProps) => {
           isLoading={guestLoginMutation.isPending}
           disabled={isDisabled}
           color="inherit"
-          variant="outlined"
+          variant="contained"
           fullWidth
           size="large"
           onClick={onGuestClick}
