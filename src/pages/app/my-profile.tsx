@@ -209,17 +209,19 @@ const BasicProfileForm = () => {
       parseResult.data
     );
     try {
-      await fetch(data.uploadUrl, {
+      const res = await fetch(data.uploadUrl, {
         method: "PUT",
         headers: data.requiredHeaders,
         body: avatarFile,
       });
+      if (!res.ok) throw new Error();
       return data.bucketKey;
     } catch {
       addAppSnackbar({
         message: "Failed to upload the image",
         variant: "error",
       });
+      throw new Error();
     }
   };
 
