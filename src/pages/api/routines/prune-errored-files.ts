@@ -10,8 +10,7 @@ const handler = async (_req: NextApiRequest, res: NextApiResponse) => {
     statusesToDelete: [FILE_STATUS.deleted, FILE_STATUS.error],
     howOldMs: days(1),
   });
-  console.log({ pruneResult });
-
+  console.log("Prune errored files result:", pruneResult);
   res.status(200).json({ ok: true, ranAt: new Date().toISOString() });
 };
 

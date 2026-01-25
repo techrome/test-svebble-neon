@@ -32,8 +32,10 @@ import { env } from "../../env";
 import { days, minutes } from "@/utils/cacheTime";
 import { db, schema } from "../../db";
 import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/enums";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { openAI } from "../helpers/openai";
+import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
+import { isDev } from "@/utils/isDev";
 
 const cacheControl = `public, max-age=${days(2, true)}`;
 
@@ -60,7 +62,12 @@ export const validateUserFileKey = (userId: string, key: string): boolean => {
   return true;
 };
 
-const moderateImage = async (url: string) => {
+type ModerationResult = Awaited<ReturnType<typeof openAI.moderations.create>>;
+
+const moderateImage = async (url: string): Promise<ModerationResult> => {
+  if (isDev) {
+    return { id: "dev", model: "dev", results: [] };
+  }
   const result = await openAI.moderations.create({
     model: "omni-moderation-latest",
     input: [
@@ -101,7 +108,7 @@ export const userRouter = router({
       const newAvatarKey = input.image;
       const newAvatarIsDifferent = ctx.user.image !== newAvatarKey;
 
-      if (newAvatarKey && newAvatarIsDifferent) {
+      if (newAvatarIsDifferent && newAvatarKey) {
         if (!validateUserFileKey(ctx.user.id, newAvatarKey)) {
           throw new TRPCError({
             code: "UNPROCESSABLE_CONTENT",
@@ -137,13 +144,12 @@ export const userRouter = router({
             "STRINGIFIED:",
             JSON.stringify(err)
           );
-          // if(String(err).includes("")){}
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
           });
         }
 
-        const flagged = moderationResult.results?.[0]?.flagged;
+        const flagged = moderationResult.results?.[0]?.flagged || false;
         if (flagged) {
           try {
             await s3Client.send(
@@ -156,7 +162,7 @@ export const userRouter = router({
               .update(schema.files)
               .set({
                 status: FILE_STATUS.deleted,
-                error_text: `Moderation rejected. Details: ${JSON.stringify(moderationResult.results?.[0])}`,
+                info_text: `Moderation rejected. Details: ${JSON.stringify(moderationResult.results?.[0])}`,
               })
               .where(eq(schema.files.object_key, newAvatarKey));
           } catch (err) {
@@ -194,7 +200,7 @@ export const userRouter = router({
             .set({ status: FILE_STATUS.active })
             .where(eq(schema.files.object_key, newAvatarKey));
         });
-      } else if (newAvatarKey === null && newAvatarIsDifferent) {
+      } else if (newAvatarIsDifferent && newAvatarKey === null) {
         await db
           .update(schema.files)
           .set({ status: FILE_STATUS.inactive })
@@ -406,9 +412,51 @@ export const userRouter = router({
   deleteUser: privateProcedure
     .use(rateLimitMiddlewares.auth_sensitive)
     .mutation(async ({ ctx }) => {
+      if (ctx.user.deletedAt) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: "Your account is already in the process of being deleted.",
+        });
+      }
+      const userId = ctx.user.id;
+      await db.transaction(async (tx) => {
+        await tx
+          .update(schema.user)
+          .set({
+            deletedAt: sql`now()`,
+            name: "Deleted user",
+            image: null,
+            email:
+              `deleted+${userId}@${PLACEHOLDER_EMAIL_DOMAIN}`.toLowerCase(),
+            emailVerified: false,
+            displayUsername: null,
+            username: null,
+            remainingUsernameChanges: null,
+            hasRandomUsername: false,
+            pendingEmail: null,
+            pendingEmailSetAt: null,
+          })
+          .where(eq(schema.user.id, userId));
+
+        await tx
+          .delete(schema.session)
+          .where(eq(schema.session.userId, userId));
+        await tx
+          .delete(schema.account)
+          .where(eq(schema.account.userId, userId));
+        const identifiers = [ctx.user.email, ctx.user.pendingEmail].filter(
+          (v): v is string => typeof v === "string" && v.length > 0
+        );
+
+        if (identifiers.length > 0) {
+          await tx
+            .delete(schema.verification)
+            .where(inArray(schema.verification.identifier, identifiers));
+        }
+      });
+
       return getCookieForwarder(ctx)((opts) =>
-        auth.api.deleteUser({
-          body: {},
+        auth.api.signOut({
           ...opts,
         })
       );

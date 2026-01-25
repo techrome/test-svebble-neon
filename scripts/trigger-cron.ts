@@ -1,6 +1,9 @@
 import "dotenv/config";
 
-const url = "http://localhost:3000/api/routines/prune-unused-files";
+// const url = "http://localhost:3000/api/routines/prune-unused-files";
+// const url = "http://localhost:3000/api/routines/prune-errored-files";
+// const url = "http://localhost:3000/api/routines/prune-deleted-users";
+const url = "http://localhost:3000/api/routines/prune-inactive-guest-users";
 const secret = process.env.CRON_SECRET || "dev-secret";
 (async () => {
   const res = await fetch(url, {
