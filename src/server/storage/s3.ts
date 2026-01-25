@@ -1,3 +1,4 @@
+import { isDev } from "@/utils/isDev";
 import { env } from "../env";
 import { S3Client } from "@aws-sdk/client-s3";
 
@@ -17,6 +18,11 @@ const makeS3Client = () => {
       accessKeyId: env.BACKBLAZE_APP_KEY_ID,
       secretAccessKey: env.BACKBLAZE_APP_KEY,
     },
+    ...(isDev
+      ? {
+          forcePathStyle: true,
+        }
+      : {}),
   });
 };
 

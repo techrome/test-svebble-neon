@@ -65,11 +65,6 @@ export const env = createEnv({
     VERCEL_ENV: z.enum(["development", "production", "preview"]).optional(),
     VERCEL_URL: domain(false),
     VERCEL_PROJECT_PRODUCTION_URL: domain(false),
-    BACKBLAZE_APP_KEY: requiredForProd(),
-    BACKBLAZE_APP_KEY_ID: requiredForProd(),
-    BACKBLAZE_BUCKET_NAME: requiredForProd(),
-    BACKBLAZE_ENDPOINT: url(!isDev),
-    BACKBLAZE_REGION: requiredForProd(),
     OPENAI_API_TOKEN: requiredForProd(),
 
     // common
@@ -81,6 +76,11 @@ export const env = createEnv({
     UPSTASH_REDIS_REST_TOKEN: required(),
     UPSTASH_REDIS_REST_URL: z.url(),
     RATELIMIT_IP_SALT: required(),
+    BACKBLAZE_APP_KEY: required(),
+    BACKBLAZE_APP_KEY_ID: required(),
+    BACKBLAZE_BUCKET_NAME: required(),
+    BACKBLAZE_ENDPOINT: z.url(),
+    BACKBLAZE_REGION: required(),
     CRON_SECRET: required(),
   } satisfies EnvRecord,
   shared: {
