@@ -84,6 +84,7 @@
     "drizzle-zod": "0.8.3",
     "fuse.js": "^7.1.0",
     "humanize-duration": "^3.33.2",
+    "image-size": "^2.0.2",
     "lodash": "^4.17.21",
     "motion": "^12.23.24",
     "next": "16.1.1",

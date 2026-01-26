@@ -58,11 +58,13 @@ services:
       MINIO_ROOT_USER: admin
       MINIO_ROOT_PASSWORD: admin123
       MINIO_BUCKET: svebble-bucket
+    volumes:
+      - ./volumes/minio-init:/seed:ro
     entrypoint: >
       /bin/sh -c " set -eu; until mc alias set local http://minio:9000 \"$${MINIO_ROOT_USER}\" \"$${MINIO_ROOT_PASSWORD}\"; do
         echo 'waiting for minio...';
         sleep 1;
-      done; mc mb --ignore-existing local/$${MINIO_BUCKET}; mc anonymous set download local/$${MINIO_BUCKET}; mc anonymous get local/$${MINIO_BUCKET}; "
+      done; mc mb --ignore-existing local/$${MINIO_BUCKET}; mc anonymous set download local/$${MINIO_BUCKET}; mc anonymous get local/$${MINIO_BUCKET}; mc stat local/$${MINIO_BUCKET}/default-avatars/1.webp >/dev/null 2>&1 || mc cp /seed/default-avatars/1.webp local/$${MINIO_BUCKET}/default-avatars/1.webp;"
 volumes:
   pgdata:
   pgadmin:

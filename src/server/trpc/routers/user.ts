@@ -36,6 +36,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { openAI } from "../helpers/openai";
 import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
 import { isDev } from "@/utils/isDev";
+import { probeImageDimensions } from "../helpers/probeImage";
 
 const cacheControl = `public, max-age=${days(2, true)}`;
 
@@ -80,6 +81,11 @@ const moderateImage = async (url: string): Promise<ModerationResult> => {
   console.log("RESULT:", result.results);
   return result;
 };
+
+const avatarDimensionsSchema = avatarUploadUrlSchema.omit({
+  imageType: true,
+  imageSize: true,
+});
 
 export const userRouter = router({
   checkUsernameAvailability: publicProcedure
@@ -131,12 +137,20 @@ export const userRouter = router({
             message: "Invalid avatar key.",
           });
         }
+        const newAvatarUrl = `${env.NEXT_PUBLIC_CDN_URL}/${newAvatarKey}`;
+        const probeResult = await probeImageDimensions(newAvatarUrl);
+        console.log({ probeResult });
+
+        throwIfZodError(
+          avatarDimensionsSchema.safeParse({
+            imageWidth: probeResult.width,
+            imageHeight: probeResult.height,
+          } satisfies z.infer<typeof avatarDimensionsSchema>)
+        );
 
         let moderationResult: Awaited<ReturnType<typeof moderateImage>>;
         try {
-          moderationResult = await moderateImage(
-            `${env.NEXT_PUBLIC_CDN_URL}/${newAvatarKey}`
-          );
+          moderationResult = await moderateImage(newAvatarUrl);
         } catch (err) {
           console.error(
             "Error moderating avatar",
@@ -374,15 +388,15 @@ export const userRouter = router({
     .input(avatarUploadUrlSchema)
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
-      const fileExtension = allowedAvatarExtensionsMap[input.fileType];
+      const fileExtension = allowedAvatarExtensionsMap[input.imageType];
 
       const bucketKey = `users/${userId}/${randomUUID()}.${fileExtension}`;
 
       const uploadCommand = new PutObjectCommand({
         Bucket: env.BACKBLAZE_BUCKET_NAME!,
         Key: bucketKey,
-        ContentType: input.fileType,
-        ContentLength: input.fileSize,
+        ContentType: input.imageType,
+        ContentLength: input.imageSize,
         CacheControl: cacheControl,
       });
 
@@ -404,7 +418,7 @@ export const userRouter = router({
         bucketKey,
         uploadUrl,
         requiredHeaders: {
-          "Content-Type": input.fileType,
+          "Content-Type": input.imageType,
           "Cache-Control": cacheControl,
         } as const,
       };

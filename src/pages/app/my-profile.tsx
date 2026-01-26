@@ -3,7 +3,7 @@ import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Chip, CircularProgress, Paper, Typography } from "@mui/material";
 import z from "zod";
-import Image from "next/image";
+import NextImage from "next/image";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PersonIcon from "@mui/icons-material/Person";
@@ -30,7 +30,6 @@ import {
   PasswordStrengthMeter,
   UsernameInput,
 } from "@/components/AuthForm/Signup";
-import avatarPlaceholderSrc from "@@/public/images/user-placeholder.webp";
 import { useGlobalModal, useLocalModal } from "@/utils/hooks/useOverlay";
 import Confirm from "@/components/ModalTemplates/Confirm";
 import { CACHE_TIME, minutes, seconds } from "@/utils/cacheTime";
@@ -50,7 +49,13 @@ import HelperText from "@/components/Fields/HelperText";
 import { mebibytes } from "@/utils/storageUnits";
 import { env } from "@/utils/env";
 
-const GOOGLE_AVATAR_PREFIX = "https://lh3.googleusercontent.com/";
+const AVATAR_MAX_SIZE_MB = 2;
+const AVATAR_MAX_WIDTH = 2048;
+const AVATAR_MAX_HEIGHT = 2048;
+
+export const defaultAvatars = {
+  first: `default-avatars/1.webp`,
+};
 
 const SectionWrapper = (props: { children: React.ReactNode }) => {
   return (
@@ -63,6 +68,26 @@ const SectionWrapper = (props: { children: React.ReactNode }) => {
   );
 };
 
+const getImageDimensions = async (
+  file: File
+): Promise<{ width: number; height: number }> => {
+  const url = URL.createObjectURL(file);
+
+  try {
+    return await new Promise((resolve, reject) => {
+      const img = new Image();
+
+      img.onload = () =>
+        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => reject(new Error("Image failed to load"));
+
+      img.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
+
 export const allowedAvatarExtensionsMap = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -70,17 +95,33 @@ export const allowedAvatarExtensionsMap = {
 } as const;
 
 export const avatarUploadUrlSchema = z.object({
-  fileType: z.enum(
+  imageType: z.enum(
     Object.keys(
       allowedAvatarExtensionsMap
     ) as (keyof typeof allowedAvatarExtensionsMap)[],
-    { error: "Unsupported file type." }
+    { error: "Unsupported image type." }
   ),
-  fileSize: z
+  imageSize: z
     .number()
     .int()
     .positive()
-    .max(mebibytes(1), { error: "File must be less than 1MB in size." }),
+    .max(mebibytes(AVATAR_MAX_SIZE_MB), {
+      error: `Image must be less than ${AVATAR_MAX_SIZE_MB}MB in size.`,
+    }),
+  imageWidth: z
+    .number()
+    .int()
+    .positive()
+    .max(AVATAR_MAX_WIDTH, {
+      error: `Image width must be less than ${AVATAR_MAX_WIDTH} pixels.`,
+    }),
+  imageHeight: z
+    .number()
+    .int()
+    .positive()
+    .max(AVATAR_MAX_HEIGHT, {
+      error: `Image height must be less than ${AVATAR_MAX_HEIGHT} pixels.`,
+    }),
 });
 
 type AvatarUploadUrlSchemaForm = z.infer<typeof avatarUploadUrlSchema>;
@@ -96,7 +137,7 @@ const AvatarChangeModal = ({
   onAvatarChange: (file: File | null) => void;
   validateFile: (
     file: File | null
-  ) => z.ZodSafeParseSuccess<AvatarUploadUrlSchemaForm> | null;
+  ) => Promise<z.ZodSafeParseSuccess<AvatarUploadUrlSchemaForm> | null>;
   onCancel: () => void;
   onConfirm: () => void;
 }) => {
@@ -117,12 +158,12 @@ const AvatarChangeModal = ({
             onClick={(e) => {
               e.currentTarget.value = "";
             }}
-            onChange={(e) => {
+            onChange={async (e) => {
               const file = e.currentTarget.files?.[0];
 
               if (!file) return;
 
-              const parseResult = validateFile(file);
+              const parseResult = await validateFile(file);
               if (!parseResult) return;
               onAvatarChange(file);
             }}
@@ -133,7 +174,7 @@ const AvatarChangeModal = ({
           helperTextAlwaysShown
         />
         <HelperText
-          helperText={`Max size: 1MB. Allowed formats: ${Object.values(allowedAvatarExtensionsMap).join(", ")}.`}
+          helperText={`Max size: ${AVATAR_MAX_SIZE_MB}MB. Max dimensions: ${AVATAR_MAX_WIDTH}x${AVATAR_MAX_HEIGHT}. Allowed formats: ${Object.values(allowedAvatarExtensionsMap).join(", ")}.`}
           helperTextAlwaysShown
         />
       </div>
@@ -185,11 +226,21 @@ const BasicProfileForm = () => {
   const createAvatarUploadUrlMutation =
     trpc.user.createAvatarUploadUrl.useMutation();
 
-  const validateAvatarFile = (file: File | null) => {
+  const validateAvatarFile = async (file: File | null) => {
+    if (!file) {
+      addAppSnackbar({
+        message: "No image selected",
+        variant: "error",
+      });
+      return null;
+    }
+    const imageDimensions = await getImageDimensions(file);
     const parseResult = avatarUploadUrlSchema.safeParse({
-      fileSize: file?.size,
-      fileType: file?.type,
-    });
+      imageSize: file.size,
+      imageType: file.type,
+      imageWidth: imageDimensions.width,
+      imageHeight: imageDimensions.height,
+    } satisfies Record<keyof AvatarUploadUrlSchemaForm, unknown>);
 
     if (!parseResult.success) {
       addAppSnackbar({
@@ -203,7 +254,7 @@ const BasicProfileForm = () => {
   };
 
   const handleCreateAvatarUploadUrl = async () => {
-    const parseResult = validateAvatarFile(avatarFile);
+    const parseResult = await validateAvatarFile(avatarFile);
     if (!parseResult) return;
     const data = await createAvatarUploadUrlMutation.mutateAsync(
       parseResult.data
@@ -275,20 +326,12 @@ const BasicProfileForm = () => {
         <div className="mb-2">
           <HorizontalStack addClassName="items-center">
             <div className="group relative w-full max-w-32 h-32 rounded-full border-4 border-[var(--mui-palette-text-secondary)]">
-              <Image
+              <NextImage
                 className="rounded-full"
-                src={
-                  userData.image
-                    ? userData.image.startsWith(GOOGLE_AVATAR_PREFIX)
-                      ? userData.image
-                      : `${env.NEXT_PUBLIC_CDN_URL}/${userData.image}`
-                    : avatarPlaceholderSrc
-                }
+                src={`${env.NEXT_PUBLIC_CDN_URL}/${userData.image || defaultAvatars.first}`}
                 alt="user-avatar"
                 fill
-                sizes="128px"
-                quality={100}
-                unoptimized={Boolean(userData.image)}
+                unoptimized
               />
               <ButtonBase
                 focusRipple

@@ -251,6 +251,14 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        async before(user, _context) {
+          return {
+            data: {
+              ...user,
+              image: null,
+            },
+          };
+        },
         async after(user, context) {
           let updatedUser = user as typeof user & AdditionalUserFields;
 
