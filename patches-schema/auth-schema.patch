@@ -1,28 +1,60 @@
 diff --git a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts b/src/server/db/schema/auth.ts
-index 0091577..fa8e8bc 100644
+index 18e6024..5ef29c7 100644
 --- a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts
 +++ b/src/server/db/schema/auth.ts
-@@ -10,9 +10,7 @@ import {
+@@ -8,41 +8,42 @@ import {
+   uuid,
+   index,
  } from "drizzle-orm/pg-core";
++import { files } from "./files";
  
- export const user = pgTable("user", {
+-export const user = pgTable("user", {
 -  id: uuid("id")
 -    .default(sql`pg_catalog.gen_random_uuid()`)
 -    .primaryKey(),
-+  id: uuid("id").primaryKey().defaultRandom(),
-   name: text("name").notNull(),
-   email: text("email").notNull().unique(),
-   emailVerified: boolean("email_verified").default(false).notNull(),
-@@ -20,7 +18,7 @@ export const user = pgTable("user", {
-   createdAt: timestamp("created_at").defaultNow().notNull(),
-   updatedAt: timestamp("updated_at")
-     .defaultNow()
+-  name: text("name").notNull(),
+-  email: text("email").notNull().unique(),
+-  emailVerified: boolean("email_verified").default(false).notNull(),
+-  image: text("image"),
+-  createdAt: timestamp("created_at").defaultNow().notNull(),
+-  updatedAt: timestamp("updated_at")
+-    .defaultNow()
 -    .$onUpdate(() => /* @__PURE__ */ new Date())
-+    .$onUpdate(() => sql`now()`)
-     .notNull(),
-   isAnonymous: boolean("is_anonymous").default(false),
-   username: text("username").unique(),
-@@ -34,14 +32,12 @@ export const user = pgTable("user", {
+-    .notNull(),
+-  isAnonymous: boolean("is_anonymous").default(false),
+-  username: text("username").unique(),
+-  displayUsername: text("display_username"),
+-  remainingUsernameChanges: integer("remaining_username_changes"),
+-  hasRandomUsername: boolean("has_random_username").default(false),
+-  pendingEmail: text("pending_email"),
+-  pendingEmailSetAt: timestamp("pending_email_set_at"),
+-  deletedAt: timestamp("deleted_at"),
+-});
++export const user = pgTable(
++  "user",
++  {
++    id: uuid("id").primaryKey().defaultRandom(),
++    name: text("name").notNull(),
++    email: text("email").notNull().unique(),
++    emailVerified: boolean("email_verified").default(false).notNull(),
++    image: text("image"),
++    createdAt: timestamp("created_at").defaultNow().notNull(),
++    updatedAt: timestamp("updated_at")
++      .defaultNow()
++      .$onUpdate(() => sql`now()`)
++      .notNull(),
++    isAnonymous: boolean("is_anonymous").default(false),
++    username: text("username").unique(),
++    displayUsername: text("display_username"),
++    remainingUsernameChanges: integer("remaining_username_changes"),
++    hasRandomUsername: boolean("has_random_username").default(false),
++    pendingEmail: text("pending_email"),
++    pendingEmailSetAt: timestamp("pending_email_set_at"),
++    deletedAt: timestamp("deleted_at"),
++  },
++  (table) => [index("deleted_at_index").on(table.deletedAt)]
++);
+ 
  export const session = pgTable(
    "session",
    {
@@ -39,7 +71,7 @@ index 0091577..fa8e8bc 100644
        .notNull(),
      ipAddress: text("ip_address"),
      userAgent: text("user_agent"),
-@@ -49,15 +45,13 @@ export const session = pgTable(
+@@ -50,15 +51,13 @@ export const session = pgTable(
        .notNull()
        .references(() => user.id, { onDelete: "cascade" }),
    },
@@ -57,7 +89,7 @@ index 0091577..fa8e8bc 100644
      accountId: text("account_id").notNull(),
      providerId: text("provider_id").notNull(),
      userId: uuid("user_id")
-@@ -72,28 +66,26 @@ export const account = pgTable(
+@@ -73,33 +72,32 @@ export const account = pgTable(
      password: text("password"),
      createdAt: timestamp("created_at").defaultNow().notNull(),
      updatedAt: timestamp("updated_at")
@@ -91,3 +123,9 @@ index 0091577..fa8e8bc 100644
  );
  
  export const userRelations = relations(user, ({ many }) => ({
+   sessions: many(session),
+   accounts: many(account),
++  files: many(files),
+ }));
+ 
+ export const sessionRelations = relations(session, ({ one }) => ({

@@ -8,6 +8,12 @@ type Props = {
   children: React.ReactNode;
 };
 
+type AuthedUser = NonNullable<
+  NonNullable<ReturnType<typeof useUser>["data"]>["user"]
+>;
+
+export const AuthedUserContext = React.createContext<AuthedUser | null>(null);
+
 const PrivateRoute = (props: Props) => {
   const user = useUser();
 
@@ -28,7 +34,11 @@ const PrivateRoute = (props: Props) => {
     );
   }
 
-  return <>{props.children}</>;
+  return (
+    <AuthedUserContext.Provider value={user.data.user}>
+      {props.children}
+    </AuthedUserContext.Provider>
+  );
 };
 
 export default PrivateRoute;

@@ -6,9 +6,9 @@ export interface UseSnackbarProgressTimerOptions {
   pauseOnWindowBlur?: boolean;
 }
 
-export function useSnackbarProgressTimer(
+export const useSnackbarProgressTimer = (
   opts: UseSnackbarProgressTimerOptions
-) {
+) => {
   const {
     shouldAutoRun = true,
     pauseOnHover = true,
@@ -77,4 +77,4 @@ export function useSnackbarProgressTimer(
     pause,
     eventHandlers,
   };
-}
+};

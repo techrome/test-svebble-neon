@@ -40,7 +40,7 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import useAppQuery from "@/utils/hooks/useAppQuery";
 import { useUser } from "@/trpc/hooks/useUser";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
-import { userLoginLifecycle } from "@/utils/userLifecycle";
+import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
 import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {
@@ -314,7 +314,7 @@ export const UsernameInput = <TFV extends Username>({
     disabled;
 
   const usernameAvailabilityQuery = useAppQuery(
-    trpc.auth.checkUsernameAvailability.useQuery(
+    trpc.user.checkUsernameAvailability.useQuery(
       { username: debouncedUsername },
       { staleTime: CACHE_TIME.NORMAL, retry: false, enabled: !queryDisabled }
     ),
@@ -384,7 +384,7 @@ const Signup = (props: Props) => {
   const { addAppSnackbar } = useAppSnackbar();
   const qc = useQueryClient();
 
-  const changeEmailMutation = trpc.auth.changeEmail.useMutation({
+  const changeEmailMutation = trpc.user.changeEmail.useMutation({
     onSuccess(data) {
       addAppSnackbar({
         message: (

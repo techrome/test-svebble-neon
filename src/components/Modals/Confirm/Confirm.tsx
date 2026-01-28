@@ -14,7 +14,7 @@ const Confirm = (props: Props) => {
     <VerticalStack spacing="lg">
       <Typography>{props.message}</Typography>
       <HorizontalStack addClassName="justify-between items-center">
-        <Button variant="outlined" color="primary" onClick={props.onCancel}>
+        <Button variant="contained" color="inherit" onClick={props.onCancel}>
           Cancel
         </Button>
         <Button variant="contained" color="primary" onClick={props.onConfirm}>

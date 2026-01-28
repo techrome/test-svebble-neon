@@ -13,7 +13,7 @@ import { useAppSnackbar } from "@/utils/snackbar";
 import { trpc } from "@/trpc";
 import { useUser } from "@/trpc/hooks/useUser";
 import { useRouter } from "next/router";
-import { userLoginLifecycle } from "@/utils/userLifecycle";
+import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
 import { useQueryClient } from "@tanstack/react-query";
 
 type WrapperProps = {
@@ -200,7 +200,7 @@ export const AuthWrapper = (props: WrapperProps) => {
           isLoading={googleLoginMutation.isPending}
           disabled={isDisabled}
           color="inherit"
-          variant="outlined"
+          variant="contained"
           fullWidth
           size="large"
           onClick={onGoogleClick}
@@ -220,7 +220,7 @@ export const AuthWrapper = (props: WrapperProps) => {
           isLoading={guestLoginMutation.isPending}
           disabled={isDisabled}
           color="inherit"
-          variant="outlined"
+          variant="contained"
           fullWidth
           size="large"
           onClick={onGuestClick}

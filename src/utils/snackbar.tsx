@@ -1,5 +1,5 @@
 import React from "react";
-import { SnackbarKey, useSnackbar } from "notistack";
+import { useSnackbar } from "notistack";
 
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import {
@@ -27,17 +27,15 @@ export const SnackbarListener = () => {
   const dispatch = useAppDispatch();
   const items = useAppSelector((state) => state.snackbars.items);
   const { enqueueSnackbar, closeSnackbar } = useSnackbar();
-  const displayedItemKeysRef = React.useRef<SnackbarId[]>([]);
+  const displayedItemKeysRef = React.useRef<Set<SnackbarId>>(new Set());
 
   React.useEffect(() => {
-    const handleSnackbarExit = (key: SnackbarKey) => {
+    const handleSnackbarExit = (key: SnackbarId) => {
       dispatch(deleteSnackbar(key));
-      displayedItemKeysRef.current = displayedItemKeysRef.current.filter(
-        (x) => x !== key
-      );
+      displayedItemKeysRef.current.delete(key);
     };
     items.forEach((snack) => {
-      if (displayedItemKeysRef.current.includes(snack.id)) {
+      if (displayedItemKeysRef.current.has(snack.id)) {
         if (snack.dismissed) {
           closeSnackbar(snack.id);
           handleSnackbarExit(snack.id);
@@ -62,7 +60,7 @@ export const SnackbarListener = () => {
         },
       });
 
-      displayedItemKeysRef.current.push(snack.id);
+      displayedItemKeysRef.current.add(snack.id);
     });
     // eslint-disable-next-line
   }, [items]);
@@ -77,7 +75,7 @@ export const useAppSnackbar = () => {
   const addAppSnackbar = (data: SnackbarPayload) => {
     dispatch(addSnackbar(data));
   };
-  const closeAppSnackbar = (id: SnackbarKey) => {
+  const closeAppSnackbar = (id: SnackbarId) => {
     closeSnackbar(id);
   };
   const dismissAllAppSnackbars = () => {

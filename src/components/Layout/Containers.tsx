@@ -18,6 +18,7 @@ type ContainerProps = MuiContainerProps;
 type LayoutBreakpoints = Partial<Record<Breakpoints | "none", string>>;
 
 const switchingStackBreakpoints = {
+  sm: "sm:flex-row sm:flex-wrap",
   md: "md:flex-row md:flex-wrap",
   lg: "lg:flex-row lg:flex-wrap",
 } as const satisfies LayoutBreakpoints;

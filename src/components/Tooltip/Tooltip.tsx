@@ -8,17 +8,25 @@ import {
 type TooltipProps = MuiTooltipProps;
 
 const Tooltip = ({ children, ...props }: TooltipProps) => {
+  const isChildDisabled = Boolean(
+    (React.Children.only(children)?.props as Record<string, unknown>)?.disabled
+  );
+
   return (
     <MuiTooltip
       placement="top"
       arrow
-      enterDelay={300}
+      enterDelay={150}
       enterTouchDelay={100}
       leaveTouchDelay={4000}
       {...props}
-      title={<Typography variant="body1">{props.title}</Typography>}
+      title={
+        props.title ? (
+          <Typography variant="body1">{props.title}</Typography>
+        ) : null
+      }
     >
-      {children}
+      {isChildDisabled ? <span>{children}</span> : children}
     </MuiTooltip>
   );
 };

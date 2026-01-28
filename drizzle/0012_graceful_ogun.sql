@@ -1,0 +1,1 @@
+ALTER TABLE "files" ADD COLUMN "info_text" varchar(2000);

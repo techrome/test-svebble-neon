@@ -15,11 +15,10 @@ import {
 } from "../../utils/validators/shared/auth";
 import { TEXT_LIMITS } from "../../utils/validators/helpers/text";
 import { env } from "../env";
-import { minutes } from "@/utils/cacheTime";
+import { days, minutes } from "@/utils/cacheTime";
 import { generateRandomUsername } from "./helpers/generateRandomUsername";
-import { logger } from "@/utils/logger";
 import {
-  appendSetCookiesToHeaders,
+  mergeSetCookiesToHeaders,
   cookieHeaderFromSetCookie,
 } from "./helpers/cookies";
 import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
@@ -57,6 +56,7 @@ type AdditionalUserFields = Pick<
   | "isAnonymous"
   | "hasRandomUsername"
   | "remainingUsernameChanges"
+  | "deletedAt"
 >;
 
 const setDbRandomUsername = async (data: {
@@ -117,6 +117,8 @@ export const auth = betterAuth({
       enabled: true,
       maxAge: minutes(5, true),
     },
+    expiresIn: days(7, true),
+    updateAge: days(1, true),
   },
   emailAndPassword: {
     enabled: true,
@@ -137,6 +139,7 @@ export const auth = betterAuth({
       hasRandomUsername: { type: "boolean", defaultValue: false },
       pendingEmail: { type: "string", required: false },
       pendingEmailSetAt: { type: "date", required: false },
+      deletedAt: { type: "date", required: false },
     },
     changeEmail: {
       enabled: true,
@@ -156,16 +159,19 @@ export const auth = betterAuth({
   },
 
   hooks: {
-    // invalidating cookie cache for routes that modify user
+    // invalidating cookie cache for routes that modify user but don't automatically refresh the cookie
     after: createAuthMiddleware(async (context) => {
       const allowedRoutes = [
         SOME_AUTH_API_ROUTES.callback,
         SOME_AUTH_API_ROUTES.verifyEmail,
         SOME_AUTH_API_ROUTES.signInAnonymous,
       ];
-      if (!allowedRoutes.some((path) => context.path.startsWith(`/${path}`)))
+      if (
+        !allowedRoutes.some((path) => context.path.startsWith(`/${path}`)) ||
+        !context.context.newSession
+      ) {
         return;
-      if (!context.context.newSession) return;
+      }
 
       const responseHeaders = context.context.responseHeaders;
       if (!responseHeaders) return;
@@ -182,7 +188,7 @@ export const auth = betterAuth({
         asResponse: true,
       });
 
-      appendSetCookiesToHeaders(responseHeaders, refreshedSession.headers);
+      mergeSetCookiesToHeaders(responseHeaders, refreshedSession.headers);
     }),
   },
 
@@ -245,6 +251,14 @@ export const auth = betterAuth({
   databaseHooks: {
     user: {
       create: {
+        async before(user, _context) {
+          return {
+            data: {
+              ...user,
+              image: null,
+            },
+          };
+        },
         async after(user, context) {
           let updatedUser = user as typeof user & AdditionalUserFields;
 
@@ -266,7 +280,7 @@ export const auth = betterAuth({
                 !signupSchemaForm.shape.username.safeParse(randomUsername)
                   .success
               ) {
-                logger.error(
+                console.error(
                   "Error when validating random username, value was: ",
                   randomUsername
                 );
@@ -287,7 +301,7 @@ export const auth = betterAuth({
                 ) {
                   continue;
                 } else {
-                  logger.error("Error when creating a random username: ", err);
+                  console.error("Error when creating a random username: ", err);
                   throw err;
                 }
               }
@@ -301,7 +315,7 @@ export const auth = betterAuth({
               !signupSchemaForm.shape.username.safeParse(fallbackUsername)
                 .success
             ) {
-              logger.error(
+              console.error(
                 "Error when validating fallback username, value was: ",
                 fallbackUsername
               );

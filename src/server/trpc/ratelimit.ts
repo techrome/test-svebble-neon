@@ -7,7 +7,6 @@ import { createHmac } from "node:crypto";
 import { redis } from "../redis";
 import { trpc } from "./core";
 import { env } from "../env";
-import { logger } from "@/utils/logger";
 import { isDev } from "@@/scripts/helpers/isDev";
 
 type Duration = Parameters<typeof Ratelimit.slidingWindow>[1];
@@ -67,8 +66,9 @@ const makeRatelimitMiddleware = <S extends WindowSpec>(
   const limiter = makeRatelimit(spec, prefix);
 
   const middleware = trpc.middleware(async ({ ctx, next }) => {
-    const requestId = ctx.user?.id
-      ? `u:${ctx.user.id}`
+    const cachedAuth = await ctx.getCachedAuth();
+    const requestId = cachedAuth?.response?.user.id
+      ? `u:${cachedAuth.response.user.id}`
       : `ip:${getHashedIp(ctx.req)}`;
 
     let rateLimitResponse: Awaited<ReturnType<typeof limiter.limit>> | null =
@@ -79,7 +79,7 @@ const makeRatelimitMiddleware = <S extends WindowSpec>(
     } catch (err) {
       // for the rare case that the free quota is exceeded
       // I want the app to continue working even when ratelimiter is unavailable
-      logger.error("Error in ratelimit.ts: ", err);
+      console.error("Error in ratelimit.ts: ", err);
     }
 
     if (!isDev && rateLimitResponse && !rateLimitResponse.success) {
@@ -118,6 +118,7 @@ const rateLimits = {
   auth_resetPassword: { max: 7, window: "60s" },
   auth_login: { max: 5, window: "60s" },
   auth_usernameCheck: { max: 15, window: "60s" },
+  auth_avatarUpload: { max: 7, window: "120s" },
 } as const satisfies Record<string, WindowSpec>;
 
 type RateLimitMiddlewares = {

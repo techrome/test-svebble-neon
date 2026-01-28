@@ -11,11 +11,11 @@ import { trpc } from "@/trpc";
 import Input from "@/components/Fields/Input";
 import Button from "@/components/Button/Button";
 import { TermsLabel } from "@/components/AuthForm/Helpers";
-import { basePasswordSchemaForm } from "@/pages/app/my-profile";
 import Link from "@/components/Link/Link";
 import { ROUTES } from "@/utils/routes";
 import { PasswordStrengthMeter } from "@/components/AuthForm/Signup";
 import { useRouter } from "next/router";
+import { basePasswordSchemaForm } from "@/utils/validators/shared/user";
 
 export const resetPasswordSchemaForm = basePasswordSchemaForm.safeExtend({
   token: z.string().min(1),

@@ -14,17 +14,19 @@ export const userLoginLifecycle = (qc: QueryClient) => {
   });
 };
 
-export const userLogoutLifecycle = (qc: QueryClient) => {
+export const userLogoutLifecycle = async (qc: QueryClient) => {
   const userKey = getQueryKey(trpc.auth.user, undefined, "query");
   const freshUserKey = getQueryKey(trpc.auth.freshUser, undefined, "query");
   const listUserAccountsKey = getQueryKey(
-    trpc.auth.listUserAccounts,
+    trpc.user.listUserAccounts,
     undefined,
     "query"
   );
 
+  await qc.cancelQueries({ queryKey: freshUserKey });
   qc.setQueryData(userKey, { user: null });
   qc.setQueryData(freshUserKey, { user: null });
+  qc.setQueryData(listUserAccountsKey, []);
   qc.removeQueries({ queryKey: userKey });
   qc.removeQueries({ queryKey: freshUserKey });
   qc.removeQueries({ queryKey: listUserAccountsKey });

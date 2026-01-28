@@ -2,14 +2,14 @@ import React from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Chip, CircularProgress, Paper, Typography } from "@mui/material";
-import z from "zod";
-import Image from "next/image";
+import NextImage from "next/image";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import PersonIcon from "@mui/icons-material/Person";
 import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
 import MailIcon from "@mui/icons-material/Mail";
 import LockIcon from "@mui/icons-material/Lock";
+import { Dayjs } from "dayjs";
 
 import {
   defaultPadding,
@@ -17,36 +17,48 @@ import {
   Section,
   VerticalStack,
 } from "@/components/Layout/Containers";
-import { Text } from "@/utils/validators/helpers/text";
 import { useAuthedUserData } from "@/trpc/hooks/useUser";
-import { RouterOutput, trpc } from "@/trpc";
+import { trpc } from "@/trpc";
 import Input from "@/components/Fields/Input";
 import Button from "@/components/Button/Button";
 import { useAppSnackbar } from "@/utils/snackbar";
 import ButtonBase from "@/components/Button/ButtonBase";
-import { signupSchemaForm, zEmail } from "@/utils/validators/shared/auth";
 import {
   PasswordStrengthMeter,
   UsernameInput,
 } from "@/components/AuthForm/Signup";
-import avatarPlaceholderSrc from "@@/public/images/user-placeholder.webp";
-import { useGlobalModal } from "@/utils/hooks/useOverlay";
-import Confirm from "@/components/ModalTemplates/Confirm";
+import { useGlobalModal, useLocalModal } from "@/utils/hooks/useOverlay";
+import Confirm from "@/components/Modals/Confirm/Confirm";
 import { CACHE_TIME, minutes, seconds } from "@/utils/cacheTime";
 import { PROVIDER_IDS } from "@/utils/constants";
 import { isPlaceholderEmail } from "@/trpc/helpers/email";
-import {
-  useFreshAuthedUserData,
-  useFreshUser,
-} from "@/trpc/hooks/useFreshUser";
+import { useFreshUser } from "@/trpc/hooks/useFreshUser";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import dayjs from "@/utils/dayjs";
-import { Dayjs } from "dayjs";
 import { useCooldown } from "@/utils/hooks/useCooldown";
 import {
   BroadcastChannelEvent,
   BroadcastChannels,
 } from "@/pages/app/email-verified";
+import Tooltip from "@/components/Tooltip/Tooltip";
+import { env } from "@/utils/env";
+import {
+  avatarUploadUrlSchema,
+  AvatarUploadUrlSchemaForm,
+  BasicProfileFormValues,
+  basicProfileSchemaForm,
+  makeUsernameSchemaForm,
+  UsernameFormValues,
+  PasswordFormValues,
+  makePasswordSchemaForm,
+  makeEmailChangeSchemaForm,
+  EmailFormValues,
+} from "@/utils/validators/shared/user";
+import AvatarChangeModal from "@/components/Modals/AvatarEdit/AvatarEdit";
+
+export const defaultAvatars = {
+  first: `default-avatars/1.webp`,
+};
 
 const SectionWrapper = (props: { children: React.ReactNode }) => {
   return (
@@ -59,24 +71,22 @@ const SectionWrapper = (props: { children: React.ReactNode }) => {
   );
 };
 
-const DISPLAY_NAME_ALLOWED_REGEX = /^[\p{L}\p{M}\p{N}\p{P}\p{S} ]+$/u;
-const DISPLAY_NAME_FORBIDDEN_REGEX = /[\r\n\t<>]|\p{C}/u;
+export const createImage = async (file: File): Promise<HTMLImageElement> => {
+  const url = URL.createObjectURL(file);
 
-export const basicProfileSchemaForm = z.object({
-  name: Text.Handle({ required: true }).superRefine((value, ctx) => {
-    const ok =
-      DISPLAY_NAME_ALLOWED_REGEX.test(value) &&
-      !DISPLAY_NAME_FORBIDDEN_REGEX.test(value);
-    if (!ok) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Please don't use invalid or hidden characters.",
-      });
-    }
-  }),
-});
+  try {
+    return await new Promise((resolve, reject) => {
+      const img = new Image();
 
-type BasicProfileFormValues = z.infer<typeof basicProfileSchemaForm>;
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Image failed to load"));
+
+      img.src = url;
+    });
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
 
 const BasicProfileForm = () => {
   const userData = useAuthedUserData();
@@ -84,34 +94,117 @@ const BasicProfileForm = () => {
     defaultValues: { name: userData.name },
     resolver: zodResolver(basicProfileSchemaForm),
   });
-  const formIsDirty = form.formState.isDirty;
+  const nameIsDirty = form.formState.dirtyFields.name;
+  const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
+  const [avatarWasChanged, setAvatarWasChanged] =
+    React.useState<boolean>(false);
 
   const { addAppSnackbar } = useAppSnackbar();
+  const avatarEditModal = useLocalModal();
   const utils = trpc.useUtils();
-  const basicInfoUpdateMutation = trpc.auth.updateUserBasicInfo.useMutation({
-    async onSuccess(_data, variables) {
+  const basicInfoUpdateMutation = trpc.user.updateUserBasicInfo.useMutation();
+  const createAvatarUploadUrlMutation =
+    trpc.user.createAvatarUploadUrl.useMutation();
+
+  const validateAvatarFile = async (file: File | null) => {
+    if (!file) {
+      addAppSnackbar({
+        message: "No image selected",
+        variant: "error",
+      });
+      return null;
+    }
+    const imageInfo = await createImage(file);
+    const parseResult = avatarUploadUrlSchema.safeParse({
+      imageSize: file.size,
+      imageType: file.type,
+      imageWidth: imageInfo.naturalWidth,
+      imageHeight: imageInfo.naturalHeight,
+    } satisfies Record<keyof AvatarUploadUrlSchemaForm, unknown>);
+
+    if (!parseResult.success) {
+      addAppSnackbar({
+        message: parseResult.error?.issues?.[0].message,
+        variant: "error",
+      });
+      return null;
+    }
+
+    return parseResult;
+  };
+
+  const handleCreateAvatarUploadUrl = async () => {
+    const parseResult = await validateAvatarFile(avatarFile);
+    if (!parseResult) return;
+    const data = await createAvatarUploadUrlMutation.mutateAsync(
+      parseResult.data
+    );
+    try {
+      const res = await fetch(data.uploadUrl, {
+        method: "PUT",
+        headers: data.requiredHeaders,
+        body: avatarFile,
+      });
+      if (!res.ok) throw new Error();
+      return data.bucketKey;
+    } catch {
+      addAppSnackbar({
+        message: "Failed to upload the image",
+        variant: "error",
+      });
+      throw new Error();
+    }
+  };
+
+  const resetAvatarState = () => {
+    setAvatarFile(null);
+    setAvatarWasChanged(false);
+  };
+
+  const onSubmit: SubmitHandler<BasicProfileFormValues> = async (values) => {
+    try {
+      if (!nameIsDirty && !avatarWasChanged) {
+        addAppSnackbar({
+          message: "Profile is already up to date",
+        });
+        return;
+      }
+
+      let avatarBucketKey = undefined;
+      if (avatarWasChanged) {
+        if (avatarFile) {
+          avatarBucketKey = await handleCreateAvatarUploadUrl();
+        } else {
+          avatarBucketKey = null;
+        }
+      }
+
+      await basicInfoUpdateMutation.mutateAsync({
+        ...values,
+        ...(avatarBucketKey !== undefined ? { image: avatarBucketKey } : {}),
+      });
+
       await utils.auth.user.invalidate();
       addAppSnackbar({
         message: "Profile updated",
         variant: "success",
       });
       form.reset({
-        name: variables.name,
+        name: values.name,
       });
-    },
-  });
-
-  const onSubmit: SubmitHandler<BasicProfileFormValues> = async (values) => {
-    if (!formIsDirty) {
-      addAppSnackbar({
-        message: "Profile is already up to date",
-      });
-      return;
-    }
-    basicInfoUpdateMutation.mutate(values);
+      resetAvatarState();
+    } catch {}
   };
 
-  const isSubmitting = basicInfoUpdateMutation.isPending;
+  const avatarFileSrc = React.useMemo(
+    () => (avatarFile ? URL.createObjectURL(avatarFile) : ""),
+    [avatarFile]
+  );
+  React.useEffect(() => {
+    return () => URL.revokeObjectURL(avatarFileSrc);
+  }, [avatarFileSrc]);
+
+  const isSubmitting = form.formState.isSubmitting;
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
       <Typography variant="h6" component="h2" className="mb-2">
@@ -120,18 +213,24 @@ const BasicProfileForm = () => {
       <VerticalStack>
         <div className="mb-2">
           <HorizontalStack addClassName="items-center">
-            <div className="group relative w-full max-w-32 h-32 rounded-full border-4 border-[var(--mui-palette-text-secondary)]">
-              <Image
-                className="rounded-full "
-                src={userData.image || avatarPlaceholderSrc}
+            <div className="group relative w-full max-w-32 h-32 rounded-full border border-[var(--mui-palette-text-secondary)]">
+              <NextImage
+                className="rounded-full"
+                src={
+                  avatarWasChanged
+                    ? avatarFileSrc ||
+                      `${env.NEXT_PUBLIC_CDN_URL}/${defaultAvatars.first}`
+                    : `${env.NEXT_PUBLIC_CDN_URL}/${userData.image || defaultAvatars.first}`
+                }
                 alt="user-avatar"
                 fill
-                sizes="128px"
-                quality={100}
+                unoptimized
               />
               <ButtonBase
                 focusRipple
                 className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 bg-[rgb(var(--mui-palette-background-defaultChannel)/0.6)] text-[var(--mui-palette-text-primary)] transition absolute inset-0 rounded-full flex justify-center items-center"
+                type="button"
+                onClick={avatarEditModal.openModal}
               >
                 <EditIcon />
               </ButtonBase>
@@ -141,14 +240,21 @@ const BasicProfileForm = () => {
                 <Button
                   variant="contained"
                   color="inherit"
+                  type="button"
                   startIcon={<EditIcon />}
+                  onClick={avatarEditModal.openModal}
                 >
                   Change avatar
                 </Button>
-                {Boolean(userData.image) && (
+                {Boolean(avatarWasChanged ? avatarFileSrc : userData.image) && (
                   <Button
                     variant="outlined"
                     color="error"
+                    type="button"
+                    onClick={() => {
+                      setAvatarFile(null);
+                      setAvatarWasChanged(true);
+                    }}
                     startIcon={<DeleteIcon />}
                   >
                     Remove avatar
@@ -174,29 +280,22 @@ const BasicProfileForm = () => {
         >
           Save
         </Button>
+        <avatarEditModal.ReadyComponent
+          title="Select Image"
+          dialogProps={{ disableRestoreFocus: true }}
+        >
+          <AvatarChangeModal
+            onConfirm={(file) => {
+              setAvatarFile(file);
+              setAvatarWasChanged(true);
+              avatarEditModal.closeModal();
+            }}
+          />
+        </avatarEditModal.ReadyComponent>
       </VerticalStack>
     </form>
   );
 };
-
-export const usernameSchemaForm = z.object({
-  username: signupSchemaForm.shape.username,
-});
-
-type User = NonNullable<RouterOutput["auth"]["user"]["user"]>;
-
-const makeUsernameSchemaForm = (currentUsername: User["username"]) =>
-  usernameSchemaForm.superRefine(({ username }, ctx) => {
-    if (username.toLowerCase() === String(currentUsername).toLowerCase()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["username"],
-        message: "New username must be different than your current username.",
-      });
-    }
-  });
-
-export type UsernameFormValues = z.infer<typeof usernameSchemaForm>;
 
 const UsernameForm = () => {
   const userData = useAuthedUserData();
@@ -211,7 +310,7 @@ const UsernameForm = () => {
   const { addAppSnackbar } = useAppSnackbar();
   const { openModal, closeModal } = useGlobalModal();
   const utils = trpc.useUtils();
-  const usernameUpdateMutation = trpc.auth.updateUserUsername.useMutation({
+  const usernameUpdateMutation = trpc.user.updateUserUsername.useMutation({
     async onSuccess() {
       await utils.auth.user.invalidate();
       addAppSnackbar({
@@ -302,48 +401,6 @@ const UsernameForm = () => {
   );
 };
 
-export const basePasswordSchemaForm = z
-  .object({
-    password: signupSchemaForm.shape.password,
-    passwordConfirm: signupSchemaForm.shape.password,
-  })
-  .superRefine((data, ctx) => {
-    if (data.password !== data.passwordConfirm) {
-      ctx.addIssue({
-        code: "custom",
-        message: "New passwords do not match.",
-        path: ["passwordConfirm"],
-      });
-    }
-  });
-
-export const passwordSchemaForm = basePasswordSchemaForm.safeExtend({
-  oldPassword: signupSchemaForm.shape.password.or(z.literal("")),
-});
-
-export const makePasswordSchemaForm = (hasOldPassword: boolean) => {
-  if (hasOldPassword) {
-    return passwordSchemaForm
-      .safeExtend({
-        oldPassword: passwordSchemaForm.shape.password,
-      })
-      .superRefine((data, ctx) => {
-        if (data.oldPassword === data.password) {
-          ctx.addIssue({
-            code: "custom",
-            message:
-              "New password must be different than the current password.",
-            path: ["password"],
-          });
-        }
-      });
-  } else {
-    return passwordSchemaForm;
-  }
-};
-
-type PasswordFormValues = z.infer<typeof passwordSchemaForm>;
-
 const emptyPasswordFormValues: PasswordFormValues = {
   oldPassword: "",
   password: "",
@@ -366,10 +423,10 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
   const { addAppSnackbar } = useAppSnackbar();
   const utils = trpc.useUtils();
 
-  const passwordUpdateMutation = trpc.auth.changeUserPassword.useMutation({
+  const passwordUpdateMutation = trpc.user.changeUserPassword.useMutation({
     async onSuccess() {
       await utils.auth.user.invalidate();
-      await utils.auth.listUserAccounts.invalidate();
+      await utils.user.listUserAccounts.invalidate();
       addAppSnackbar({
         message: "Password updated",
         variant: "success",
@@ -449,7 +506,7 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
 
 const PasswordFormWrapper = () => {
   const userData = useAuthedUserData();
-  const userAccounts = trpc.auth.listUserAccounts.useQuery(
+  const userAccounts = trpc.user.listUserAccounts.useQuery(
     { id: userData.id },
     {
       staleTime: CACHE_TIME.NORMAL,
@@ -479,27 +536,9 @@ const PasswordFormWrapper = () => {
   return <PasswordForm hasOldPassword={hasOldPassword} />;
 };
 
-export const emailSchemaForm = z.object({
-  email: zEmail,
-});
-
-export const makeEmailChangeSchemaForm = (activeEmail?: string) => {
-  return emailSchemaForm.superRefine((data, ctx) => {
-    if (activeEmail === data.email) {
-      ctx.addIssue({
-        code: "custom",
-        message: "New email should be different than your active email.",
-        path: ["email"],
-      });
-    }
-  });
-};
-
-export type EmailFormValues = z.infer<typeof emailSchemaForm>;
-
 const EmailForm = () => {
   const pollingStartedTime = React.useRef<Dayjs | null>(null);
-  const freshUserData = useFreshAuthedUserData(
+  useFreshUser(
     {
       refetchInterval: (data) => {
         const shouldStartPolling = Boolean(
@@ -536,6 +575,7 @@ const EmailForm = () => {
     },
     { disableLoadingBoundary: true }
   );
+  const freshUserData = useAuthedUserData();
 
   const schema = React.useMemo(() => {
     return makeEmailChangeSchemaForm(freshUserData.email);
@@ -549,7 +589,7 @@ const EmailForm = () => {
   const { addAppSnackbar } = useAppSnackbar();
 
   const utils = trpc.useUtils();
-  const emailUpdateMutation = trpc.auth.changeEmail.useMutation({
+  const emailUpdateMutation = trpc.user.changeEmail.useMutation({
     meta: { keepDefaultErrorHandling: true },
     async onSuccess(_data, variables) {
       await utils.auth.freshUser.invalidate();
@@ -571,7 +611,7 @@ const EmailForm = () => {
       resendTimer.reset();
     },
   });
-  const cancelPendingEmailMutation = trpc.auth.cancelPendingEmail.useMutation({
+  const cancelPendingEmailMutation = trpc.user.cancelPendingEmail.useMutation({
     async onSuccess() {
       await utils.auth.freshUser.invalidate();
     },
@@ -651,85 +691,112 @@ const EmailForm = () => {
                         Waiting for email confirmation...
                       </Typography>
                     </div>
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={() => {
-                        if (freshUserData.pendingEmail) {
-                          emailUpdateMutation.mutate({
-                            email: freshUserData.pendingEmail,
-                          });
-                        }
-                      }}
-                      isLoading={emailUpdateMutation.isPending}
-                      disabled={anySubmitting || resendTimer.isCoolingDown}
-                      className={resendTimer.isCoolingDown ? "normal-case" : ""}
-                      endIcon={
-                        resendTimer.isCoolingDown && (
-                          <CircularProgress
-                            size={20}
-                            variant="determinate"
-                            value={resendTimer.progress}
-                            enableTrackSlot
-                          />
-                        )
+                    <Tooltip
+                      title={
+                        resendTimer.isCoolingDown
+                          ? `You can resend the link in ${resendTimer.remainingSeconds} seconds.`
+                          : ""
                       }
                     >
-                      {resendTimer.isCoolingDown
-                        ? `${resendTimer.remainingSeconds}s`
-                        : "Resend link"}
-                    </Button>
-                    <Button
-                      variant="contained"
-                      color="inherit"
-                      onClick={() => {
-                        cancelPendingEmailMutation.mutate();
-                      }}
-                      isLoading={cancelPendingEmailMutation.isPending}
-                      disabled={anySubmitting}
-                    >
-                      Cancel
-                    </Button>
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        type="button"
+                        onClick={() => {
+                          if (freshUserData.pendingEmail) {
+                            emailUpdateMutation.mutate({
+                              email: freshUserData.pendingEmail,
+                            });
+                          }
+                        }}
+                        isLoading={emailUpdateMutation.isPending}
+                        disabled={anySubmitting || resendTimer.isCoolingDown}
+                        className={
+                          resendTimer.isCoolingDown ? "normal-case" : ""
+                        }
+                        endIcon={
+                          resendTimer.isCoolingDown && (
+                            <CircularProgress
+                              size={20}
+                              variant="determinate"
+                              value={resendTimer.progress}
+                              enableTrackSlot
+                            />
+                          )
+                        }
+                      >
+                        {resendTimer.isCoolingDown
+                          ? `${resendTimer.remainingSeconds}s`
+                          : "Resend link"}
+                      </Button>
+                    </Tooltip>
+                    <Tooltip title="Cancel and use a different email.">
+                      <Button
+                        variant="contained"
+                        color="inherit"
+                        type="button"
+                        onClick={() => {
+                          cancelPendingEmailMutation.mutate();
+                        }}
+                        isLoading={cancelPendingEmailMutation.isPending}
+                        disabled={anySubmitting}
+                      >
+                        Cancel
+                      </Button>
+                    </Tooltip>
                   </HorizontalStack>
                 </>
               )}
             </VerticalStack>
           ) : null}
-          <Input
-            control={form.control}
-            name="email"
-            label="New email"
-            type="email"
-            autoComplete="email"
-            fullWidth
-            helperText={
-              anyEmail
-                ? "We’ll send a verification link to this address. Your current email stays active until you verify the new one."
-                : "We’ll send a verification link to this address. Verify this email to finish setting up your account."
-            }
-          />
-          <Button
-            variant="contained"
-            type="submit"
-            size="large"
-            isLoading={emailUpdateMutation.isPending}
-            disabled={anySubmitting || resendTimer.isCoolingDown}
-            className={resendTimer.isCoolingDown ? "normal-case" : ""}
-            endIcon={
-              resendTimer.isCoolingDown && (
-                <CircularProgress
-                  size={20}
-                  variant="determinate"
-                  value={resendTimer.progress}
-                  enableTrackSlot
-                />
-              )
-            }
-          >
-            {resendTimer.isCoolingDown
-              ? `${resendTimer.remainingSeconds}s`
-              : "Send verification link"}
-          </Button>
+          {!freshUserData.pendingEmail && (
+            <>
+              <Input
+                control={form.control}
+                name="email"
+                label="New email"
+                type="email"
+                autoComplete="email"
+                fullWidth
+                helperText={
+                  anyEmail
+                    ? "We’ll send a verification link to this address. Your current email stays active until you verify the new one."
+                    : "We’ll send a verification link to this address. Verify this email to finish setting up your account."
+                }
+              />
+              <Tooltip
+                title={
+                  resendTimer.isCoolingDown
+                    ? `You can send the link in ${resendTimer.remainingSeconds} seconds.`
+                    : ""
+                }
+              >
+                <Button
+                  variant="contained"
+                  type="submit"
+                  size="large"
+                  fullWidth
+                  isLoading={emailUpdateMutation.isPending}
+                  disabled={anySubmitting || resendTimer.isCoolingDown}
+                  className={resendTimer.isCoolingDown ? "normal-case" : ""}
+                  endIcon={
+                    resendTimer.isCoolingDown && (
+                      <CircularProgress
+                        size={20}
+                        variant="determinate"
+                        value={resendTimer.progress}
+                        enableTrackSlot
+                      />
+                    )
+                  }
+                >
+                  {resendTimer.isCoolingDown
+                    ? `${resendTimer.remainingSeconds}s`
+                    : "Send verification link"}
+                </Button>
+              </Tooltip>
+            </>
+          )}
         </VerticalStack>
       </form>
     </>

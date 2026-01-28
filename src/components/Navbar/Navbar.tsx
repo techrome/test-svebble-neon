@@ -85,7 +85,7 @@ import { useUser } from "@/trpc/hooks/useUser";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import usePrevious from "@/utils/hooks/usePrevious";
 import { useQueryClient } from "@tanstack/react-query";
-import { userLogoutLifecycle } from "@/utils/userLifecycle";
+import { userLogoutLifecycle } from "@/trpc/helpers/userLifecycle";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -120,7 +120,7 @@ const AuthButtons = (props: { fullWidth?: boolean; isNavbar?: boolean }) => {
       userLogoutLifecycle(qc);
     },
   });
-  const deleteAccountMutation = trpc.auth.deleteUser.useMutation({
+  const deleteAccountMutation = trpc.user.deleteUser.useMutation({
     onSuccess() {
       moveFromPrivatePage();
       addAppSnackbar({
@@ -818,7 +818,7 @@ const NavbarInner = () => {
       }
 
       if (userData?.username) {
-        utils.auth.checkUsernameAvailability.invalidate(
+        utils.user.checkUsernameAvailability.invalidate(
           {
             username: userData?.username,
           },

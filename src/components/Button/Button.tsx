@@ -10,14 +10,14 @@ type Props = MuiButtonProps & {
   isLoading?: boolean;
 };
 
-const Button = ({ children, ...props }: Props) => {
+const Button = ({ children, isLoading, ...props }: Props) => {
   return (
-    <MuiButton {...props} {...(props.isLoading ? { disabled: true } : {})}>
-      <div className={clsx("transition-all", props.isLoading && "opacity-50")}>
+    <MuiButton {...props} {...(isLoading ? { disabled: true } : {})}>
+      <div className={clsx("transition-all", isLoading && "opacity-50")}>
         {children}
       </div>
 
-      {props.isLoading && (
+      {isLoading && (
         <div className="absolute inset-0 flex justify-center items-center text-[var(--mui-palette-text-primary)]">
           <CircularProgress size={20} color="inherit" />
         </div>
