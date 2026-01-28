@@ -3,7 +3,12 @@ name: Migrate DB and deploy to Vercel
 on:
   push:
     branches: [master]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_migration:
+        description: "Force run DB migrations even if no migrations directory changes are detected"
+        type: boolean
+        default: false
 
 env:
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -57,7 +62,7 @@ jobs:
 
   migrate:
     needs: [check_needs_migration, check_migrations_are_committed]
-    if: needs.check_needs_migration.outputs.directory-modified == 'true'
+    if: ${{ needs.check_needs_migration.outputs.directory-modified == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_migration) }}
     runs-on: ubuntu-22.04
     permissions:
       contents: read
