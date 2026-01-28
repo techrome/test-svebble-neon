@@ -21,7 +21,7 @@ export const trpc = initTRPC.context<TRPCContext>().create({
         : shape.data.httpStatus === 500 ||
           error.code === "INTERNAL_SERVER_ERROR");
 
-    if (false) {
+    if (isProd500Error) {
       return {
         message: "Something went wrong.",
         code: shape.code,
