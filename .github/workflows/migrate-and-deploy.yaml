@@ -3,7 +3,12 @@ name: Migrate DB and deploy to Vercel
 on:
   push:
     branches: [master]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_migration:
+        description: "Force run DB migrations even if no migrations directory changes are detected"
+        type: boolean
+        default: false
 
 env:
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -15,6 +20,14 @@ env:
   UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
   UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
   RATELIMIT_IP_SALT: ${{ secrets.RATELIMIT_IP_SALT }}
+  BACKBLAZE_APP_KEY_ID: ${{ secrets.BACKBLAZE_APP_KEY_ID }}
+  BACKBLAZE_APP_KEY: ${{ secrets.BACKBLAZE_APP_KEY }}
+  BACKBLAZE_REGION: ${{ secrets.BACKBLAZE_REGION }}
+  BACKBLAZE_ENDPOINT: ${{ secrets.BACKBLAZE_ENDPOINT }}
+  BACKBLAZE_BUCKET_NAME: ${{ secrets.BACKBLAZE_BUCKET_NAME }}
+  NEXT_PUBLIC_CDN_URL: ${{ secrets.NEXT_PUBLIC_CDN_URL }}
+  OPENAI_API_TOKEN: ${{ secrets.OPENAI_API_TOKEN }}
+  CRON_SECRET: ${{ secrets.CRON_SECRET }}
 
 jobs:
   check_needs_migration:
@@ -49,7 +62,7 @@ jobs:
 
   migrate:
     needs: [check_needs_migration, check_migrations_are_committed]
-    if: needs.check_needs_migration.outputs.directory-modified == 'true'
+    if: ${{ needs.check_needs_migration.outputs.directory-modified == 'true' || (github.event_name == 'workflow_dispatch' && inputs.force_migration) }}
     runs-on: ubuntu-22.04
     permissions:
       contents: read
