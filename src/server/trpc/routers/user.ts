@@ -23,7 +23,7 @@ import {
   makePasswordSchemaForm,
   passwordSchemaForm,
   usernameSchemaForm,
-} from "@/pages/app/my-profile";
+} from "@/utils/validators/shared/user";
 import { TRPCError } from "@trpc/server";
 import { PROVIDER_IDS } from "@/utils/constants";
 import { getCookieForwarder, throwIfZodError } from "./auth";

@@ -78,6 +78,16 @@ _theme = {
         },
       },
     },
+    MuiDialogContent: {
+      styleOverrides: {
+        root: {
+          padding: _theme.spacing(0, 3, 3, 3),
+          [_theme.breakpoints.down("sm")]: {
+            padding: _theme.spacing(0, 2, 2, 2),
+          },
+        },
+      },
+    },
     MuiTab: {
       styleOverrides: {
         root: {

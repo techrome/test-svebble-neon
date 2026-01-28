@@ -7,8 +7,10 @@ import {
   DialogTitleProps,
   DialogContentProps,
 } from "@mui/material";
+
 import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@/components/Button/IconButton";
+import { PartialFor } from "@/utils/types";
 
 type MuiOnClose = NonNullable<DialogProps["onClose"]>;
 type MuiCloseArgs = Parameters<MuiOnClose>;
@@ -19,7 +21,7 @@ export type ModalProps = {
   onExited?: () => void;
   title?: string;
   children: React.ReactNode;
-  dialogProps?: DialogProps;
+  dialogProps?: PartialFor<DialogProps, "open">;
   dialogTitleProps?: DialogTitleProps;
   dialogContentProps?: DialogContentProps;
 };

@@ -1,8 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Chip, CircularProgress, Paper, Typography } from "@mui/material";
-import z from "zod";
 import NextImage from "next/image";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -10,7 +9,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import AlternateEmailIcon from "@mui/icons-material/AlternateEmail";
 import MailIcon from "@mui/icons-material/Mail";
 import LockIcon from "@mui/icons-material/Lock";
-import FileUploadIcon from "@mui/icons-material/FileUpload";
+import { Dayjs } from "dayjs";
 
 import {
   defaultPadding,
@@ -18,40 +17,44 @@ import {
   Section,
   VerticalStack,
 } from "@/components/Layout/Containers";
-import { Text } from "@/utils/validators/helpers/text";
 import { useAuthedUserData } from "@/trpc/hooks/useUser";
-import { RouterOutput, trpc } from "@/trpc";
+import { trpc } from "@/trpc";
 import Input from "@/components/Fields/Input";
 import Button from "@/components/Button/Button";
 import { useAppSnackbar } from "@/utils/snackbar";
 import ButtonBase from "@/components/Button/ButtonBase";
-import { signupSchemaForm, zEmail } from "@/utils/validators/shared/auth";
 import {
   PasswordStrengthMeter,
   UsernameInput,
 } from "@/components/AuthForm/Signup";
 import { useGlobalModal, useLocalModal } from "@/utils/hooks/useOverlay";
-import Confirm from "@/components/ModalTemplates/Confirm";
+import Confirm from "@/components/Modals/Confirm/Confirm";
 import { CACHE_TIME, minutes, seconds } from "@/utils/cacheTime";
 import { PROVIDER_IDS } from "@/utils/constants";
 import { isPlaceholderEmail } from "@/trpc/helpers/email";
 import { useFreshUser } from "@/trpc/hooks/useFreshUser";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import dayjs from "@/utils/dayjs";
-import { Dayjs } from "dayjs";
 import { useCooldown } from "@/utils/hooks/useCooldown";
 import {
   BroadcastChannelEvent,
   BroadcastChannels,
 } from "@/pages/app/email-verified";
 import Tooltip from "@/components/Tooltip/Tooltip";
-import HelperText from "@/components/Fields/HelperText";
-import { mebibytes } from "@/utils/storageUnits";
 import { env } from "@/utils/env";
-
-const AVATAR_MAX_SIZE_MB = 2;
-const AVATAR_MAX_WIDTH = 2048;
-const AVATAR_MAX_HEIGHT = 2048;
+import {
+  avatarUploadUrlSchema,
+  AvatarUploadUrlSchemaForm,
+  BasicProfileFormValues,
+  basicProfileSchemaForm,
+  makeUsernameSchemaForm,
+  UsernameFormValues,
+  PasswordFormValues,
+  makePasswordSchemaForm,
+  makeEmailChangeSchemaForm,
+  EmailFormValues,
+} from "@/utils/validators/shared/user";
+import AvatarChangeModal from "@/components/Modals/AvatarEdit/AvatarEdit";
 
 export const defaultAvatars = {
   first: `default-avatars/1.webp`,
@@ -68,17 +71,14 @@ const SectionWrapper = (props: { children: React.ReactNode }) => {
   );
 };
 
-const getImageDimensions = async (
-  file: File
-): Promise<{ width: number; height: number }> => {
+export const createImage = async (file: File): Promise<HTMLImageElement> => {
   const url = URL.createObjectURL(file);
 
   try {
     return await new Promise((resolve, reject) => {
       const img = new Image();
 
-      img.onload = () =>
-        resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onload = () => resolve(img);
       img.onerror = () => reject(new Error("Image failed to load"));
 
       img.src = url;
@@ -88,127 +88,6 @@ const getImageDimensions = async (
   }
 };
 
-export const allowedAvatarExtensionsMap = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-} as const;
-
-export const avatarUploadUrlSchema = z.object({
-  imageType: z.enum(
-    Object.keys(
-      allowedAvatarExtensionsMap
-    ) as (keyof typeof allowedAvatarExtensionsMap)[],
-    { error: "Unsupported image type." }
-  ),
-  imageSize: z
-    .number()
-    .int()
-    .positive()
-    .max(mebibytes(AVATAR_MAX_SIZE_MB), {
-      error: `Image must be less than ${AVATAR_MAX_SIZE_MB}MB in size.`,
-    }),
-  imageWidth: z
-    .number()
-    .int()
-    .positive()
-    .max(AVATAR_MAX_WIDTH, {
-      error: `Image width must be less than ${AVATAR_MAX_WIDTH} pixels.`,
-    }),
-  imageHeight: z
-    .number()
-    .int()
-    .positive()
-    .max(AVATAR_MAX_HEIGHT, {
-      error: `Image height must be less than ${AVATAR_MAX_HEIGHT} pixels.`,
-    }),
-});
-
-type AvatarUploadUrlSchemaForm = z.infer<typeof avatarUploadUrlSchema>;
-
-const AvatarChangeModal = ({
-  avatarFile,
-  onAvatarChange,
-  validateFile,
-  onCancel,
-  onConfirm,
-}: {
-  avatarFile: File | null;
-  onAvatarChange: (file: File | null) => void;
-  validateFile: (
-    file: File | null
-  ) => Promise<z.ZodSafeParseSuccess<AvatarUploadUrlSchemaForm> | null>;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) => {
-  return (
-    <VerticalStack>
-      <div>
-        <Button
-          variant="contained"
-          color="primary"
-          component="label"
-          startIcon={<FileUploadIcon />}
-        >
-          Choose file
-          <input
-            hidden
-            type="file"
-            accept={Object.keys(allowedAvatarExtensionsMap).join(",")}
-            onClick={(e) => {
-              e.currentTarget.value = "";
-            }}
-            onChange={async (e) => {
-              const file = e.currentTarget.files?.[0];
-
-              if (!file) return;
-
-              const parseResult = await validateFile(file);
-              if (!parseResult) return;
-              onAvatarChange(file);
-            }}
-          />
-        </Button>
-        <HelperText
-          helperText={`Selected file: ${avatarFile?.name}`}
-          helperTextAlwaysShown
-        />
-        <HelperText
-          helperText={`Max size: ${AVATAR_MAX_SIZE_MB}MB. Max dimensions: ${AVATAR_MAX_WIDTH}x${AVATAR_MAX_HEIGHT}. Allowed formats: ${Object.values(allowedAvatarExtensionsMap).join(", ")}.`}
-          helperTextAlwaysShown
-        />
-      </div>
-      <HorizontalStack addClassName="justify-between items-center">
-        <Button variant="outlined" color="primary" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button variant="contained" color="primary" onClick={onConfirm}>
-          Save
-        </Button>
-      </HorizontalStack>
-    </VerticalStack>
-  );
-};
-
-const DISPLAY_NAME_ALLOWED_REGEX = /^[\p{L}\p{M}\p{N}\p{P}\p{S} ]+$/u;
-const DISPLAY_NAME_FORBIDDEN_REGEX = /[\r\n\t<>]|\p{C}/u;
-
-export const basicProfileSchemaForm = z.object({
-  name: Text.Handle({ required: true }).superRefine((value, ctx) => {
-    const ok =
-      DISPLAY_NAME_ALLOWED_REGEX.test(value) &&
-      !DISPLAY_NAME_FORBIDDEN_REGEX.test(value);
-    if (!ok) {
-      ctx.addIssue({
-        code: "custom",
-        message: "Please don't use invalid or hidden characters.",
-      });
-    }
-  }),
-});
-
-type BasicProfileFormValues = z.infer<typeof basicProfileSchemaForm>;
-
 const BasicProfileForm = () => {
   const userData = useAuthedUserData();
   const form = useForm<BasicProfileFormValues>({
@@ -216,8 +95,9 @@ const BasicProfileForm = () => {
     resolver: zodResolver(basicProfileSchemaForm),
   });
   const nameIsDirty = form.formState.dirtyFields.name;
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarWasChanged, setAvatarWasChanged] = useState<boolean>(false);
+  const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
+  const [avatarWasChanged, setAvatarWasChanged] =
+    React.useState<boolean>(false);
 
   const { addAppSnackbar } = useAppSnackbar();
   const avatarEditModal = useLocalModal();
@@ -234,12 +114,12 @@ const BasicProfileForm = () => {
       });
       return null;
     }
-    const imageDimensions = await getImageDimensions(file);
+    const imageInfo = await createImage(file);
     const parseResult = avatarUploadUrlSchema.safeParse({
       imageSize: file.size,
       imageType: file.type,
-      imageWidth: imageDimensions.width,
-      imageHeight: imageDimensions.height,
+      imageWidth: imageInfo.naturalWidth,
+      imageHeight: imageInfo.naturalHeight,
     } satisfies Record<keyof AvatarUploadUrlSchemaForm, unknown>);
 
     if (!parseResult.success) {
@@ -316,6 +196,14 @@ const BasicProfileForm = () => {
     } catch {}
   };
 
+  const avatarFileSrc = React.useMemo(
+    () => (avatarFile ? URL.createObjectURL(avatarFile) : ""),
+    [avatarFile]
+  );
+  React.useEffect(() => {
+    return () => URL.revokeObjectURL(avatarFileSrc);
+  }, [avatarFileSrc]);
+
   const isSubmitting = form.formState.isSubmitting;
   return (
     <form onSubmit={form.handleSubmit(onSubmit)}>
@@ -325,10 +213,15 @@ const BasicProfileForm = () => {
       <VerticalStack>
         <div className="mb-2">
           <HorizontalStack addClassName="items-center">
-            <div className="group relative w-full max-w-32 h-32 rounded-full border-4 border-[var(--mui-palette-text-secondary)]">
+            <div className="group relative w-full max-w-32 h-32 rounded-full border border-[var(--mui-palette-text-secondary)]">
               <NextImage
                 className="rounded-full"
-                src={`${env.NEXT_PUBLIC_CDN_URL}/${userData.image || defaultAvatars.first}`}
+                src={
+                  avatarWasChanged
+                    ? avatarFileSrc ||
+                      `${env.NEXT_PUBLIC_CDN_URL}/${defaultAvatars.first}`
+                    : `${env.NEXT_PUBLIC_CDN_URL}/${userData.image || defaultAvatars.first}`
+                }
                 alt="user-avatar"
                 fill
                 unoptimized
@@ -353,7 +246,7 @@ const BasicProfileForm = () => {
                 >
                   Change avatar
                 </Button>
-                {Boolean(userData.image) && (
+                {Boolean(avatarWasChanged ? avatarFileSrc : userData.image) && (
                   <Button
                     variant="outlined"
                     color="error"
@@ -387,44 +280,22 @@ const BasicProfileForm = () => {
         >
           Save
         </Button>
-        <avatarEditModal.ReadyComponent title="Change Avatar">
+        <avatarEditModal.ReadyComponent
+          title="Select Image"
+          dialogProps={{ disableRestoreFocus: true }}
+        >
           <AvatarChangeModal
-            avatarFile={avatarFile}
-            onAvatarChange={(file) => {
+            onConfirm={(file) => {
               setAvatarFile(file);
               setAvatarWasChanged(true);
-            }}
-            validateFile={validateAvatarFile}
-            onCancel={() => {
-              setAvatarFile(null);
               avatarEditModal.closeModal();
             }}
-            onConfirm={avatarEditModal.closeModal}
           />
         </avatarEditModal.ReadyComponent>
       </VerticalStack>
     </form>
   );
 };
-
-export const usernameSchemaForm = z.object({
-  username: signupSchemaForm.shape.username,
-});
-
-type User = NonNullable<RouterOutput["auth"]["user"]["user"]>;
-
-const makeUsernameSchemaForm = (currentUsername: User["username"]) =>
-  usernameSchemaForm.superRefine(({ username }, ctx) => {
-    if (username.toLowerCase() === String(currentUsername).toLowerCase()) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["username"],
-        message: "New username must be different than your current username.",
-      });
-    }
-  });
-
-export type UsernameFormValues = z.infer<typeof usernameSchemaForm>;
 
 const UsernameForm = () => {
   const userData = useAuthedUserData();
@@ -529,48 +400,6 @@ const UsernameForm = () => {
     </form>
   );
 };
-
-export const basePasswordSchemaForm = z
-  .object({
-    password: signupSchemaForm.shape.password,
-    passwordConfirm: signupSchemaForm.shape.password,
-  })
-  .superRefine((data, ctx) => {
-    if (data.password !== data.passwordConfirm) {
-      ctx.addIssue({
-        code: "custom",
-        message: "New passwords do not match.",
-        path: ["passwordConfirm"],
-      });
-    }
-  });
-
-export const passwordSchemaForm = basePasswordSchemaForm.safeExtend({
-  oldPassword: signupSchemaForm.shape.password.or(z.literal("")),
-});
-
-export const makePasswordSchemaForm = (hasOldPassword: boolean) => {
-  if (hasOldPassword) {
-    return passwordSchemaForm
-      .safeExtend({
-        oldPassword: passwordSchemaForm.shape.password,
-      })
-      .superRefine((data, ctx) => {
-        if (data.oldPassword === data.password) {
-          ctx.addIssue({
-            code: "custom",
-            message:
-              "New password must be different than the current password.",
-            path: ["password"],
-          });
-        }
-      });
-  } else {
-    return passwordSchemaForm;
-  }
-};
-
-type PasswordFormValues = z.infer<typeof passwordSchemaForm>;
 
 const emptyPasswordFormValues: PasswordFormValues = {
   oldPassword: "",
@@ -706,24 +535,6 @@ const PasswordFormWrapper = () => {
 
   return <PasswordForm hasOldPassword={hasOldPassword} />;
 };
-
-export const emailSchemaForm = z.object({
-  email: zEmail,
-});
-
-export const makeEmailChangeSchemaForm = (activeEmail?: string) => {
-  return emailSchemaForm.superRefine((data, ctx) => {
-    if (activeEmail === data.email) {
-      ctx.addIssue({
-        code: "custom",
-        message: "New email should be different than your active email.",
-        path: ["email"],
-      });
-    }
-  });
-};
-
-export type EmailFormValues = z.infer<typeof emailSchemaForm>;
 
 const EmailForm = () => {
   const pollingStartedTime = React.useRef<Dayjs | null>(null);
