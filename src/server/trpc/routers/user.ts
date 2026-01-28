@@ -433,6 +433,12 @@ export const userRouter = router({
         });
       }
       const userId = ctx.user.id;
+
+      const verificationIdentifiers = [
+        ctx.user.email,
+        ctx.user.pendingEmail,
+      ].filter((v): v is string => typeof v === "string" && v.length > 0);
+
       await db.transaction(async (tx) => {
         await tx
           .update(schema.user)
@@ -458,14 +464,13 @@ export const userRouter = router({
         await tx
           .delete(schema.account)
           .where(eq(schema.account.userId, userId));
-        const identifiers = [ctx.user.email, ctx.user.pendingEmail].filter(
-          (v): v is string => typeof v === "string" && v.length > 0
-        );
 
-        if (identifiers.length > 0) {
+        if (verificationIdentifiers.length > 0) {
           await tx
             .delete(schema.verification)
-            .where(inArray(schema.verification.identifier, identifiers));
+            .where(
+              inArray(schema.verification.identifier, verificationIdentifiers)
+            );
         }
       });
 
