@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { waitUntil } from "@vercel/functions";
 
 import { env } from "../env";
 
@@ -22,6 +23,11 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-export const sendEmail = async ({ to, subject, text, html }: SendEmailArgs) => {
-  await transporter.sendMail({ from, to, subject, text, html });
+export const sendEmail = ({ to, subject, text, html }: SendEmailArgs) => {
+  // intentionally not awaiting the email to avoid timing attacks
+  waitUntil(
+    transporter.sendMail({ from, to, subject, text, html }).catch((err) => {
+      console.error("sendEmail failed", err);
+    })
+  );
 };
