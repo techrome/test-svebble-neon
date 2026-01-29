@@ -11,6 +11,7 @@ export const ROUTES = {
   about: "/about",
   terms: "/terms",
   privacyPolicy: "/privacy-policy",
+  verifyEmailRedirect: "/verify-email-redirect",
   oauthStarting: `/${oauthRoutePrefix}/oauth-starting`,
   oauthDone: `/${oauthRoutePrefix}/oauth-done`,
   logIn: `/${authRoutePrefix}/log-in`,

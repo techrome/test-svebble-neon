@@ -28,6 +28,11 @@ env:
   NEXT_PUBLIC_CDN_URL: ${{ secrets.NEXT_PUBLIC_CDN_URL }}
   OPENAI_API_TOKEN: ${{ secrets.OPENAI_API_TOKEN }}
   CRON_SECRET: ${{ secrets.CRON_SECRET }}
+  EMAIL_SMTP_HOST: ${{ secrets.EMAIL_SMTP_HOST }}
+  EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
+  EMAIL_SMTP_USER: ${{ secrets.EMAIL_SMTP_USER }}
+  EMAIL_SMTP_PASS: ${{ secrets.EMAIL_SMTP_PASS }}
+  EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
 
 jobs:
   check_needs_migration:
