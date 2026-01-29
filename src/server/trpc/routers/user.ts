@@ -344,7 +344,7 @@ export const userRouter = router({
           auth.api.changeEmail({
             body: {
               newEmail: input.email,
-              callbackURL: `${baseURL}/${ROUTES.private_emailVerified}`,
+              callbackURL: `${baseURL}${ROUTES.private_emailVerified}`,
             },
             ...opts,
           })

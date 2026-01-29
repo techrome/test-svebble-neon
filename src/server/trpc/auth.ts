@@ -15,7 +15,7 @@ import {
 } from "../../utils/validators/shared/auth";
 import { TEXT_LIMITS } from "../../utils/validators/helpers/text";
 import { env } from "../env";
-import { days, minutes } from "@/utils/cacheTime";
+import { days, hours, minutes } from "@/utils/cacheTime";
 import { generateRandomUsername } from "./helpers/generateRandomUsername";
 import {
   mergeSetCookiesToHeaders,
@@ -23,6 +23,11 @@ import {
 } from "./helpers/cookies";
 import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
 import { sendEmail } from "../email";
+import {
+  buildResetPassword,
+  buildVerifyEmail,
+} from "../email/templates/_helpers/builders";
+import { ROUTES } from "@/utils/routes";
 
 const getBaseURL = () => {
   if (env.BASE_URL) {
@@ -128,10 +133,13 @@ export const auth = betterAuth({
 
     sendResetPassword: async (data, request) => {
       console.log("send reset pass", { data, request });
-      sendEmail({
+
+      const emailBody = await buildResetPassword({ url: data.url });
+      void sendEmail({
         to: data.user.email,
         subject: "Reset your password",
-        text: `Reset here: ${data.url}`,
+        text: emailBody.text,
+        html: emailBody.html,
       });
     },
     onPasswordReset: async (data, request) => {
@@ -158,13 +166,18 @@ export const auth = betterAuth({
 
   emailVerification: {
     sendOnSignUp: false,
-
+    expiresIn: hours(1, true),
     sendVerificationEmail: async (data) => {
       console.log(`Verify email - to:${data.user.email} url:${data.url}`);
-      sendEmail({
+
+      // to avoid email scanners clicking the link and auto-verifying the user
+      const safeUrl = `${baseURL}${ROUTES.verifyEmailRedirect}?token=${data.token}`;
+      const emailBody = await buildVerifyEmail({ url: safeUrl });
+      void sendEmail({
         to: data.user.email,
         subject: "Verify your email",
-        text: `Verify here: ${data.url}`,
+        text: emailBody.text,
+        html: emailBody.html,
       });
     },
   },

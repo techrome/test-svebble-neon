@@ -1,6 +1,7 @@
 import { Roboto } from "next/font/google";
 import { createTheme, responsiveFontSizes } from "@mui/material/styles";
 import type {} from "@mui/x-date-pickers/themeAugmentation";
+import { colorSchemes } from "@/utils/colors";
 
 export const roboto = Roboto({
   weight: ["300", "400", "500", "700"],
@@ -15,10 +16,7 @@ let _theme = createTheme({
     allVariants: { wordBreak: "break-word" },
   },
   cssVariables: { colorSchemeSelector: "class" },
-  colorSchemes: {
-    light: true,
-    dark: true,
-  },
+  colorSchemes,
   modularCssLayers:
     "@layer global, base, mui, custom, components, utilities, sx, properties;",
 });

@@ -86,6 +86,7 @@ import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import usePrevious from "@/utils/hooks/usePrevious";
 import { useQueryClient } from "@tanstack/react-query";
 import { userLogoutLifecycle } from "@/trpc/helpers/userLifecycle";
+import { APP_NAME } from "@/utils/constants";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -741,6 +742,7 @@ const NavbarInner = () => {
   const hasAuthenticated = Boolean(userData?.id) && !previousUserId;
 
   useEffect(() => {
+    const isVerifyEmailPage = router.pathname === ROUTES.verifyEmailRedirect;
     if (hasAuthenticated) {
       const snackbarId = nanoid();
       if (userData?.isAnonymous) {
@@ -769,7 +771,8 @@ const NavbarInner = () => {
       } else if (
         !userData?.emailVerified &&
         userData?.pendingEmail &&
-        userData?.pendingEmail !== userData?.email
+        userData?.pendingEmail !== userData?.email &&
+        !isVerifyEmailPage
       ) {
         addAppSnackbar({
           id: snackbarId,
@@ -842,7 +845,7 @@ const NavbarInner = () => {
     <Toolbar className="flex justify-between py-2 sm:py-3">
       <Link href={ROUTES.home} className="logo">
         <Typography variant="h5" component="div" color="textPrimary">
-          ChatApp
+          {APP_NAME}
         </Typography>
       </Link>
       <HorizontalStack addClassName="items-center">
