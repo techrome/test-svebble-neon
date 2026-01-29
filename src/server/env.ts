@@ -41,7 +41,12 @@ type EnvVar =
   | "BACKBLAZE_REGION"
   | "BACKBLAZE_ENDPOINT"
   | "OPENAI_API_TOKEN"
-  | "CRON_SECRET";
+  | "CRON_SECRET"
+  | "EMAIL_SMTP_HOST"
+  | "EMAIL_SMTP_PORT"
+  | "EMAIL_SMTP_USER"
+  | "EMAIL_SMTP_PASS"
+  | "EMAIL_FROM";
 
 type EnvRecord = Record<EnvVar, z.ZodType>;
 type ClientEnvRecord = Omit<Record<ClientEnvVar, z.ZodType>, "NODE_ENV">;
@@ -82,6 +87,11 @@ export const env = createEnv({
     BACKBLAZE_ENDPOINT: z.url(),
     BACKBLAZE_REGION: required(),
     CRON_SECRET: required(),
+    EMAIL_SMTP_HOST: required(),
+    EMAIL_SMTP_PORT: required(),
+    EMAIL_SMTP_USER: required(),
+    EMAIL_SMTP_PASS: required(),
+    EMAIL_FROM: required(),
   } satisfies EnvRecord,
   shared: {
     NEXT_PUBLIC_CDN_URL: url(!isDev),

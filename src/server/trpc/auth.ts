@@ -22,6 +22,7 @@ import {
   cookieHeaderFromSetCookie,
 } from "./helpers/cookies";
 import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
+import { sendEmail } from "../email";
 
 const getBaseURL = () => {
   if (env.BASE_URL) {
@@ -127,6 +128,11 @@ export const auth = betterAuth({
 
     sendResetPassword: async (data, request) => {
       console.log("send reset pass", { data, request });
+      sendEmail({
+        to: data.user.email,
+        subject: "Reset your password",
+        text: `Reset here: ${data.url}`,
+      });
     },
     onPasswordReset: async (data, request) => {
       console.log("on pass reset", { data, request });
@@ -155,6 +161,11 @@ export const auth = betterAuth({
 
     sendVerificationEmail: async (data) => {
       console.log(`Verify email - to:${data.user.email} url:${data.url}`);
+      sendEmail({
+        to: data.user.email,
+        subject: "Verify your email",
+        text: `Verify here: ${data.url}`,
+      });
     },
   },
 
