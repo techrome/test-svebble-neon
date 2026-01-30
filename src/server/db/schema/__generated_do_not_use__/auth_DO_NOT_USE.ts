@@ -30,6 +30,9 @@ export const user = pgTable("user", {
   pendingEmail: text("pending_email"),
   pendingEmailSetAt: timestamp("pending_email_set_at"),
   deletedAt: timestamp("deleted_at"),
+  role: text("role", { enum: ["user", "admin"] })
+    .default("user")
+    .notNull(),
 });
 
 export const session = pgTable(

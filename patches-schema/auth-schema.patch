@@ -1,12 +1,15 @@
 diff --git a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts b/src/server/db/schema/auth.ts
-index 18e6024..5ef29c7 100644
+index b35de62..ae2444e 100644
 --- a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts
 +++ b/src/server/db/schema/auth.ts
-@@ -8,41 +8,42 @@ import {
+@@ -7,45 +7,52 @@ import {
+   integer,
    uuid,
    index,
++  check,
  } from "drizzle-orm/pg-core";
 +import { files } from "./files";
++import { literal, USER_ROLE_ENUM } from "../helpers/enums";
  
 -export const user = pgTable("user", {
 -  id: uuid("id")
@@ -29,6 +32,9 @@ index 18e6024..5ef29c7 100644
 -  pendingEmail: text("pending_email"),
 -  pendingEmailSetAt: timestamp("pending_email_set_at"),
 -  deletedAt: timestamp("deleted_at"),
+-  role: text("role", { enum: ["user", "admin"] })
+-    .default("user")
+-    .notNull(),
 -});
 +export const user = pgTable(
 +  "user",
@@ -51,8 +57,15 @@ index 18e6024..5ef29c7 100644
 +    pendingEmail: text("pending_email"),
 +    pendingEmailSetAt: timestamp("pending_email_set_at"),
 +    deletedAt: timestamp("deleted_at"),
++    role: text("role", { enum: USER_ROLE_ENUM }).default("user").notNull(),
 +  },
-+  (table) => [index("deleted_at_index").on(table.deletedAt)]
++  (table) => [
++    index("deleted_at_index").on(table.deletedAt),
++    check(
++      "user_role_check",
++      sql`${table.role} in ${USER_ROLE_ENUM.map((v) => literal(v))}`
++    ),
++  ]
 +);
  
  export const session = pgTable(
@@ -71,7 +84,7 @@ index 18e6024..5ef29c7 100644
        .notNull(),
      ipAddress: text("ip_address"),
      userAgent: text("user_agent"),
-@@ -50,15 +51,13 @@ export const session = pgTable(
+@@ -53,15 +60,13 @@ export const session = pgTable(
        .notNull()
        .references(() => user.id, { onDelete: "cascade" }),
    },
@@ -89,7 +102,7 @@ index 18e6024..5ef29c7 100644
      accountId: text("account_id").notNull(),
      providerId: text("provider_id").notNull(),
      userId: uuid("user_id")
-@@ -73,33 +72,32 @@ export const account = pgTable(
+@@ -76,33 +81,32 @@ export const account = pgTable(
      password: text("password"),
      createdAt: timestamp("created_at").defaultNow().notNull(),
      updatedAt: timestamp("updated_at")

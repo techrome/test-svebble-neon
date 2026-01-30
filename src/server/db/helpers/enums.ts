@@ -1,5 +1,12 @@
 import { sql } from "drizzle-orm";
 
+export const USER_ROLE = {
+  user: "user",
+  admin: "admin",
+} as const;
+export const USER_ROLE_ENUM = [USER_ROLE.user, USER_ROLE.admin] as const;
+export type UserRole = (typeof USER_ROLE)[keyof typeof USER_ROLE];
+
 export const FILE_STATUS = {
   issued: "issued",
   active: "active",
