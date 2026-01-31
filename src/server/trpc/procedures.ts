@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { trpc } from "./core";
 import { rateLimitMiddlewares } from "./ratelimit";
 import { TRPCContext, TRPCContextWithReqRes } from "./context";
+import { hasPermissions, RolePermissions } from "@/utils/hasPermissions";
 
 const assertHasReqRes: (
   ctx: TRPCContext
@@ -54,6 +55,24 @@ const withAuth = trpc.middleware(async ({ ctx, next }) => {
   });
 });
 
+const withPermissionCheck = (neededPerms: RolePermissions) =>
+  trpc.middleware(async ({ ctx, next }) => {
+    const authResponse = await ctx.getAuth();
+
+    if (!authResponse?.response?.user) {
+      throw new TRPCError({ code: "UNAUTHORIZED" });
+    }
+
+    if (!hasPermissions(authResponse?.response?.user, neededPerms)) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Action not allowed",
+      });
+    }
+
+    return next();
+  });
+
 export const publicProcedureSSR = trpc.procedure;
 export const publicProcedureSSRDefaultRateLimit = publicProcedureSSR.use(
   rateLimitMiddlewares.default
@@ -64,11 +83,14 @@ export const publicProcedureDefaultRateLimit = publicProcedure.use(
   rateLimitMiddlewares.default
 );
 
-export const privateCachedProcedure = publicProcedure.use(withCachedAuth);
-export const privateProcedure = publicProcedure.use(withAuth);
+export const privateCachedProcedure = (neededPerms: RolePermissions) =>
+  publicProcedure.use(withCachedAuth).use(withPermissionCheck(neededPerms));
+export const privateProcedure = (neededPerms: RolePermissions) =>
+  publicProcedure.use(withAuth).use(withPermissionCheck(neededPerms));
 
-export const privateCachedProcedureDefaultRateLimit =
-  privateCachedProcedure.use(rateLimitMiddlewares.default);
-export const privateProcedureDefaultRateLimit = privateProcedure.use(
-  rateLimitMiddlewares.default
-);
+export const privateCachedProcedureDefaultRateLimit = (
+  neededPerms: RolePermissions
+) => privateCachedProcedure(neededPerms).use(rateLimitMiddlewares.default);
+export const privateProcedureDefaultRateLimit = (
+  neededPerms: RolePermissions
+) => privateProcedure(neededPerms).use(rateLimitMiddlewares.default);

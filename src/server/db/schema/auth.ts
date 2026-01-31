@@ -7,8 +7,10 @@ import {
   integer,
   uuid,
   index,
+  check,
 } from "drizzle-orm/pg-core";
 import { files } from "./files";
+import { literal, USER_ROLE_ENUM } from "../helpers/enums";
 
 export const user = pgTable(
   "user",
@@ -31,8 +33,15 @@ export const user = pgTable(
     pendingEmail: text("pending_email"),
     pendingEmailSetAt: timestamp("pending_email_set_at"),
     deletedAt: timestamp("deleted_at"),
+    role: text("role", { enum: USER_ROLE_ENUM }).default("user").notNull(),
   },
-  (table) => [index("deleted_at_index").on(table.deletedAt)]
+  (table) => [
+    index("deleted_at_index").on(table.deletedAt),
+    check(
+      "user_role_check",
+      sql`${table.role} in ${USER_ROLE_ENUM.map((v) => literal(v))}`
+    ),
+  ]
 );
 
 export const session = pgTable(

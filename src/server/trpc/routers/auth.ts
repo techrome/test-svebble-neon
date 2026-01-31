@@ -60,7 +60,7 @@ export const authRouter = router({
       user: authResponse?.response?.user,
     };
   }),
-  freshUser: privateProcedure
+  freshUser: privateProcedure([])
     .use(rateLimitMiddlewares.auth_sensitive)
     .query(async ({ ctx }) => {
       return {

@@ -20,6 +20,7 @@ export const runCommand = (
 
   const status = result.status || 0;
   if (!okCodes.includes(status)) {
+    console.log("runCommand failed", result);
     process.exit(status);
   }
   return result;

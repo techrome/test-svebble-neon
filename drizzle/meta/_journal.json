@@ -99,6 +99,13 @@
       "when": 1769139012861,
       "tag": "0013_wild_talos",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1769803824558,
+      "tag": "0014_careful_swordsman",
+      "breakpoints": true
     }
   ]
 }

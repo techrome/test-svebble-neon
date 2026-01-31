@@ -28,6 +28,7 @@ import {
   buildVerifyEmail,
 } from "../email/templates/_helpers/builders";
 import { ROUTES } from "@/utils/routes";
+import { USER_ROLE, USER_ROLE_ENUM, UserRole } from "../db/helpers/enums";
 
 const getBaseURL = () => {
   if (env.BASE_URL) {
@@ -154,6 +155,12 @@ export const auth = betterAuth({
       pendingEmail: { type: "string", required: false },
       pendingEmailSetAt: { type: "date", required: false },
       deletedAt: { type: "date", required: false },
+      role: {
+        type: [...USER_ROLE_ENUM],
+        required: true,
+        input: false,
+        defaultValue: USER_ROLE.user satisfies UserRole,
+      },
     },
     changeEmail: {
       enabled: true,

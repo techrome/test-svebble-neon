@@ -8,7 +8,8 @@ import { auth } from "./auth";
 import { mergeSetCookiesToNextRes } from "./helpers/cookies";
 import { type AuthCallResult } from "./routers/auth";
 
-type AuthSession = Awaited<ReturnType<typeof auth.api.getSession>>;
+export type AuthSession = Awaited<ReturnType<typeof auth.api.getSession>>;
+type GetAuthReturn = Promise<AuthCallResult<AuthSession> | null>;
 
 const getSessionWrapper = (req: NextApiRequest, needsCached: boolean) => {
   const headers = fromNodeHeaders(req.headers);
@@ -21,8 +22,6 @@ const getSessionWrapper = (req: NextApiRequest, needsCached: boolean) => {
 };
 
 export const createTRPCContext = async (options?: CreateNextContextOptions) => {
-  type GetAuthReturn = Promise<AuthCallResult<AuthSession> | null>;
-
   let cachedAuthPromise: GetAuthReturn | null = null;
   let authPromise: GetAuthReturn | null = null;
 

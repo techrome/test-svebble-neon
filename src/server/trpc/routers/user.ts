@@ -37,6 +37,7 @@ import { openAI } from "../helpers/openai";
 import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
 import { isDev } from "@/utils/isDev";
 import { probeImageDimensions } from "../helpers/probeImage";
+import { P } from "@/utils/permissions";
 
 const cacheControl = `public, max-age=${days(2, true)}`;
 
@@ -103,7 +104,10 @@ export const userRouter = router({
       });
       return response;
     }),
-  updateUserBasicInfo: privateProcedure
+  updateUserBasicInfo: privateProcedure([
+    P.user.basicInfo.update,
+    P.user.avatar.update,
+  ])
     .use(rateLimitMiddlewares.auth_sensitive)
     .input(
       basicProfileSchemaForm.safeExtend({
@@ -237,7 +241,7 @@ export const userRouter = router({
         })
       );
     }),
-  updateUserUsername: privateProcedure
+  updateUserUsername: privateProcedure([P.user.username.update])
     .use(rateLimitMiddlewares.auth_sensitive)
     .input(usernameSchemaForm)
     .mutation(async ({ ctx, input }) => {
@@ -285,7 +289,7 @@ export const userRouter = router({
         })
       );
     }),
-  changeUserPassword: privateCachedProcedure
+  changeUserPassword: privateProcedure([P.user.password.update])
     .use(rateLimitMiddlewares.auth_sensitive)
     .input(passwordSchemaForm)
     .mutation(async ({ input, ctx }) => {
@@ -320,7 +324,7 @@ export const userRouter = router({
         );
       }
     }),
-  changeEmail: privateProcedure
+  changeEmail: privateProcedure([P.user.email.update])
     .use(rateLimitMiddlewares.auth_changeEmail)
     .input(emailSchemaForm)
     .mutation(async ({ ctx, input }) => {
@@ -355,7 +359,7 @@ export const userRouter = router({
       }
       return { email: input.email };
     }),
-  cancelPendingEmail: privateCachedProcedure
+  cancelPendingEmail: privateCachedProcedure([P.user.email.update])
     .use(rateLimitMiddlewares.auth_changeEmail)
     .mutation(async ({ ctx }) => {
       return getCookieForwarder(ctx)((opts) =>
@@ -368,7 +372,7 @@ export const userRouter = router({
         })
       );
     }),
-  listUserAccounts: privateCachedProcedure
+  listUserAccounts: privateCachedProcedure([P.account.read])
     .use(rateLimitMiddlewares.auth_normal)
     .input(
       z.object({
@@ -383,7 +387,7 @@ export const userRouter = router({
         })
       )
     ),
-  createAvatarUploadUrl: privateCachedProcedure
+  createAvatarUploadUrl: privateProcedure([P.user.avatar.create])
     .use(rateLimitMiddlewares.auth_avatarUpload)
     .input(avatarUploadUrlSchema)
     .mutation(async ({ ctx, input }) => {
@@ -423,7 +427,7 @@ export const userRouter = router({
         } as const,
       };
     }),
-  deleteUser: privateProcedure
+  deleteUser: privateProcedure([P.user.delete])
     .use(rateLimitMiddlewares.auth_sensitive)
     .mutation(async ({ ctx }) => {
       if (ctx.user.deletedAt) {
