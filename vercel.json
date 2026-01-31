@@ -1,4 +1,22 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "git": { "deploymentEnabled": false }
+  "git": { "deploymentEnabled": false },
+  "crons": [
+    {
+      "path": "/api/routines/prune-inactive-guest-users",
+      "schedule": "0 12 * * *"
+    },
+    {
+      "path": "/api/routines/prune-deleted-users",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/routines/prune-unused-files",
+      "schedule": "0 16 * * *"
+    },
+    {
+      "path": "/api/routines/prune-errored-files",
+      "schedule": "0 18 * * *"
+    }
+  ]
 }
