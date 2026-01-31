@@ -1,0 +1,56 @@
+import { LeafUnion, P } from "@/utils/permissions";
+import { User } from "@/utils/validators/shared/user";
+
+type Permission = LeafUnion<typeof P>;
+export type RolePermissions = readonly Permission[];
+
+const guestPermissions = [
+  P.messages.create,
+  P.messages.update,
+  P.messages.delete,
+  P.user.delete,
+] as const satisfies RolePermissions;
+
+const notVerifiedUserPermissions = [
+  ...guestPermissions,
+  P.account.read,
+  P.user.avatar.update,
+  P.user.basicInfo.update,
+  P.user.email.update,
+  P.user.password.update,
+  P.user.username.update,
+] as const satisfies RolePermissions;
+
+const userPermissions = [
+  ...notVerifiedUserPermissions,
+] as const satisfies RolePermissions;
+
+const adminPermissions = [
+  ...userPermissions,
+] as const satisfies RolePermissions;
+
+const toSet = <T extends string>(xs: readonly T[]) => new Set<T>(xs);
+const permissionSets = {
+  guest: toSet(guestPermissions),
+  notVerifiedUser: toSet(notVerifiedUserPermissions),
+  user: toSet(userPermissions),
+  admin: toSet(adminPermissions),
+};
+
+const getPermissionSet = (user: User) => {
+  if (user.role === "admin") return permissionSets.admin;
+
+  if (user.role === "user") {
+    if (user.isAnonymous) return permissionSets.guest;
+    return user.emailVerified
+      ? permissionSets.user
+      : permissionSets.notVerifiedUser;
+  }
+
+  return new Set<Permission>();
+};
+
+export const hasPermissions = (user: User, neededPerms: RolePermissions) => {
+  const effectivePerms = getPermissionSet(user);
+  return neededPerms.every((reqPerm) => effectivePerms.has(reqPerm));
+};

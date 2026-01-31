@@ -10,5 +10,5 @@ Setup process (dev):
 - Install npm dependencies `npm i` or `npm ci`
 - Copy env variables from `.env.sample` to `.env` or set your own
 - Run Docker containers `npm run docker-run`
-- Run database migrations `npm run db:m`
+- Run Postgres migrations `npm run db:m`
 - Run Next.js `npm run dev`

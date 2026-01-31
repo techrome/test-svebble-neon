@@ -74,7 +74,7 @@ export const usernameSchemaForm = z.object({
   username: signupSchemaForm.shape.username,
 });
 
-type User = NonNullable<RouterOutput["auth"]["user"]["user"]>;
+export type User = NonNullable<RouterOutput["auth"]["user"]["user"]>;
 
 export const makeUsernameSchemaForm = (currentUsername: User["username"]) =>
   usernameSchemaForm.superRefine(({ username }, ctx) => {
