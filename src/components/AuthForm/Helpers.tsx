@@ -21,6 +21,7 @@ type WrapperProps = {
   disabled: boolean;
   children: React.ReactNode;
   onSuccess?: () => void;
+  guestHidden?: boolean;
 };
 
 export const oauthDoneStatus = {
@@ -216,18 +217,20 @@ export const AuthWrapper = (props: WrapperProps) => {
         >
           {isLogin ? "Log in" : "Sign up"} with Google
         </Button>
-        <Button
-          isLoading={guestLoginMutation.isPending}
-          disabled={isDisabled}
-          color="inherit"
-          variant="contained"
-          fullWidth
-          size="large"
-          onClick={onGuestClick}
-          startIcon={<PersonIcon />}
-        >
-          Continue as guest
-        </Button>
+        {!props.guestHidden && (
+          <Button
+            isLoading={guestLoginMutation.isPending}
+            disabled={isDisabled}
+            color="inherit"
+            variant="contained"
+            fullWidth
+            size="large"
+            onClick={onGuestClick}
+            startIcon={<PersonIcon />}
+          >
+            Continue as guest
+          </Button>
+        )}
       </VerticalStack>
       <Divider className="my-4">
         or {isLogin ? "log in with your credentials" : "create an account"}

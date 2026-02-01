@@ -23,7 +23,7 @@ import Input from "@/components/Fields/Input";
 import Button from "@/components/Button/Button";
 import { useAppSnackbar } from "@/utils/snackbar";
 import ButtonBase from "@/components/Button/ButtonBase";
-import {
+import Signup, {
   PasswordStrengthMeter,
   UsernameInput,
 } from "@/components/AuthForm/Signup";
@@ -55,16 +55,19 @@ import {
   EmailFormValues,
 } from "@/utils/validators/shared/user";
 import AvatarChangeModal from "@/components/Modals/AvatarEdit/AvatarEdit";
+import Skeleton from "@/components/Skeleton/Skeleton";
+import { ANCHORS } from "@/utils/routes";
 
 export const defaultAvatars = {
   first: `default-avatars/1.webp`,
 };
 
-const SectionWrapper = (props: { children: React.ReactNode }) => {
+const SectionWrapper = (props: { children: React.ReactNode; id?: string }) => {
   return (
     <Paper
       elevation={3}
       className={`${defaultPadding} rounded-lg border border-[var(--mui-palette-divider)]`}
+      id={props.id}
     >
       {props.children}
     </Paper>
@@ -515,8 +518,12 @@ const PasswordFormWrapper = () => {
 
   if (userAccounts.isPending) {
     return (
-      <div className="w-full flex justify-center items-center">
-        <CircularProgress />
+      <div className="w-full">
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
       </div>
     );
   }
@@ -810,8 +817,10 @@ const EmailFormWrapper = () => {
 
   if (freshUser.isPending) {
     return (
-      <div className="w-full flex justify-center items-center">
-        <CircularProgress />
+      <div className="w-full">
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
       </div>
     );
   }
@@ -827,7 +836,61 @@ const EmailFormWrapper = () => {
   return <EmailForm />;
 };
 
+const LinkAccount = () => {
+  const userData = useAuthedUserData();
+  return (
+    <>
+      <SectionWrapper>
+        <Typography color="textSecondary">
+          Display name:{" "}
+          <Typography color="textPrimary" component="span">
+            {userData.name}
+          </Typography>
+        </Typography>
+        <Typography color="textSecondary">
+          Username:{" "}
+          <Typography color="textPrimary" component="span">
+            {userData.displayUsername}
+          </Typography>
+        </Typography>
+      </SectionWrapper>
+      <SectionWrapper id={ANCHORS.linkAccount}>
+        <Typography variant="h6" component="h2" className="px-2">
+          You are currently logged in as Guest. Please link an account to gain
+          access to all features.
+        </Typography>
+        <Typography className="px-2">
+          {`Your chats and data will stay - we'll attach them to your new account.`}
+        </Typography>
+        <Signup guestHidden />
+      </SectionWrapper>
+    </>
+  );
+};
+
+const Sections = () => {
+  return (
+    <>
+      <SectionWrapper>
+        <BasicProfileForm />
+      </SectionWrapper>
+      <SectionWrapper>
+        <UsernameForm />
+      </SectionWrapper>
+      <SectionWrapper>
+        <PasswordFormWrapper />
+      </SectionWrapper>
+      <LoadingBoundary>
+        <SectionWrapper id={ANCHORS.email}>
+          <EmailFormWrapper />
+        </SectionWrapper>
+      </LoadingBoundary>
+    </>
+  );
+};
+
 const MyProfile = () => {
+  const userData = useAuthedUserData();
   return (
     <Section addClassName="flex justify-center">
       <div className="max-w-2xl w-full">
@@ -835,20 +898,7 @@ const MyProfile = () => {
           <Typography variant="h4" component="h1">
             My Profile
           </Typography>
-          <SectionWrapper>
-            <BasicProfileForm />
-          </SectionWrapper>
-          <SectionWrapper>
-            <UsernameForm />
-          </SectionWrapper>
-          <SectionWrapper>
-            <PasswordFormWrapper />
-          </SectionWrapper>
-          <LoadingBoundary>
-            <SectionWrapper>
-              <EmailFormWrapper />
-            </SectionWrapper>
-          </LoadingBoundary>
+          {userData.isAnonymous ? <LinkAccount /> : <Sections />}
         </VerticalStack>
       </div>
     </Section>

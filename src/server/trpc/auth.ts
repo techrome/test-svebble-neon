@@ -189,44 +189,13 @@ export const auth = betterAuth({
     },
   },
 
-  hooks: {
-    // invalidating cookie cache for routes that modify user but don't automatically refresh the cookie
-    after: createAuthMiddleware(async (context) => {
-      const allowedRoutes = [
-        SOME_AUTH_API_ROUTES.callback,
-        SOME_AUTH_API_ROUTES.verifyEmail,
-        SOME_AUTH_API_ROUTES.signInAnonymous,
-      ];
-      if (
-        !allowedRoutes.some((path) => context.path.startsWith(`/${path}`)) ||
-        !context.context.newSession
-      ) {
-        return;
-      }
-
-      const responseHeaders = context.context.responseHeaders;
-      if (!responseHeaders) return;
-
-      const cookieHeader = cookieHeaderFromSetCookie(responseHeaders);
-      if (!cookieHeader) return;
-
-      const headers = new Headers(context.headers);
-      headers.set("cookie", cookieHeader);
-
-      const refreshedSession = await auth.api.getSession({
-        headers,
-        query: { disableCookieCache: true },
-        asResponse: true,
-      });
-
-      mergeSetCookiesToHeaders(responseHeaders, refreshedSession.headers);
-    }),
-  },
-
   plugins: [
     anonymous({
       emailDomainName: PLACEHOLDER_EMAIL_DOMAIN,
       generateName: () => "Guest",
+      onLinkAccount({ anonymousUser, newUser }) {
+        console.log("On link data: ", { anonymousUser, newUser });
+      },
     }),
     username({
       maxUsernameLength: TEXT_LIMITS.handle,
@@ -278,6 +247,39 @@ export const auth = betterAuth({
         });
       },
     },
+  },
+  hooks: {
+    // invalidating cookie cache for routes that modify user but don't automatically refresh the cookie
+    after: createAuthMiddleware(async (context) => {
+      const allowedRoutes = [
+        SOME_AUTH_API_ROUTES.callback,
+        SOME_AUTH_API_ROUTES.verifyEmail,
+        SOME_AUTH_API_ROUTES.signInAnonymous,
+      ];
+      if (
+        !allowedRoutes.some((path) => context.path.startsWith(`/${path}`)) ||
+        !context.context.newSession
+      ) {
+        return;
+      }
+
+      const responseHeaders = context.context.responseHeaders;
+      if (!responseHeaders) return;
+
+      const cookieHeader = cookieHeaderFromSetCookie(responseHeaders);
+      if (!cookieHeader) return;
+
+      const headers = new Headers(context.headers);
+      headers.set("cookie", cookieHeader);
+
+      const refreshedSession = await auth.api.getSession({
+        headers,
+        query: { disableCookieCache: true },
+        asResponse: true,
+      });
+
+      mergeSetCookiesToHeaders(responseHeaders, refreshedSession.headers);
+    }),
   },
   databaseHooks: {
     user: {

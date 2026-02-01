@@ -45,6 +45,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {
   onSuccess?: () => void;
+  guestHidden?: boolean;
 };
 
 type PasswordRule = {
@@ -433,6 +434,7 @@ const Signup = (props: Props) => {
         authType="signup"
         disabled={isSubmitting}
         onSuccess={props.onSuccess}
+        guestHidden={props.guestHidden}
       >
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <VerticalStack>

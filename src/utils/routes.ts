@@ -6,6 +6,11 @@ export const privateRoutePrefix = "app";
 export const authRoutePrefix = "auth";
 export const oauthRoutePrefix = "oauth";
 
+export const ANCHORS = {
+  email: "email",
+  linkAccount: "linkAccount",
+} as const;
+
 export const ROUTES = {
   home: "/",
   about: "/about",
