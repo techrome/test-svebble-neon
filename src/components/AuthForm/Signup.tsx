@@ -382,6 +382,7 @@ const Signup = (props: Props) => {
     resolver: zodResolver(signupSchemaForm),
   });
 
+  const user = useUser();
   const { addAppSnackbar } = useAppSnackbar();
   const qc = useQueryClient();
 
@@ -426,7 +427,9 @@ const Signup = (props: Props) => {
   };
 
   const isSubmitting =
-    signUpMutation.isPending || changeEmailMutation.isPending;
+    signUpMutation.isPending ||
+    changeEmailMutation.isPending ||
+    user.isFetching;
 
   return (
     <Section addClassName="mt-5">

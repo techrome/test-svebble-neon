@@ -17,6 +17,7 @@ import { trpc } from "@/trpc";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
 import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
 import { useQueryClient } from "@tanstack/react-query";
+import { useUser } from "@/trpc/hooks/useUser";
 
 type Props = {
   onSuccess?: () => void;
@@ -38,7 +39,7 @@ const Login = (props: Props) => {
   });
 
   const isDesktop = useIsDesktop();
-
+  const user = useUser();
   const qc = useQueryClient();
   const loginMutation = trpc.auth.loginCredentials.useMutation({
     onSuccess() {
@@ -51,7 +52,7 @@ const Login = (props: Props) => {
     loginMutation.mutate(values);
   };
 
-  const isSubmitting = loginMutation.isPending;
+  const isSubmitting = loginMutation.isPending || user.isFetching;
 
   return (
     <Section addClassName="mt-5">
@@ -60,7 +61,7 @@ const Login = (props: Props) => {
         disabled={isSubmitting}
         onSuccess={props.onSuccess}
       >
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <VerticalStack>
             <Input
               control={form.control}

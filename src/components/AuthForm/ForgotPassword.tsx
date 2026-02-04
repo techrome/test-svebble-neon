@@ -50,7 +50,7 @@ const ForgotPassword = () => {
         </VerticalStack>
       ) : (
         <>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
             <VerticalStack>
               <Typography>
                 Forgot your account’s password? Enter your email address and
