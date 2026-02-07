@@ -106,7 +106,7 @@ const ResetPassword = () => {
         </VerticalStack>
       ) : (
         <>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
             <VerticalStack>
               <Typography variant="h6" component="h1">
                 Password reset

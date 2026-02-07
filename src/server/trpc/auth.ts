@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 // relative paths here because better-auth cli can't recognize TS path aliases
 import { db } from "../db/core";
 import * as authSchema from "../db/schema/auth";
+import * as auditLogSchema from "../db/schema/audit_log";
 import { redis } from "../redis/redis";
 import { hashString } from "./ratelimit";
 import {
@@ -29,6 +30,7 @@ import {
 } from "../email/templates/_helpers/builders";
 import { ROUTES } from "@/utils/routes";
 import { USER_ROLE, USER_ROLE_ENUM, UserRole } from "../db/helpers/enums";
+import { getIpAndUserAgent } from "./helpers/getClientInfo";
 
 const getBaseURL = () => {
   if (env.BASE_URL) {
@@ -360,6 +362,15 @@ export const auth = betterAuth({
               canChangeUsername: !isGuest,
             });
           }
+          const clientInfo = context?.headers
+            ? getIpAndUserAgent(context?.headers)
+            : null;
+          await db.insert(auditLogSchema.audit_log).values({
+            action: "signup",
+            actor_user_id: user.id,
+            ip_address: clientInfo?.ip,
+            user_agent: clientInfo?.userAgent,
+          });
         },
       },
       update: {
@@ -382,6 +393,47 @@ export const auth = betterAuth({
           }
 
           return { data: updatedUser };
+        },
+      },
+    },
+    session: {
+      create: {
+        // may not be needed but just in case
+        async before(session, context) {
+          const clientInfo = context?.headers
+            ? getIpAndUserAgent(context?.headers)
+            : null;
+          return {
+            data: {
+              ...session,
+              ipAddress: session.ipAddress || clientInfo?.ip || undefined,
+              userAgent:
+                session.userAgent || clientInfo?.userAgent || undefined,
+            },
+          };
+        },
+        async after(session, _context) {
+          await db.insert(auditLogSchema.audit_log).values({
+            action: "login",
+            actor_user_id: session.userId,
+            ip_address: session.ipAddress,
+            user_agent: session.userAgent,
+            session_id: session.id,
+          });
+        },
+      },
+      delete: {
+        async after(session, context) {
+          const clientInfo = context?.headers
+            ? getIpAndUserAgent(context?.headers)
+            : null;
+          await db.insert(auditLogSchema.audit_log).values({
+            action: "logout",
+            actor_user_id: session.userId,
+            ip_address: clientInfo?.ip,
+            user_agent: clientInfo?.userAgent,
+            session_id: session.id,
+          });
         },
       },
     },

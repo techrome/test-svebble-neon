@@ -5,6 +5,7 @@ import NotificationsIcon from "@mui/icons-material/Notifications";
 import UserIcon from "@mui/icons-material/AccountCircle";
 import { useRouter } from "next/router";
 import { nanoid } from "@reduxjs/toolkit";
+import NextImage from "next/image";
 
 import { useGlobalDrawer, useLocalPopover } from "@/utils/hooks/useOverlay";
 import { HorizontalStack } from "@/components/Layout/Containers";
@@ -24,6 +25,9 @@ import {
   DrawerContent,
   NotificationsContent,
 } from "@/components/Navbar/DrawerContent";
+import { env } from "@/utils/env";
+import { defaultAvatars } from "@/pages/app/my-profile";
+import DefaultAvatar from "@/components/DefaultAvatar/DefaultAvatar";
 
 const getHashId = (url: string) => {
   const hashIndex = url.indexOf("#");
@@ -65,7 +69,7 @@ const NavbarInner = () => {
           id: snackbarId,
           message: (
             <HorizontalStack addClassName="items-center">
-              You have logged in as a guest. This is a temporary session with
+              You are logged in as Guest. This is a temporary session with
               limited capabilities. Please link your account if you want to save
               your data.
               <Link
@@ -261,6 +265,7 @@ const NavbarInner = () => {
           <IconButton
             size="large"
             color="inherit"
+            className="3xl"
             aria-label="notifications"
             onClick={notificationsPopover.openPopover}
           >
@@ -276,7 +281,7 @@ const NavbarInner = () => {
           <NotificationsContent />
         </notificationsPopover.ReadyComponent>
         <IconButton
-          size="large"
+          size={user.data?.user ? "medium" : "large"}
           color="inherit"
           aria-label="menu"
           onClick={() => {
@@ -286,7 +291,26 @@ const NavbarInner = () => {
             });
           }}
         >
-          {user.data?.user ? <UserIcon /> : <MenuIcon />}
+          {user.data?.user ? (
+            <div className="relative w-8 h-8 rounded-full">
+              {user.data.user.image ? (
+                <NextImage
+                  className="rounded-full"
+                  src={`${env.NEXT_PUBLIC_CDN_URL}/${user.data.user.image}`}
+                  alt="user-avatar"
+                  fill
+                  unoptimized
+                />
+              ) : (
+                <DefaultAvatar
+                  name={user.data.user.username}
+                  seed={user.data.user.id}
+                />
+              )}
+            </div>
+          ) : (
+            <MenuIcon />
+          )}
         </IconButton>
       </HorizontalStack>
     </Toolbar>

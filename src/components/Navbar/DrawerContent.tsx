@@ -33,9 +33,11 @@ import { type Dayjs } from "dayjs";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import clsx from "clsx";
+import NextImage from "next/image";
 
 import {
   useGlobalDrawer,
+  useGlobalModal,
   useLocalModal,
   useLocalPopover,
 } from "@/utils/hooks/useOverlay";
@@ -79,6 +81,9 @@ import { useUser } from "@/trpc/hooks/useUser";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import { useQueryClient } from "@tanstack/react-query";
 import { userLogoutLifecycle } from "@/trpc/helpers/userLifecycle";
+import { env } from "@/utils/env";
+import DefaultAvatar from "@/components/DefaultAvatar/DefaultAvatar";
+import { useAuthModal } from "@/utils/hooks/useAuthModal";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -92,8 +97,7 @@ export const AuthButtons = (props: {
   isNavbar?: boolean;
 }) => {
   const { closeDrawer } = useGlobalDrawer();
-  const [authType, setAuthType] = React.useState<AuthType>("login");
-  const authModal = useLocalModal();
+  const authModal = useAuthModal();
   const { addAppSnackbar } = useAppSnackbar();
   const router = useRouter();
   const isPrivatePage = router.pathname.startsWith(`/${privateRoutePrefix}`);
@@ -134,19 +138,39 @@ export const AuthButtons = (props: {
       ) : user.data?.user ? (
         props.isNavbar ? null : (
           <VerticalStack spacing="md">
-            <div>
-              <Typography variant="body1" textAlign="center">
-                Hello, <strong>{user.data.user.name}</strong>!
-              </Typography>
-              <Typography
-                color="textSecondary"
-                variant="subtitle2"
-                component="div"
-                textAlign="center"
-              >
-                {user.data.user.displayUsername}
-              </Typography>
-            </div>
+            <HorizontalStack
+              wrap={false}
+              addClassName="items-center justify-center"
+            >
+              <div className="relative w-12 h-12 rounded-full">
+                {user.data.user.image ? (
+                  <NextImage
+                    className="rounded-full"
+                    src={`${env.NEXT_PUBLIC_CDN_URL}/${user.data.user.image}`}
+                    alt="user-avatar"
+                    fill
+                    unoptimized
+                  />
+                ) : (
+                  <DefaultAvatar
+                    name={user.data.user.username}
+                    seed={user.data.user.id}
+                  />
+                )}
+              </div>
+              <div>
+                <Typography variant="body1">
+                  <strong>{user.data.user.name}</strong>
+                </Typography>
+                <Typography
+                  color="textSecondary"
+                  variant="subtitle2"
+                  component="div"
+                >
+                  {user.data.user.displayUsername}
+                </Typography>
+              </div>
+            </HorizontalStack>
 
             <VerticalStack>
               <Link href={ROUTES.private_myProfile} color="textPrimary">
@@ -212,8 +236,7 @@ export const AuthButtons = (props: {
           <Button
             variant="outlined"
             onClick={() => {
-              setAuthType("login");
-              authModal.openModal();
+              authModal.openModal("login");
             }}
             size="large"
             fullWidth={props.fullWidth}
@@ -223,8 +246,7 @@ export const AuthButtons = (props: {
           <Button
             variant="contained"
             onClick={() => {
-              setAuthType("signup");
-              authModal.openModal();
+              authModal.openModal("signup");
             }}
             size="large"
             fullWidth={props.fullWidth}
@@ -233,13 +255,6 @@ export const AuthButtons = (props: {
           </Button>
         </HorizontalStack>
       )}
-      <authModal.ReadyComponent title={authTypeMapping[authType]}>
-        <AuthForm
-          initialAuthType={authType}
-          onAuthTypeChange={setAuthType}
-          onSuccess={authModal.closeModal}
-        />
-      </authModal.ReadyComponent>
     </>
   );
 };
@@ -305,7 +320,7 @@ export const DrawerContent = () => {
         {[
           {
             label: "About Us",
-            url: ROUTES.logIn,
+            url: ROUTES.about,
           },
           {
             label: "Terms and Conditions",

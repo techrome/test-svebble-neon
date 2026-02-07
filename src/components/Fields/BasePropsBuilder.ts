@@ -16,4 +16,5 @@ export type BasePropsBuilder<
   autoDisableOnSubmit?: boolean;
   helperText?: React.ReactNode;
   helperTextAlwaysShown?: boolean;
+  hideError?: boolean;
 };

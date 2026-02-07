@@ -26,7 +26,7 @@ import {
 } from "@/utils/validators/shared/user";
 import { TRPCError } from "@trpc/server";
 import { PROVIDER_IDS } from "@/utils/constants";
-import { getCookieForwarder, throwIfZodError } from "./auth";
+import { getCookieForwarder } from "./auth";
 import { s3Client } from "../../storage/s3";
 import { env } from "../../env";
 import { days, minutes } from "@/utils/cacheTime";
@@ -38,6 +38,7 @@ import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
 import { isDev } from "@/utils/isDev";
 import { probeImageDimensions } from "../helpers/probeImage";
 import { P } from "@/utils/permissions";
+import { throwIfZodError } from "../helpers/validate";
 
 const cacheControl = `public, max-age=${days(2, true)}`;
 
@@ -443,6 +444,13 @@ export const userRouter = router({
         ctx.user.pendingEmail,
       ].filter((v): v is string => typeof v === "string" && v.length > 0);
 
+      const cookieForwarder = getCookieForwarder(ctx);
+      const logoutRes = await cookieForwarder((opts) =>
+        auth.api.signOut({
+          ...opts,
+        })
+      );
+
       await db.transaction(async (tx) => {
         await tx
           .update(schema.user)
@@ -478,10 +486,6 @@ export const userRouter = router({
         }
       });
 
-      return getCookieForwarder(ctx)((opts) =>
-        auth.api.signOut({
-          ...opts,
-        })
-      );
+      return logoutRes;
     }),
 });

@@ -1,7 +1,13 @@
 import React from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Chip, CircularProgress, Paper, Typography } from "@mui/material";
+import {
+  Avatar,
+  Chip,
+  CircularProgress,
+  Paper,
+  Typography,
+} from "@mui/material";
 import NextImage from "next/image";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -57,16 +63,25 @@ import {
 import AvatarChangeModal from "@/components/Modals/AvatarEdit/AvatarEdit";
 import Skeleton from "@/components/Skeleton/Skeleton";
 import { ANCHORS } from "@/utils/routes";
+import DefaultAvatar from "@/components/DefaultAvatar/DefaultAvatar";
+import clsx from "clsx";
 
 export const defaultAvatars = {
-  first: `default-avatars/1.webp`,
+  first: `default-avatars/2.png`,
 };
 
-const SectionWrapper = (props: { children: React.ReactNode; id?: string }) => {
+export const SectionWrapper = (props: {
+  children: React.ReactNode;
+  id?: string;
+  addClassName?: string;
+}) => {
   return (
     <Paper
       elevation={3}
-      className={`${defaultPadding} rounded-lg border border-[var(--mui-palette-divider)]`}
+      className={clsx(
+        `${defaultPadding} rounded-lg border border-[var(--mui-palette-divider)]`,
+        props.addClassName
+      )}
       id={props.id}
     >
       {props.children}
@@ -209,26 +224,30 @@ const BasicProfileForm = () => {
 
   const isSubmitting = form.formState.isSubmitting;
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
+    <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
       <Typography variant="h6" component="h2" className="mb-2">
         <PersonIcon className="align-sub" /> Basic information
       </Typography>
       <VerticalStack>
         <div className="mb-2">
           <HorizontalStack addClassName="items-center">
-            <div className="group relative w-full max-w-32 h-32 rounded-full border border-[var(--mui-palette-text-secondary)]">
-              <NextImage
-                className="rounded-full"
-                src={
-                  avatarWasChanged
-                    ? avatarFileSrc ||
-                      `${env.NEXT_PUBLIC_CDN_URL}/${defaultAvatars.first}`
-                    : `${env.NEXT_PUBLIC_CDN_URL}/${userData.image || defaultAvatars.first}`
-                }
-                alt="user-avatar"
-                fill
-                unoptimized
-              />
+            <div className="group relative w-full max-w-32 h-32 rounded-full">
+              {(userData.image && !avatarWasChanged) ||
+              (avatarWasChanged && avatarFileSrc) ? (
+                <NextImage
+                  className="rounded-full"
+                  src={
+                    avatarWasChanged
+                      ? avatarFileSrc
+                      : `${env.NEXT_PUBLIC_CDN_URL}/${userData.image}`
+                  }
+                  alt="user-avatar"
+                  fill
+                  unoptimized
+                />
+              ) : (
+                <DefaultAvatar name={userData.username} seed={userData.id} />
+              )}
               <ButtonBase
                 focusRipple
                 className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 bg-[rgb(var(--mui-palette-background-defaultChannel)/0.6)] text-[var(--mui-palette-text-primary)] transition absolute inset-0 rounded-full flex justify-center items-center"
@@ -363,7 +382,7 @@ const UsernameForm = () => {
     typeof remainingChanges === "number" ? remainingChanges < 1 : true;
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
+    <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
       <HorizontalStack addClassName="mb-3">
         <Typography variant="h6" component="h2">
           <AlternateEmailIcon className="align-sub" /> Username
@@ -446,7 +465,7 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
   const isSubmitting = passwordUpdateMutation.isPending;
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
+    <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
       <Typography variant="h6" component="h2" className="mb-2">
         <LockIcon className="align-sub" /> Password
       </Typography>
@@ -654,7 +673,7 @@ const EmailForm = () => {
           <MailIcon className="align-sub" /> Email
         </Typography>
       </HorizontalStack>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
+      <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
         <VerticalStack>
           {!anyEmail ? (
             <Typography variant="subtitle2">

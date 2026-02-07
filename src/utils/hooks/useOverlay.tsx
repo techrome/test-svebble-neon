@@ -33,6 +33,17 @@ const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
     [dispatch, setStateAction]
   );
 
+  const updateOverlay = React.useCallback(
+    (
+      update: (
+        currentOverlay: Overlay<Props>
+      ) => Partial<Omit<Overlay<Props>, "isOpen">>
+    ) => {
+      dispatch(setStateAction(update(overlay)));
+    },
+    [dispatch, setStateAction, overlay]
+  );
+
   const closeOverlay = React.useCallback(() => {
     dispatch(setStateAction({ isOpen: false }));
   }, [dispatch, setStateAction]);
@@ -49,6 +60,7 @@ const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
   return {
     isOpen: overlay.isOpen,
     openOverlay,
+    updateOverlay,
     closeOverlay,
     clearOverlay,
     state: overlay,
@@ -56,15 +68,22 @@ const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
 };
 
 export const useGlobalModal = () => {
-  const { clearOverlay, closeOverlay, isOpen, openOverlay, state } =
-    useGlobalOverlayBase<ModalProps>(
-      (state) => state.overlays.modal,
-      setModalState
-    );
+  const {
+    clearOverlay,
+    closeOverlay,
+    isOpen,
+    openOverlay,
+    updateOverlay,
+    state,
+  } = useGlobalOverlayBase<ModalProps>(
+    (state) => state.overlays.modal,
+    setModalState
+  );
 
   return {
     isOpen: isOpen,
     openModal: openOverlay,
+    updateModal: updateOverlay,
     closeModal: closeOverlay,
     clearModal: clearOverlay,
     modalState: state,
@@ -129,15 +148,22 @@ export const useLocalModal = () => {
 };
 
 export const useGlobalDrawer = () => {
-  const { clearOverlay, closeOverlay, isOpen, openOverlay, state } =
-    useGlobalOverlayBase<DrawerProps>(
-      (state) => state.overlays.drawer,
-      setDrawerState
-    );
+  const {
+    clearOverlay,
+    closeOverlay,
+    isOpen,
+    openOverlay,
+    updateOverlay,
+    state,
+  } = useGlobalOverlayBase<DrawerProps>(
+    (state) => state.overlays.drawer,
+    setDrawerState
+  );
 
   return {
     isOpen: isOpen,
     openDrawer: openOverlay,
+    updateDrawer: updateOverlay,
     closeDrawer: closeOverlay,
     clearDrawer: clearOverlay,
     drawerState: state,

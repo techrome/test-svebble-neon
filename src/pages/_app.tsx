@@ -1,4 +1,5 @@
-import type { AppProps } from "next/app";
+import type { AppProps as NextAppProps } from "next/app";
+import type { NextPage } from "next";
 import Head from "next/head";
 import { ThemeProvider, StyledEngineProvider } from "@mui/material/styles";
 import clsx from "clsx";
@@ -34,6 +35,13 @@ const PrivateRoute = dynamic(
   { ssr: false }
 );
 
+export type AppPage<P = object, InitP = P> = NextPage<P, InitP> & {
+  disablePadding?: boolean;
+};
+type AppProps = NextAppProps & {
+  Component: AppPage;
+};
+
 const App = ({ Component, pageProps }: AppProps) => {
   const router = useRouter();
   const isPrivateRoute = router.pathname.startsWith(`/${privateRoutePrefix}`);
@@ -68,7 +76,12 @@ const App = ({ Component, pageProps }: AppProps) => {
                       )}
                     >
                       <Navbar />
-                      <Section addClassName="flex-1 flex flex-col">
+                      <Section
+                        addClassName={clsx(
+                          "flex-1 flex flex-col",
+                          Component.disablePadding ? "p-0!" : false
+                        )}
+                      >
                         {isPrivateRoute ? (
                           <PrivateRoute>{page}</PrivateRoute>
                         ) : isAuthRoute ? (

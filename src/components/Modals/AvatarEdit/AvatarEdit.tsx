@@ -328,7 +328,7 @@ const AvatarChangeModal = ({
           <div>
             <Typography>Preview:</Typography>
             <CropperPreview
-              className="h-32 w-32 rounded-full border border-[var(--mui-palette-text-secondary)]"
+              className="h-32 w-32 rounded-full"
               ref={cropperPreviewRef}
             />
           </div>
