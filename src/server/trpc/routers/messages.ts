@@ -56,63 +56,65 @@ export const messagesRouter = router({
     )
     .query(async ({ ctx, input }) => {
       const rate = 0;
-      if (input.cursor) {
-        if (input.direction === "backward") {
-          if (Math.random() < rate) throw new Error("idk");
+      const cursor = input.cursor;
+      if (cursor) {
+        if (cursor.direction && cursor.id) {
+          if (cursor.direction === "backward") {
+            if (Math.random() < rate) throw new Error("idk");
 
-          const rows = await db
-            .select()
-            .from(schema.messages)
-            .where(before(schema.messages.id, input.cursor))
-            .orderBy(desc(schema.messages.id))
-            .limit(input.limit);
+            const rows = await db
+              .select()
+              .from(schema.messages)
+              .where(before(schema.messages.id, cursor.id))
+              .orderBy(desc(schema.messages.id))
+              .limit(input.limit);
 
-          return { items: rows.reverse(), returnedDirection: "backward" };
+            return { items: rows.reverse(), returnedDirection: "backward" };
+          }
+
+          if (cursor.direction === "forward") {
+            if (Math.random() < rate) throw new Error("idk");
+            const rows = await db
+              .select()
+              .from(schema.messages)
+              .where(after(schema.messages.id, cursor.id))
+              .orderBy(asc(schema.messages.id))
+              .limit(input.limit);
+
+            return { items: rows, returnedDirection: "forward" };
+          }
         }
-
-        if (input.direction === "forward") {
+        if (cursor.around) {
           if (Math.random() < rate) throw new Error("idk");
-          const rows = await db
-            .select()
-            .from(schema.messages)
-            .where(after(schema.messages.id, input.cursor))
-            .orderBy(asc(schema.messages.id))
-            .limit(input.limit);
+          const sideLimit = input.limit / 2;
+          let [prevInclRows, nextRows] = await Promise.all([
+            db
+              .select()
+              .from(schema.messages)
+              .where(beforeOrEqual(schema.messages.id, cursor.around))
+              .orderBy(desc(schema.messages.id))
+              .limit(sideLimit + 1), // +1 because it includes the target message
+            db
+              .select()
+              .from(schema.messages)
+              .where(after(schema.messages.id, cursor.around))
+              .orderBy(asc(schema.messages.id))
+              .limit(sideLimit),
+          ]);
 
-          return { items: rows, returnedDirection: "forward" };
+          if (!prevInclRows.length || prevInclRows[0].id !== cursor.around) {
+            throw new TRPCError({ code: "NOT_FOUND" });
+          }
+
+          prevInclRows.reverse();
+          prevInclRows.push(...nextRows);
+
+          return { items: prevInclRows };
         }
-
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "cursor requires direction",
+          message: "cursor requires id/direction or around",
         });
-      }
-      if (input.around) {
-        if (Math.random() < rate) throw new Error("idk");
-        const sideLimit = input.limit / 2;
-        let [prevInclRows, nextRows] = await Promise.all([
-          db
-            .select()
-            .from(schema.messages)
-            .where(beforeOrEqual(schema.messages.id, input.around))
-            .orderBy(desc(schema.messages.id))
-            .limit(sideLimit + 1), // +1 because it includes the target message
-          db
-            .select()
-            .from(schema.messages)
-            .where(after(schema.messages.id, input.around))
-            .orderBy(asc(schema.messages.id))
-            .limit(sideLimit),
-        ]);
-
-        if (!prevInclRows.length || prevInclRows[0].id !== input.around) {
-          throw new TRPCError({ code: "NOT_FOUND" });
-        }
-
-        prevInclRows.reverse();
-        prevInclRows.push(...nextRows);
-
-        return { items: prevInclRows };
       }
       if (Math.random() < rate) throw new Error("idk");
       const rows = await db

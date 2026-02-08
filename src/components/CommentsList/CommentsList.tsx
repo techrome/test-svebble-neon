@@ -6,45 +6,48 @@ import useAppQuery from "@/utils/hooks/useAppQuery";
 import Button from "@/components/Button/Button";
 
 type CommentProps = {
-  comment: RouterOutput["commentsGet"][number];
+  comment: RouterOutput["messages"]["get"]["items"][number];
 };
 
-const Comment = ({ comment }: CommentProps) => {
+export const Comment = ({ comment }: CommentProps) => {
   const [isEdit, setIsEdit] = React.useState(false);
   const [editInfo, setEditInfo] = React.useState(comment);
 
   const utils = trpc.useUtils();
-  const commentsDeleteMutation = trpc.commentDelete.useMutation({
+  const commentsDeleteMutation = trpc.messages.delete.useMutation({
     onSuccess: () => {
-      utils.commentsGet.invalidate();
+      utils.messages.get.invalidate();
     },
   });
 
-  const commentUpdateMutation = trpc.commentUpdate.useMutation({
+  const commentUpdateMutation = trpc.messages.update.useMutation({
     onSuccess: () => {
       setIsEdit(false);
-      utils.commentsGet.invalidate();
+      utils.messages.get.invalidate();
     },
   });
 
   return (
-    <div key={comment.id} className="mt-2 flex flex-wrap gap-3">
+    <div key={comment.id} className="p-2 flex flex-wrap gap-3">
       {isEdit ? (
         <>
           <input
             className="border block p-3 w-52"
-            value={editInfo.text}
+            value={editInfo.content}
             onChange={(e) => {
               setEditInfo((prev) => ({
                 ...prev,
-                text: e.target.value,
+                content: e.target.value,
               }));
             }}
           />
           <Button
             variant="outlined"
             onClick={() => {
-              commentUpdateMutation.mutate(editInfo);
+              commentUpdateMutation.mutate({
+                content: editInfo.content,
+                id: editInfo.id,
+              });
             }}
             disabled={commentUpdateMutation.isPending}
           >
@@ -53,7 +56,7 @@ const Comment = ({ comment }: CommentProps) => {
         </>
       ) : (
         <>
-          <h5 className="word-break-word">{comment.text}</h5>
+          <h5 className="word-break-word">{comment.content}</h5>
 
           <Button
             variant="outlined"
@@ -92,26 +95,26 @@ const Comment = ({ comment }: CommentProps) => {
   );
 };
 
-const CommentsList = () => {
-  const comments = useAppQuery(
-    trpc.commentsGet.useQuery(undefined, { staleTime: 15000 })
-  );
-  return (
-    <div className="mt-5 w-full">
-      {comments.status !== "success" ? (
-        <h5>Loading comments...</h5>
-      ) : (
-        <Virtuoso
-          useWindowScroll
-          //style={{ height: "500px" }}
-          data={comments.data}
-          itemContent={(_, comment) => {
-            return <Comment comment={comment} />;
-          }}
-        />
-      )}
-    </div>
-  );
-};
+// const CommentsList = () => {
+//   const comments = useAppQuery(
+//     trpc.messages.get.useQuery(undefined, { staleTime: 15000 })
+//   );
+//   return (
+//     <div className="mt-5 w-full">
+//       {comments.status !== "success" ? (
+//         <h5>Loading comments...</h5>
+//       ) : (
+//         <Virtuoso
+//           useWindowScroll
+//           //style={{ height: "500px" }}
+//           data={comments.data}
+//           itemContent={(_, comment) => {
+//             return <Comment comment={comment} />;
+//           }}
+//         />
+//       )}
+//     </div>
+//   );
+// };
 
-export default CommentsList;
+// export default CommentsList;

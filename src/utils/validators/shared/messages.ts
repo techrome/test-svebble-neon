@@ -15,7 +15,13 @@ export const messagesGetSchemaForm = z.object({
     .refine((val) => val % 2 === 0, "Must be an even integer")
     .default(30),
   around: messageIdQuerySchema.optional(),
-  cursor: messageIdSchema.optional(),
+  cursor: z
+    .object({
+      direction: z.enum(["forward", "backward"]).optional(),
+      id: messageIdSchema.optional(),
+      around: messageIdQuerySchema.optional(),
+    })
+    .optional(),
   direction: z.enum(["forward", "backward"]).optional(),
 });
 
