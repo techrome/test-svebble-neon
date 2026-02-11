@@ -1,5 +1,5 @@
 import z from "zod";
-import { eq, desc, asc, lt } from "drizzle-orm";
+import { eq, desc, asc, lt, or } from "drizzle-orm";
 
 import { db } from "../../db/core";
 import * as schema from "../../db/schema";
@@ -13,6 +13,7 @@ import { throwIfZodError } from "../helpers/validate";
 import { P } from "@/utils/permissions";
 import { after, before, beforeOrEqual } from "../../db/helpers/time";
 import { TRPCError } from "@trpc/server";
+import { unionAll } from "drizzle-orm/pg-core";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -84,37 +85,44 @@ export const messagesRouter = router({
             return { items: rows, returnedDirection: "forward" };
           }
         }
-        if (cursor.around) {
-          if (Math.random() < rate) throw new Error("idk");
-          const sideLimit = input.limit / 2;
-          let [prevInclRows, nextRows] = await Promise.all([
-            db
-              .select()
-              .from(schema.messages)
-              .where(beforeOrEqual(schema.messages.id, cursor.around))
-              .orderBy(desc(schema.messages.id))
-              .limit(sideLimit + 1), // +1 because it includes the target message
-            db
-              .select()
-              .from(schema.messages)
-              .where(after(schema.messages.id, cursor.around))
-              .orderBy(asc(schema.messages.id))
-              .limit(sideLimit),
-          ]);
-
-          if (!prevInclRows.length || prevInclRows[0].id !== cursor.around) {
-            throw new TRPCError({ code: "NOT_FOUND" });
-          }
-
-          prevInclRows.reverse();
-          prevInclRows.push(...nextRows);
-
-          return { items: prevInclRows };
-        }
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "cursor requires id/direction or around",
+          message: "cursor requires id and direction",
         });
+      }
+      if (input.around) {
+        if (Math.random() < rate) throw new Error("idk");
+        const sideLimit = input.limit / 2;
+
+        const prevIncl = db
+          .select()
+          .from(schema.messages)
+          .where(beforeOrEqual(schema.messages.id, input.around))
+          .orderBy(desc(schema.messages.id))
+          .limit(sideLimit + 1) // +1 because it includes the target message
+          .as("prevIncl");
+
+        const next = db
+          .select()
+          .from(schema.messages)
+          .where(after(schema.messages.id, input.around))
+          .orderBy(asc(schema.messages.id))
+          .limit(sideLimit)
+          .as("next");
+
+        // using union to make it a single db call and avoid concurrency issues
+        const combined = unionAll(
+          db.select().from(prevIncl),
+          db.select().from(next)
+        ).as("combined");
+
+        const rows = await db.select().from(combined).orderBy(asc(combined.id));
+
+        if (!rows.length || !rows.some((row) => row.id === input.around)) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+
+        return { items: rows };
       }
       if (Math.random() < rate) throw new Error("idk");
       const rows = await db
