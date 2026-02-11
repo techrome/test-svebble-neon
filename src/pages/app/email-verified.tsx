@@ -8,6 +8,7 @@ import Link from "@/components/Link/Link";
 import Button from "@/components/Button/Button";
 import { ROUTES } from "@/utils/routes";
 import { useRouter } from "next/router";
+import { getRouterQueryValue } from "@/utils/query";
 
 export type BroadcastChannels = "auth-events";
 export type BroadcastChannelEvent = "email-verified";
@@ -15,8 +16,7 @@ export type BroadcastChannelEvent = "email-verified";
 const EmailVerified = () => {
   const router = useRouter();
 
-  const error =
-    typeof router.query.error === "string" ? router.query.error : null;
+  const error = getRouterQueryValue(router.query.error);
 
   React.useEffect(() => {
     if (router.isReady && !error) {

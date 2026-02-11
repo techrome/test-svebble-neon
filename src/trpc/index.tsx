@@ -1,4 +1,4 @@
-import type { inferRouterOutputs } from "@trpc/server";
+import type { inferRouterOutputs, inferRouterInputs } from "@trpc/server";
 import {
   httpBatchLink,
   TRPCClientError,
@@ -208,4 +208,5 @@ export const trpc = createTRPCNext<AppRouter>({
   ssr: false,
 });
 
+export type RouterInput = inferRouterInputs<AppRouter>;
 export type RouterOutput = inferRouterOutputs<AppRouter>;

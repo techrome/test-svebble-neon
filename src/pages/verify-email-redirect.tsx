@@ -7,6 +7,7 @@ import { useRouter } from "next/router";
 import { VerticalStack } from "@/components/Layout/Containers";
 import Button from "@/components/Button/Button";
 import { ROUTES } from "@/utils/routes";
+import { getRouterQueryValue } from "@/utils/query";
 
 const VerifyEmailRedirect = () => {
   const router = useRouter();
@@ -16,8 +17,7 @@ const VerifyEmailRedirect = () => {
     setIsMounted(true);
   }, []);
 
-  const token =
-    typeof router.query.token === "string" ? router.query.token : null;
+  const token = getRouterQueryValue(router.query.token);
 
   const onVerifyClick = () => {
     router.replace(
