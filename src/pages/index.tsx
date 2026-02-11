@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { type GetStaticProps } from "next";
 import Button from "@/components/Button/Button";
 import clsx from "clsx";
@@ -10,9 +10,10 @@ import EmojiEmotionsIcon from "@mui/icons-material/EmojiEmotions";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import ReplayIcon from "@mui/icons-material/Replay";
+import debounce from "lodash/debounce";
 
 import { utils as serverUtils } from "@/server";
-import { trpc } from "@/trpc";
+import { type RouterInput, trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
 import { Comment } from "@/components/CommentsList/CommentsList";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
@@ -48,6 +49,11 @@ import {
   type MessageCreateFormValues,
   makeMessageCreateSchemaForm,
 } from "@/utils/validators/shared/messages";
+import { useRouter } from "next/router";
+import { getRouterQueryValue } from "@/utils/query";
+
+const hasScrollbar = (el: HTMLElement | null | Window | undefined) =>
+  el instanceof HTMLElement ? el.scrollHeight - el.clientHeight > 1 : false;
 
 const searchSchemaForm = z.object({
   text: Text.Long(),
@@ -56,11 +62,13 @@ const searchSchemaForm = z.object({
 type SearchFormValues = z.infer<typeof searchSchemaForm>;
 
 const BASE_INDEX = 1_000_000_000;
-const PER_PAGE = 20;
+const PER_PAGE = 10;
 const MAX_PAGES = 5;
+const PREFETCH_ITEMS = 4;
 
-const hasScrollbar = (el: HTMLElement | null | Window | undefined) =>
-  el instanceof HTMLElement ? el.scrollHeight - el.clientHeight > 1 : false;
+const initialMessageQueryKey: RouterInput["messages"]["get"] = {
+  limit: PER_PAGE,
+};
 
 const HomePage: AppPage = () => {
   const localModal = useLocalModal();
@@ -82,6 +90,7 @@ const HomePage: AppPage = () => {
   const authModal = useAuthModal();
   const qc = useQueryClient();
   const utils = trpc.useUtils();
+  const router = useRouter();
 
   const schema = React.useMemo(
     () => makeMessageCreateSchemaForm(user.data?.user?.emailVerified),
@@ -97,17 +106,24 @@ const HomePage: AppPage = () => {
     resolver: zodResolver(searchSchemaForm),
   });
 
+  const visibleRangeRef = React.useRef<{
+    visibleStartIndex: number;
+    visibleEndIndex: number;
+  } | null>(null);
+  const edgeCallbacksEnabledRef = React.useRef(false);
   const virtuosoRef = React.useRef<VirtuosoHandle>(null);
-  const [atBottom, setAtBottom] = React.useState(true);
-  const [isPolling, setIsPolling] = React.useState(true);
-  const [messagesQueryKey, setMessagesQueryKey] = React.useState({
-    limit: PER_PAGE,
-    // around: "4523",
-  });
+
+  const [queryInitializing, setQueryInitializing] = React.useState<
+    boolean | null
+  >(null); // null for initial render before router is ready
+  const [isPolling, setIsPolling] = React.useState(false);
+  const [messagesQueryKey, setMessagesQueryKey] = React.useState<
+    RouterInput["messages"]["get"]
+  >(initialMessageQueryKey);
 
   const messages = useAppQuery(
     trpc.messages.get.useInfiniteQuery(messagesQueryKey, {
-      initialCursor: { around: "4523" },
+      enabled: queryInitializing === false,
       getPreviousPageParam: (firstPage) =>
         (
           firstPage.returnedDirection === "backward"
@@ -182,92 +198,203 @@ const HomePage: AppPage = () => {
 
   const authDisabled = guestLoginMutation.isPending || user.isFetching;
 
-  const tryLoadOlder = React.useCallback(
-    async (ignoreError?: boolean) => {
-      if (
-        !messages.hasPreviousPage ||
-        messages.isFetchingPreviousPage ||
-        (ignoreError ? false : messages.isFetchPreviousPageError)
-      ) {
-        return;
-      }
+  const tryLoadOlder = async (ignoreError?: boolean) => {
+    if (
+      !messages.hasPreviousPage ||
+      messages.isFetchingPreviousPage ||
+      (ignoreError ? false : messages.isFetchPreviousPageError)
+    ) {
+      return;
+    }
 
-      const res = await messages.fetchPreviousPage();
-      if (res.isFetchPreviousPageError) return;
+    const res = await messages.fetchPreviousPage();
+    if (res.isFetchPreviousPageError) return;
 
-      if (res.data?.pages.length) {
-        setFirstItemIndex((prev) =>
-          prev !== null ? prev - res.data.pages[0].items.length : prev
-        );
-      }
+    const prependedCount = res.data?.pages?.[0]?.items.length || 0;
+    if (prependedCount) {
+      setFirstItemIndex((prev) =>
+        prev !== null ? prev - prependedCount : prev
+      );
+    }
 
-      utils.messages.get.setInfiniteData(messagesQueryKey, (oldData) => {
-        let data = oldData;
-        const totalPages = data?.pages?.length;
-        if (
-          totalPages &&
-          totalPages > 1 &&
-          data &&
-          !data.pages[0].items.length
-        ) {
-          data = {
-            ...data,
-            pages: data?.pages.slice(1),
-            pageParams: data?.pageParams.slice(1),
-          };
-        }
-        if (!data || !totalPages || totalPages <= MAX_PAGES || !isPolling)
-          return data;
-
-        const cutoff = MAX_PAGES;
-        return {
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      let data = queryData;
+      const totalPages = data?.pages?.length;
+      if (totalPages && totalPages > 1 && data && !data.pages[0].items.length) {
+        data = {
           ...data,
-          pageParams: data.pageParams.slice(0, cutoff),
-          pages: data.pages.slice(0, cutoff),
+          pageParams: [null, ...data?.pageParams.slice(1)],
         };
-      });
-    },
-    [messages, utils, messagesQueryKey, isPolling]
-  );
+      }
+      if (!data || !totalPages || totalPages <= MAX_PAGES || !isPolling) {
+        return data;
+      }
+
+      const cutoff = MAX_PAGES;
+      return {
+        ...data,
+        pageParams: data.pageParams.slice(0, cutoff),
+        pages: data.pages.slice(0, cutoff),
+      };
+    });
+  };
   //console.log({ firstItemIndex });
   console.log({ ...messages.data });
 
-  // const newestItemReachedRef = React.useRef(false)
-  // const oldestItemReachedRef = React.useRef(false)
+  const tryLoadNewer = async (ignoreError?: boolean) => {
+    if (
+      !messages.hasNextPage ||
+      messages.isFetchingNextPage ||
+      (ignoreError ? false : messages.isFetchNextPageError)
+    ) {
+      return;
+    }
+    const res = await messages.fetchNextPage();
+    if (res.isFetchNextPageError) return;
 
-  const tryLoadNewer = React.useCallback(
-    async (ignoreError?: boolean) => {
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      let data = queryData;
+      const totalPages = data?.pages?.length;
       if (
-        !messages.hasNextPage ||
-        messages.isFetchingNextPage ||
-        (ignoreError ? false : messages.isFetchNextPageError)
+        totalPages &&
+        totalPages > 1 &&
+        data &&
+        !data.pages[totalPages - 1].items.length
+      ) {
+        data = {
+          ...data,
+          pageParams: [...data?.pageParams.slice(0, totalPages - 1), null],
+        };
+      }
+      if (!data || !totalPages || totalPages <= MAX_PAGES || !isPolling) {
+        return data;
+      }
+
+      const cutoff = totalPages - MAX_PAGES;
+      const pagesToRemove = data.pages.slice(0, cutoff);
+      const itemsCountToRemoveFromTop = pagesToRemove.reduce(
+        (total, curr) => total + curr.items.length,
+        0
+      );
+      setFirstItemIndex((prev) =>
+        prev !== null ? prev + itemsCountToRemoveFromTop : prev
+      );
+      return {
+        ...data,
+        pageParams: data.pageParams.slice(cutoff),
+        pages: data.pages.slice(cutoff),
+      };
+    });
+  };
+
+  const shouldRenderList =
+    Boolean(messages.data?.items.length) && firstItemIndex !== null;
+
+  const trimPagesAroundViewport = () => {
+    const totalPages = messages.data?.pages.length;
+    if (
+      messages.data &&
+      visibleRangeRef.current &&
+      firstItemIndex !== null &&
+      isPolling &&
+      totalPages &&
+      totalPages > MAX_PAGES
+    ) {
+      const visibleStartIndex =
+        visibleRangeRef.current.visibleStartIndex - firstItemIndex;
+      const visibleEndIndex =
+        visibleRangeRef.current.visibleEndIndex - firstItemIndex;
+
+      console.log({ visibleStartIndex, visibleEndIndex });
+
+      if (visibleStartIndex < 0 || visibleEndIndex < 0) {
+        console.log("returned here 1");
+        return;
+      }
+
+      let visibleStartIndexBelongsToPageIndex = null;
+      let visibleEndIndexBelongsToPageIndex = null;
+      const pages = messages.data.pages;
+      let currentPageGlobalStartIndex = -1;
+      let currentPageGlobalEndIndex = -1;
+      for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+
+        currentPageGlobalStartIndex = currentPageGlobalEndIndex + 1;
+        currentPageGlobalEndIndex =
+          currentPageGlobalStartIndex + (page.items.length - 1);
+
+        console.log("this iteration", {
+          currentPageGlobalStartIndex,
+          currentPageGlobalEndIndex,
+        });
+
+        if (
+          visibleStartIndexBelongsToPageIndex !== null &&
+          visibleEndIndexBelongsToPageIndex !== null
+        ) {
+          break;
+        }
+
+        if (
+          visibleStartIndexBelongsToPageIndex === null &&
+          currentPageGlobalStartIndex <= visibleStartIndex &&
+          visibleStartIndex <= currentPageGlobalEndIndex
+        ) {
+          visibleStartIndexBelongsToPageIndex = i;
+        }
+        if (
+          visibleEndIndexBelongsToPageIndex === null &&
+          currentPageGlobalStartIndex <= visibleEndIndex &&
+          visibleEndIndex <= currentPageGlobalEndIndex
+        ) {
+          visibleEndIndexBelongsToPageIndex = i;
+        }
+      }
+
+      if (
+        visibleStartIndexBelongsToPageIndex === null ||
+        visibleEndIndexBelongsToPageIndex === null
       ) {
         return;
       }
-      const res = await messages.fetchNextPage();
-      if (res.isFetchNextPageError) return;
 
-      utils.messages.get.setInfiniteData(messagesQueryKey, (oldData) => {
-        let data = oldData;
-        const totalPages = data?.pages?.length;
-        if (
-          totalPages &&
-          totalPages > 1 &&
-          data &&
-          !data.pages[totalPages - 1].items.length
-        ) {
-          data = {
-            ...data,
-            pages: data?.pages.slice(0, totalPages - 1),
-            pageParams: data?.pageParams.slice(0, totalPages - 1),
-          };
+      const pageIndexDiff =
+        visibleEndIndexBelongsToPageIndex - visibleStartIndexBelongsToPageIndex;
+      if (![0, 1].includes(pageIndexDiff)) {
+        return;
+      }
+
+      let lowestPageIndex = visibleStartIndexBelongsToPageIndex;
+      let highestPageIndex = visibleEndIndexBelongsToPageIndex;
+      let includedPageIndexes = new Set([lowestPageIndex, highestPageIndex]);
+      while (includedPageIndexes.size < MAX_PAGES) {
+        const newLowestPageIndex = lowestPageIndex - 1;
+        if (newLowestPageIndex >= 0) {
+          lowestPageIndex = newLowestPageIndex;
+          includedPageIndexes.add(lowestPageIndex);
         }
-        if (!data || !totalPages || totalPages <= MAX_PAGES || !isPolling)
-          return data;
 
-        const cutoff = totalPages - MAX_PAGES;
-        const pagesToRemove = data.pages.slice(0, cutoff);
-        const itemsCountToRemoveFromTop = pagesToRemove.reduce(
+        if (includedPageIndexes.size >= MAX_PAGES) break;
+
+        const newHighestPageIndex = highestPageIndex + 1;
+        if (newHighestPageIndex < pages.length) {
+          highestPageIndex = newHighestPageIndex;
+          includedPageIndexes.add(highestPageIndex);
+        }
+
+        if (
+          newLowestPageIndex === 0 &&
+          newHighestPageIndex === pages.length - 1
+        ) {
+          break;
+        }
+      }
+
+      utils.messages.get.setInfiniteData(messagesQueryKey, (data) => {
+        if (!data) return data;
+        const pagesToRemoveFromTop = pages.slice(0, lowestPageIndex);
+        const itemsCountToRemoveFromTop = pagesToRemoveFromTop.reduce(
           (total, curr) => total + curr.items.length,
           0
         );
@@ -276,41 +403,55 @@ const HomePage: AppPage = () => {
         );
         return {
           ...data,
-          pageParams: data.pageParams.slice(cutoff),
-          pages: data.pages.slice(cutoff),
+          pageParams: data.pageParams.slice(
+            lowestPageIndex,
+            highestPageIndex + 1
+          ),
+          pages: data.pages.slice(lowestPageIndex, highestPageIndex + 1),
         };
       });
-    },
-    [messages, utils, messagesQueryKey, isPolling]
+
+      console.log({
+        visibleStartIndexBelongsToPageIndex,
+        visibleEndIndexBelongsToPageIndex,
+        lowestPageIndex,
+        highestPageIndex,
+        includedPageIndexes: [...includedPageIndexes.values()],
+      });
+    }
+  };
+
+  // eslint-disable-next-line
+  const debouncedOnTotalListHeightChanged = React.useCallback(
+    // eslint-disable-next-line
+    debounce(() => {
+      edgeCallbacksEnabledRef.current = true;
+    }, 200),
+    []
   );
 
-  const retryInvalidate = React.useCallback(() => {
-    if (!messages.isError || messages.isFetching) {
-      return;
-    }
-
-    utils.messages.get.invalidate();
-  }, [messages, utils]);
-
-  const shouldRenderList =
-    Boolean(messages.data?.items.length) && firstItemIndex !== null;
-
-  useEffect(() => {
-    const raf = requestAnimationFrame(() => {
+  React.useEffect(() => {
+    const raf = requestAnimationFrame(async () => {
       if (shouldRenderList && !hasScrollbar(messageListRef.current)) {
         if (messages.hasPreviousPage) {
-          void tryLoadOlder();
-          return;
+          console.log("prev");
+          await tryLoadOlder();
         }
 
         if (messages.hasNextPage) {
-          void tryLoadNewer();
+          console.log("next");
+
+          await tryLoadNewer();
         }
       }
     });
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line
-  }, [messages.dataUpdatedAt]);
+  }, [messages.dataUpdatedAt, shouldRenderList]);
+
+  React.useEffect(() => {
+    trimPagesAroundViewport();
+  }, [isPolling]);
 
   React.useEffect(() => {
     if (!totalItems) {
@@ -344,10 +485,87 @@ const HomePage: AppPage = () => {
   //     });
   //   });
   // }, [atBottom, messages.hasNextPage, messages.data?.items.length]);
+  const foundAroundIndex = React.useMemo(() => {
+    return (
+      messages.data?.items.findIndex(
+        (m) => String(m.id) === messagesQueryKey.around
+      ) ?? -1
+    );
+  }, [messages.data, messagesQueryKey.around]);
 
-  const initialTopMostItemIndex =
-    totalItems && firstItemIndex !== null ? firstItemIndex + totalItems - 1 : 0;
-  //console.log({ firstItemIndex });
+  const initialTopMostItemIndex = React.useMemo(() => {
+    let result = 0;
+    if (totalItems && firstItemIndex !== null) {
+      result =
+        foundAroundIndex >= 0
+          ? foundAroundIndex
+          : firstItemIndex + totalItems - 1;
+    }
+    return result;
+  }, [foundAroundIndex, totalItems, firstItemIndex]);
+
+  const retryInvalidate = () => {
+    if (!messages.isError || messages.isFetching) {
+      return;
+    }
+
+    router.push({ pathname: router.pathname, query: {} }, undefined, {
+      shallow: true,
+    });
+  };
+
+  React.useEffect(() => {
+    if (
+      messages.isSuccess &&
+      messages.data?.pageParams.length === 1 &&
+      messages.data.pageParams[0] &&
+      !totalItems
+    ) {
+      // in case we have no items and invalid page param, reset
+      utils.messages.get.setInfiniteData(messagesQueryKey, (data) => {
+        if (!data) return data;
+        return {
+          ...data,
+          pageParams: [null],
+        };
+      });
+    }
+    // eslint-disable-next-line
+  }, [
+    messages.isSuccess,
+    messages.dataUpdatedAt,
+    totalItems,
+    messagesQueryKey,
+  ]);
+
+  React.useEffect(() => {
+    if (!router.isReady) return;
+
+    edgeCallbacksEnabledRef.current = false;
+    setQueryInitializing(true);
+  }, [router]);
+
+  React.useEffect(() => {
+    if (!queryInitializing) return;
+
+    const run = async () => {
+      const messageId = getRouterQueryValue(router.query.messageId);
+
+      await utils.messages.get.invalidate();
+      setMessagesQueryKey((prev) => ({
+        ...prev,
+        around: messageId || undefined,
+      }));
+      setQueryInitializing(false);
+    };
+    run();
+  }, [queryInitializing]);
+
+  React.useEffect(() => {
+    return () => {
+      debouncedOnTotalListHeightChanged.cancel?.();
+    };
+  }, [debouncedOnTotalListHeightChanged]);
 
   return (
     <div className="flex-1 flex flex-col mt-3">
@@ -399,9 +617,29 @@ const HomePage: AppPage = () => {
           </HorizontalStack>
           <div className="w-full flex flex-col flex-1">
             <div className="flex-1">
-              {shouldRenderList ? (
+              {messages.isError ? (
+                <VerticalStack>
+                  <Typography>
+                    {messages.error.data?.code === "NOT_FOUND" &&
+                    messagesQueryKey.around
+                      ? `Message with ID ${messagesQueryKey.around} not found`
+                      : "Failed to load any messages"}
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    color="inherit"
+                    startIcon={<ReplayIcon />}
+                    onClick={retryInvalidate}
+                    size="large"
+                    className="w-fit"
+                  >
+                    {messagesQueryKey.around ? "Load latest messages" : "Retry"}
+                  </Button>
+                </VerticalStack>
+              ) : shouldRenderList && initialTopMostItemIndex !== -1 ? (
                 <Virtuoso
-                  // ref={virtuosoRef}
+                  ref={virtuosoRef}
+                  totalListHeightChanged={debouncedOnTotalListHeightChanged}
                   scrollerRef={messageListRefSetter}
                   className="h-full"
                   firstItemIndex={firstItemIndex}
@@ -414,23 +652,58 @@ const HomePage: AppPage = () => {
                         }
                       : undefined
                   }
+                  rangeChanged={async (range) => {
+                    visibleRangeRef.current = {
+                      visibleStartIndex: range.startIndex,
+                      visibleEndIndex: range.endIndex,
+                    };
+                    if (!edgeCallbacksEnabledRef.current) return;
+                    const localVisibleStartIndex = Math.max(
+                      0,
+                      range.startIndex - firstItemIndex
+                    );
+                    const localVisibleEndIndex = Math.max(
+                      0,
+                      range.endIndex - firstItemIndex
+                    );
+                    console.log({
+                      firstItemIndex,
+                      origstart: range.startIndex,
+                      origend: range.endIndex,
+                      localVisibleStartIndex,
+                      localVisibleEndIndex,
+                      totalItems,
+                    });
+
+                    if (localVisibleStartIndex <= PREFETCH_ITEMS) {
+                      await tryLoadOlder();
+                    }
+                    if (
+                      localVisibleEndIndex >=
+                      totalItems - 1 - PREFETCH_ITEMS
+                    ) {
+                      await tryLoadNewer();
+                    }
+                  }}
                   atTopStateChange={(atTop) => {
+                    if (!edgeCallbacksEnabledRef.current) return;
                     if (atTop) tryLoadOlder();
                   }}
                   atBottomStateChange={(atBottom) => {
+                    if (!edgeCallbacksEnabledRef.current) return;
                     //console.log({ atBottom });
                     if (atBottom) tryLoadNewer();
                   }}
-                  endReached={() => {
-                    //console.log("end reached");
-                    tryLoadNewer();
-                  }}
-                  startReached={() => {
-                    //console.log("start reached");
-                    tryLoadOlder();
-                  }}
-                  atTopThreshold={300}
-                  atBottomThreshold={300}
+                  // endReached={() => {
+                  //   console.log("end reached");
+                  //   tryLoadNewer();
+                  // }}
+                  // startReached={() => {
+                  //   console.log("start reached");
+                  //   tryLoadOlder();
+                  // }}
+                  // atTopThreshold={300}
+                  // atBottomThreshold={300}
                   data={messages.data?.items}
                   computeItemKey={(_, item) => String(item.id)}
                   itemContent={(_, comment) => {
@@ -515,20 +788,6 @@ const HomePage: AppPage = () => {
                     },
                   }}
                 />
-              ) : messages.isError ? (
-                <VerticalStack>
-                  <Typography>Failed to load any messages</Typography>
-                  <Button
-                    variant="contained"
-                    color="inherit"
-                    startIcon={<ReplayIcon />}
-                    onClick={retryInvalidate}
-                    size="large"
-                    className="w-fit"
-                  >
-                    Retry
-                  </Button>
-                </VerticalStack>
               ) : null}
             </div>
             {user.data?.user?.id ? (
