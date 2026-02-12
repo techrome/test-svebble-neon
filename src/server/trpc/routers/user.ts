@@ -29,6 +29,7 @@ import { PROVIDER_IDS } from "@/utils/constants";
 import { getCookieForwarder } from "./auth";
 import { s3Client } from "../../storage/s3";
 import { env } from "../../env";
+import { env as clientEnv } from "@/utils/env";
 import { days, minutes } from "@/utils/cacheTime";
 import { db, schema } from "../../db";
 import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/enums";
@@ -142,7 +143,7 @@ export const userRouter = router({
             message: "Invalid avatar key.",
           });
         }
-        const newAvatarUrl = `${env.NEXT_PUBLIC_CDN_URL}/${newAvatarKey}`;
+        const newAvatarUrl = `${clientEnv.NEXT_PUBLIC_CDN_URL}/${newAvatarKey}`;
         const probeResult = await probeImageDimensions(newAvatarUrl);
         console.log({ probeResult });
 

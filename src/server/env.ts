@@ -93,12 +93,7 @@ export const env = createEnv({
     EMAIL_SMTP_PASS: required(),
     EMAIL_FROM: required(),
   } satisfies EnvRecord,
-  shared: {
-    NEXT_PUBLIC_CDN_URL: url(!isDev),
-  } satisfies ClientEnvRecord,
-  experimental__runtimeEnv: {
-    NEXT_PUBLIC_CDN_URL: process.env.NEXT_PUBLIC_CDN_URL,
-  },
+  experimental__runtimeEnv: {},
   emptyStringAsUndefined: true,
   createFinalSchema: (shape) =>
     z.object(shape).superRefine((all, ctx) => {
