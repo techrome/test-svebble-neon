@@ -51,9 +51,12 @@ import {
 } from "@/utils/validators/shared/messages";
 import { useRouter } from "next/router";
 import { getRouterQueryValue } from "@/utils/query";
-
-const hasScrollbar = (el: HTMLElement | null | Window | undefined) =>
-  el instanceof HTMLElement ? el.scrollHeight - el.clientHeight > 1 : false;
+import { useWebsockets } from "@/trpc/hooks/useWebsockets";
+import {
+  getChannelId,
+  subscribeWs,
+  WebsocketEventName,
+} from "@/trpc/helpers/websockets";
 
 const searchSchemaForm = z.object({
   text: Text.Long(),
@@ -62,7 +65,7 @@ const searchSchemaForm = z.object({
 type SearchFormValues = z.infer<typeof searchSchemaForm>;
 
 const BASE_INDEX = 1_000_000_000;
-const PER_PAGE = 10;
+const PER_PAGE = 6;
 const MAX_PAGES = 5;
 const PREFETCH_ITEMS = 4;
 
@@ -70,21 +73,42 @@ const initialMessageQueryKey: RouterInput["messages"]["get"] = {
   limit: PER_PAGE,
 };
 
+type MessageQueryOptions = Parameters<
+  typeof trpc.messages.get.useInfiniteQuery
+>[1];
+
+const messageQuerySelectors = {
+  getPreviousPageParam: (firstPage) =>
+    (
+      firstPage.returnedDirection === "backward"
+        ? firstPage.items.length === PER_PAGE
+        : firstPage.items.length
+    )
+      ? { id: firstPage.items[0].id, direction: "backward" }
+      : undefined,
+  getNextPageParam: (lastPage) =>
+    (
+      lastPage.returnedDirection === "forward"
+        ? lastPage.items.length === PER_PAGE
+        : lastPage.items.length
+    )
+      ? {
+          id: lastPage.items[lastPage.items.length - 1].id,
+          direction: "forward",
+        }
+      : undefined,
+  select: (data) => ({
+    ...data,
+    items: data.pages.flatMap((p) => p.items),
+  }),
+} satisfies NonNullable<MessageQueryOptions>;
+
 const HomePage: AppPage = () => {
   const localModal = useLocalModal();
   const { closeModal, openModal } = useGlobalModal();
   const localDrawer = useLocalDrawer();
   const { openDrawer, closeDrawer } = useGlobalDrawer();
   const { addAppSnackbar, dismissAllAppSnackbars } = useAppSnackbar();
-  const messageListRef = React.useRef<HTMLElement | null | Window | undefined>(
-    undefined
-  );
-  const messageListRefSetter = React.useCallback(
-    (el: HTMLElement | null | Window) => {
-      messageListRef.current = el;
-    },
-    []
-  );
 
   const user = useUser();
   const authModal = useAuthModal();
@@ -92,13 +116,13 @@ const HomePage: AppPage = () => {
   const utils = trpc.useUtils();
   const router = useRouter();
 
-  const schema = React.useMemo(
+  const messageCreateSchema = React.useMemo(
     () => makeMessageCreateSchemaForm(user.data?.user?.emailVerified),
     [user.data?.user?.emailVerified]
   );
   const form = useForm<MessageCreateFormValues>({
     defaultValues: { content: "" },
-    resolver: zodResolver(schema),
+    resolver: zodResolver(messageCreateSchema),
   });
 
   const searchForm = useForm<SearchFormValues>({
@@ -110,8 +134,12 @@ const HomePage: AppPage = () => {
     visibleStartIndex: number;
     visibleEndIndex: number;
   } | null>(null);
-  const edgeCallbacksEnabledRef = React.useRef(false);
   const virtuosoRef = React.useRef<VirtuosoHandle>(null);
+
+  const [isScrollToMessageDone, setIsScrollToMessageDone] =
+    React.useState<boolean>(true);
+  const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
+    React.useState<boolean>(false);
 
   const [queryInitializing, setQueryInitializing] = React.useState<
     boolean | null
@@ -120,33 +148,15 @@ const HomePage: AppPage = () => {
   const [messagesQueryKey, setMessagesQueryKey] = React.useState<
     RouterInput["messages"]["get"]
   >(initialMessageQueryKey);
+  const messagesQueryKeyRef = React.useRef(messagesQueryKey);
+  React.useEffect(() => {
+    messagesQueryKeyRef.current = messagesQueryKey;
+  }, [messagesQueryKey]);
 
   const messages = useAppQuery(
     trpc.messages.get.useInfiniteQuery(messagesQueryKey, {
       enabled: queryInitializing === false,
-      getPreviousPageParam: (firstPage) =>
-        (
-          firstPage.returnedDirection === "backward"
-            ? firstPage.items.length === PER_PAGE
-            : firstPage.items.length
-        )
-          ? { id: firstPage.items[0].id, direction: "backward" }
-          : undefined,
-      getNextPageParam: (lastPage) =>
-        (
-          lastPage.returnedDirection === "forward"
-            ? lastPage.items.length === PER_PAGE
-            : lastPage.items.length
-        )
-          ? {
-              id: lastPage.items[lastPage.items.length - 1].id,
-              direction: "forward",
-            }
-          : undefined,
-      select: (data) => ({
-        ...data,
-        items: data.pages.flatMap((p) => p.items),
-      }),
+      ...messageQuerySelectors,
       refetchInterval(query) {
         return query.state.error || !isPolling ? false : 4000;
       },
@@ -157,10 +167,106 @@ const HomePage: AppPage = () => {
       gcTime: CACHE_TIME.NORMAL,
     })
   );
+
   const [firstItemIndex, setFirstItemIndex] = React.useState<number | null>(
     null
   );
+
   const totalItems = messages.data?.items.length || 0;
+  const urlMessageId = React.useMemo(
+    () => getRouterQueryValue(router.query.messageId),
+    [router]
+  );
+
+  const shouldRenderList =
+    Boolean(messages.data?.items.length) && firstItemIndex !== null;
+
+  const foundMessageIndex = React.useMemo(
+    () =>
+      urlMessageId && messages.data?.items
+        ? messages.data?.items.findIndex((m) => m.id === BigInt(urlMessageId))
+        : -1,
+    [messages.data?.items, urlMessageId]
+  );
+
+  const initialTopMostItemIndex = React.useMemo(() => {
+    let result = 0;
+    if (totalItems && firstItemIndex !== null) {
+      result =
+        foundMessageIndex >= 0
+          ? foundMessageIndex
+          : firstItemIndex + totalItems - 1;
+    }
+    return result;
+  }, [foundMessageIndex, totalItems, firstItemIndex]);
+
+  // const websocketsClient = useWebsockets();
+
+  // React.useEffect(() => {
+  //   if (!websocketsClient) return;
+
+  //   const channel = websocketsClient.channels.get(getChannelId());
+
+  //   // const invalidate = ((data, msg) => {
+  //   //   console.log({ data, msg });
+  //   //   void utils.messages.get.invalidate();
+  //   // }) satisfies Parameters<typeof subscribeWs>[2];
+
+  //   const unsubs = [
+  //     subscribeWs(channel, "messages:create", (data) => {
+  //       utils.messages.get.setInfiniteData(
+  //         messagesQueryKeyRef.current,
+  //         (queryData) => {
+  //           if (!queryData || !queryData.pages.length) return queryData;
+
+  //           let updatedPages = [...queryData.pages];
+  //           const newMessage = {
+  //             ...data,
+  //             created_at: new Date(data.created_at),
+  //             updated_at: new Date(data.updated_at),
+  //             id: BigInt(data.id),
+  //           };
+  //           const lastPage = updatedPages[updatedPages.length - 1];
+  //           const lastMessage = lastPage.items[lastPage.items.length - 1];
+  //           const shouldCreateNewPage = lastPage.items.length >= PER_PAGE;
+
+  //           if (shouldCreateNewPage) {
+  //             updatedPages.push({
+  //               items: [newMessage],
+  //               returnedDirection: "forward",
+  //             });
+  //             let updatedPageParams = [...queryData.pageParams];
+  //             updatedPageParams.push({
+  //               id: lastMessage.id,
+  //               direction: "forward",
+  //             });
+
+  //             return {
+  //               ...queryData,
+  //               pages: updatedPages,
+  //               pageParams: updatedPageParams,
+  //             };
+  //           } else {
+  //             updatedPages[updatedPages.length - 1] = {
+  //               ...updatedPages[updatedPages.length - 1],
+  //               items: [
+  //                 ...updatedPages[updatedPages.length - 1].items,
+  //                 newMessage,
+  //               ],
+  //             };
+
+  //             return { ...queryData, pages: updatedPages };
+  //           }
+  //         }
+  //       );
+  //     }),
+  //   ];
+
+  //   return () => {
+  //     unsubs.forEach((u) => u());
+  //     void channel.detach();
+  //   };
+  // }, [websocketsClient]);
 
   const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
     onSuccess: () => {
@@ -171,7 +277,7 @@ const HomePage: AppPage = () => {
   const messageCreateMutation = trpc.messages.create.useMutation({
     onSuccess: () => {
       form.reset();
-      utils.messages.get.invalidate();
+      //utils.messages.get.invalidate();
     },
   });
 
@@ -191,10 +297,24 @@ const HomePage: AppPage = () => {
     guestLoginMutation.mutate();
   };
 
+  const setUrlMessageId = (id?: string) => {
+    let nextQuery = { ...router.query };
+    if (id) {
+      nextQuery.messageId = id;
+    } else {
+      delete nextQuery.messageId;
+    }
+    router.push({ pathname: router.pathname, query: nextQuery }, undefined, {
+      shallow: true,
+    });
+  };
+
   const onSubmit: SubmitHandler<MessageCreateFormValues> = (values) => {
     messageCreateMutation.mutate({ content: values.content });
   };
-  const onSearchSubmit: SubmitHandler<SearchFormValues> = (values) => {};
+  const onSearchSubmit: SubmitHandler<SearchFormValues> = (values) => {
+    setUrlMessageId(values.text);
+  };
 
   const authDisabled = guestLoginMutation.isPending || user.isFetching;
 
@@ -207,7 +327,7 @@ const HomePage: AppPage = () => {
       return;
     }
 
-    const res = await messages.fetchPreviousPage();
+    const res = await messages.fetchPreviousPage({ cancelRefetch: false });
     if (res.isFetchPreviousPageError) return;
 
     const prependedCount = res.data?.pages?.[0]?.items.length || 0;
@@ -219,14 +339,18 @@ const HomePage: AppPage = () => {
 
     utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
       let data = queryData;
-      const totalPages = data?.pages?.length;
-      if (totalPages && totalPages > 1 && data && !data.pages[0].items.length) {
+      if (!data) return data;
+
+      const totalPages = data.pages.length;
+      const isFirstPageEmpty = totalPages > 1 && !data.pages[0].items.length;
+      if (isFirstPageEmpty) {
         data = {
           ...data,
           pageParams: [null, ...data?.pageParams.slice(1)],
         };
       }
-      if (!data || !totalPages || totalPages <= MAX_PAGES || !isPolling) {
+
+      if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
         return data;
       }
 
@@ -238,7 +362,7 @@ const HomePage: AppPage = () => {
       };
     });
   };
-  //console.log({ firstItemIndex });
+
   console.log({ ...messages.data });
 
   const tryLoadNewer = async (ignoreError?: boolean) => {
@@ -249,24 +373,24 @@ const HomePage: AppPage = () => {
     ) {
       return;
     }
-    const res = await messages.fetchNextPage();
+
+    const res = await messages.fetchNextPage({ cancelRefetch: false });
     if (res.isFetchNextPageError) return;
 
     utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
       let data = queryData;
-      const totalPages = data?.pages?.length;
-      if (
-        totalPages &&
-        totalPages > 1 &&
-        data &&
-        !data.pages[totalPages - 1].items.length
-      ) {
+      if (!data) return data;
+
+      const totalPages = data.pages.length;
+      const isLastPageEmpty =
+        totalPages > 1 && !data.pages[totalPages - 1].items.length;
+      if (isLastPageEmpty) {
         data = {
           ...data,
           pageParams: [...data?.pageParams.slice(0, totalPages - 1), null],
         };
       }
-      if (!data || !totalPages || totalPages <= MAX_PAGES || !isPolling) {
+      if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
         return data;
       }
 
@@ -287,16 +411,12 @@ const HomePage: AppPage = () => {
     });
   };
 
-  const shouldRenderList =
-    Boolean(messages.data?.items.length) && firstItemIndex !== null;
-
   const trimPagesAroundViewport = () => {
     const totalPages = messages.data?.pages.length;
     if (
       messages.data &&
       visibleRangeRef.current &&
       firstItemIndex !== null &&
-      isPolling &&
       totalPages &&
       totalPages > MAX_PAGES
     ) {
@@ -305,10 +425,7 @@ const HomePage: AppPage = () => {
       const visibleEndIndex =
         visibleRangeRef.current.visibleEndIndex - firstItemIndex;
 
-      console.log({ visibleStartIndex, visibleEndIndex });
-
       if (visibleStartIndex < 0 || visibleEndIndex < 0) {
-        console.log("returned here 1");
         return;
       }
 
@@ -323,11 +440,6 @@ const HomePage: AppPage = () => {
         currentPageGlobalStartIndex = currentPageGlobalEndIndex + 1;
         currentPageGlobalEndIndex =
           currentPageGlobalStartIndex + (page.items.length - 1);
-
-        console.log("this iteration", {
-          currentPageGlobalStartIndex,
-          currentPageGlobalEndIndex,
-        });
 
         if (
           visibleStartIndexBelongsToPageIndex !== null &&
@@ -410,47 +522,22 @@ const HomePage: AppPage = () => {
           pages: data.pages.slice(lowestPageIndex, highestPageIndex + 1),
         };
       });
-
-      console.log({
-        visibleStartIndexBelongsToPageIndex,
-        visibleEndIndexBelongsToPageIndex,
-        lowestPageIndex,
-        highestPageIndex,
-        includedPageIndexes: [...includedPageIndexes.values()],
-      });
+      console.log("end");
     }
   };
 
-  // eslint-disable-next-line
-  const debouncedOnTotalListHeightChanged = React.useCallback(
-    // eslint-disable-next-line
-    debounce(() => {
-      edgeCallbacksEnabledRef.current = true;
-    }, 200),
-    []
-  );
+  const retryInvalidate = () => {
+    if (!messages.isError || messages.isFetching) {
+      return;
+    }
+
+    setUrlMessageId();
+  };
 
   React.useEffect(() => {
-    const raf = requestAnimationFrame(async () => {
-      if (shouldRenderList && !hasScrollbar(messageListRef.current)) {
-        if (messages.hasPreviousPage) {
-          console.log("prev");
-          await tryLoadOlder();
-        }
-
-        if (messages.hasNextPage) {
-          console.log("next");
-
-          await tryLoadNewer();
-        }
-      }
-    });
-    return () => cancelAnimationFrame(raf);
-    // eslint-disable-next-line
-  }, [messages.dataUpdatedAt, shouldRenderList]);
-
-  React.useEffect(() => {
-    trimPagesAroundViewport();
+    if (isPolling) {
+      trimPagesAroundViewport();
+    }
   }, [isPolling]);
 
   React.useEffect(() => {
@@ -465,54 +552,6 @@ const HomePage: AppPage = () => {
     }
     // eslint-disable-next-line
   }, [totalItems]);
-
-  // React.useLayoutEffect(() => {
-  //   if (!atBottom || !messages.data?.items.length || messages.hasNextPage) {
-  //     return;
-  //   }
-
-  //   const lastIndex = (messages.data?.items.length ?? 0) - 1;
-  //   if (lastIndex < 0) return;
-
-  //   requestAnimationFrame(() => {
-  //     requestAnimationFrame(() => {
-  //       console.log({ lastIndex });
-  //         virtuosoRef.current?.scrollToIndex({
-  //           index: lastIndex,
-  //           align: "end",
-  //           behavior: "auto", // <- tiny snap to guarantee last item
-  //         });
-  //     });
-  //   });
-  // }, [atBottom, messages.hasNextPage, messages.data?.items.length]);
-  const foundAroundIndex = React.useMemo(() => {
-    return (
-      messages.data?.items.findIndex(
-        (m) => String(m.id) === messagesQueryKey.around
-      ) ?? -1
-    );
-  }, [messages.data, messagesQueryKey.around]);
-
-  const initialTopMostItemIndex = React.useMemo(() => {
-    let result = 0;
-    if (totalItems && firstItemIndex !== null) {
-      result =
-        foundAroundIndex >= 0
-          ? foundAroundIndex
-          : firstItemIndex + totalItems - 1;
-    }
-    return result;
-  }, [foundAroundIndex, totalItems, firstItemIndex]);
-
-  const retryInvalidate = () => {
-    if (!messages.isError || messages.isFetching) {
-      return;
-    }
-
-    router.push({ pathname: router.pathname, query: {} }, undefined, {
-      shallow: true,
-    });
-  };
 
   React.useEffect(() => {
     if (
@@ -541,31 +580,52 @@ const HomePage: AppPage = () => {
   React.useEffect(() => {
     if (!router.isReady) return;
 
-    edgeCallbacksEnabledRef.current = false;
     setQueryInitializing(true);
+    setIsScrollToMessageDone(false);
+    setIsMessageHighlightConsumed(false);
   }, [router]);
 
   React.useEffect(() => {
     if (!queryInitializing) return;
 
     const run = async () => {
-      const messageId = getRouterQueryValue(router.query.messageId);
+      if (foundMessageIndex >= 0) {
+        virtuosoRef.current?.scrollToIndex({
+          index: foundMessageIndex,
+          align: "center",
+          behavior: "smooth",
+        });
+      } else {
+        await utils.messages.get.invalidate();
+        setMessagesQueryKey((prev) => ({
+          ...prev,
+          around: urlMessageId || undefined,
+        }));
+      }
 
-      await utils.messages.get.invalidate();
-      setMessagesQueryKey((prev) => ({
-        ...prev,
-        around: messageId || undefined,
-      }));
       setQueryInitializing(false);
     };
     run();
   }, [queryInitializing]);
 
   React.useEffect(() => {
-    return () => {
-      debouncedOnTotalListHeightChanged.cancel?.();
-    };
-  }, [debouncedOnTotalListHeightChanged]);
+    if (
+      queryInitializing !== false ||
+      isScrollToMessageDone ||
+      !urlMessageId ||
+      !messages.data?.items.length
+    ) {
+      return;
+    }
+
+    if (foundMessageIndex < 0) {
+      addAppSnackbar({
+        message: `Message with ID ${urlMessageId} not found.`,
+        variant: "error",
+      });
+    }
+    setIsScrollToMessageDone(true);
+  }, [isScrollToMessageDone, messages.data?.items, queryInitializing]);
 
   return (
     <div className="flex-1 flex flex-col mt-3">
@@ -617,33 +677,20 @@ const HomePage: AppPage = () => {
           </HorizontalStack>
           <div className="w-full flex flex-col flex-1">
             <div className="flex-1">
-              {messages.isError ? (
-                <VerticalStack>
-                  <Typography>
-                    {messages.error.data?.code === "NOT_FOUND" &&
-                    messagesQueryKey.around
-                      ? `Message with ID ${messagesQueryKey.around} not found`
-                      : "Failed to load any messages"}
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    color="inherit"
-                    startIcon={<ReplayIcon />}
-                    onClick={retryInvalidate}
-                    size="large"
-                    className="w-fit"
-                  >
-                    {messagesQueryKey.around ? "Load latest messages" : "Retry"}
-                  </Button>
-                </VerticalStack>
-              ) : shouldRenderList && initialTopMostItemIndex !== -1 ? (
+              {shouldRenderList && initialTopMostItemIndex !== -1 ? (
                 <Virtuoso
+                  key={messagesQueryKey.around || "default"}
                   ref={virtuosoRef}
-                  totalListHeightChanged={debouncedOnTotalListHeightChanged}
-                  scrollerRef={messageListRefSetter}
                   className="h-full"
                   firstItemIndex={firstItemIndex}
-                  initialTopMostItemIndex={initialTopMostItemIndex}
+                  initialTopMostItemIndex={{
+                    index: initialTopMostItemIndex,
+                    align: "center",
+                  }}
+                  increaseViewportBy={{
+                    bottom: 150,
+                    top: 150,
+                  }}
                   alignToBottom
                   followOutput={
                     messages.data?.items.length && !messages.hasNextPage
@@ -652,12 +699,12 @@ const HomePage: AppPage = () => {
                         }
                       : undefined
                   }
+                  defaultItemHeight={80}
                   rangeChanged={async (range) => {
                     visibleRangeRef.current = {
                       visibleStartIndex: range.startIndex,
                       visibleEndIndex: range.endIndex,
                     };
-                    if (!edgeCallbacksEnabledRef.current) return;
                     const localVisibleStartIndex = Math.max(
                       0,
                       range.startIndex - firstItemIndex
@@ -666,14 +713,6 @@ const HomePage: AppPage = () => {
                       0,
                       range.endIndex - firstItemIndex
                     );
-                    console.log({
-                      firstItemIndex,
-                      origstart: range.startIndex,
-                      origend: range.endIndex,
-                      localVisibleStartIndex,
-                      localVisibleEndIndex,
-                      totalItems,
-                    });
 
                     if (localVisibleStartIndex <= PREFETCH_ITEMS) {
                       await tryLoadOlder();
@@ -685,29 +724,21 @@ const HomePage: AppPage = () => {
                       await tryLoadNewer();
                     }
                   }}
-                  atTopStateChange={(atTop) => {
-                    if (!edgeCallbacksEnabledRef.current) return;
-                    if (atTop) tryLoadOlder();
-                  }}
-                  atBottomStateChange={(atBottom) => {
-                    if (!edgeCallbacksEnabledRef.current) return;
-                    //console.log({ atBottom });
-                    if (atBottom) tryLoadNewer();
-                  }}
-                  // endReached={() => {
-                  //   console.log("end reached");
-                  //   tryLoadNewer();
-                  // }}
-                  // startReached={() => {
-                  //   console.log("start reached");
-                  //   tryLoadOlder();
-                  // }}
-                  // atTopThreshold={300}
-                  // atBottomThreshold={300}
+                  atBottomThreshold={50}
                   data={messages.data?.items}
                   computeItemKey={(_, item) => String(item.id)}
                   itemContent={(_, comment) => {
-                    return <Comment comment={comment} />;
+                    return (
+                      <Comment
+                        comment={comment}
+                        shouldHighlight={
+                          isMessageHighlightConsumed
+                            ? false
+                            : urlMessageId === String(comment.id)
+                        }
+                        onHighlightConsumed={setIsMessageHighlightConsumed}
+                      />
+                    );
                   }}
                   components={{
                     Header: () => {
@@ -788,6 +819,20 @@ const HomePage: AppPage = () => {
                     },
                   }}
                 />
+              ) : messages.isError ? (
+                <VerticalStack>
+                  <Typography>Failed to load any messages</Typography>
+                  <Button
+                    variant="contained"
+                    color="inherit"
+                    startIcon={<ReplayIcon />}
+                    onClick={retryInvalidate}
+                    size="large"
+                    className="w-fit"
+                  >
+                    {messagesQueryKey.around ? "Load latest messages" : "Retry"}
+                  </Button>
+                </VerticalStack>
               ) : null}
             </div>
             {user.data?.user?.id ? (

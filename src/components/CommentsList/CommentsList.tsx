@@ -4,12 +4,20 @@ import { Virtuoso } from "react-virtuoso";
 import { trpc, type RouterOutput } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
 import Button from "@/components/Button/Button";
+import clsx from "clsx";
 
 type CommentProps = {
   comment: RouterOutput["messages"]["get"]["items"][number];
+  shouldHighlight?: boolean;
+  onHighlightConsumed?: (v: true) => void;
 };
 
-export const Comment = ({ comment }: CommentProps) => {
+export const Comment = ({
+  comment,
+  shouldHighlight,
+  onHighlightConsumed,
+}: CommentProps) => {
+  const [isHighlighted, setIsHighlighted] = React.useState(shouldHighlight);
   const [isEdit, setIsEdit] = React.useState(false);
   const [editInfo, setEditInfo] = React.useState(comment);
 
@@ -27,8 +35,24 @@ export const Comment = ({ comment }: CommentProps) => {
     },
   });
 
+  React.useEffect(() => {
+    if (shouldHighlight) {
+      setIsHighlighted(false);
+      requestAnimationFrame(() => {
+        setIsHighlighted(true);
+        onHighlightConsumed?.(true);
+      });
+    }
+  }, [shouldHighlight]);
+
   return (
-    <div key={comment.id} className="p-2 flex flex-wrap gap-3">
+    <div
+      key={comment.id}
+      className={clsx(
+        "p-2 flex flex-wrap gap-3",
+        isHighlighted && "hash-flash"
+      )}
+    >
       {isEdit ? (
         <>
           <input
@@ -56,6 +80,7 @@ export const Comment = ({ comment }: CommentProps) => {
         </>
       ) : (
         <>
+          <h6 className="word-break-word">{comment.id}</h6>
           <h5 className="word-break-word">{comment.content}</h5>
 
           <Button
