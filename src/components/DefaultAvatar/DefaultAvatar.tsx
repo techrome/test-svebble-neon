@@ -13,6 +13,7 @@ import {
 import { Avatar, AvatarProps } from "@mui/material";
 import clsx from "clsx";
 import React from "react";
+import { hashString32 } from "@/utils/stringUtils";
 
 export const AVATAR_BG_COLORS = [
   deepPurple[500],
@@ -26,14 +27,6 @@ export const AVATAR_BG_COLORS = [
   orange[800],
   pink[600],
 ] as const;
-
-const hashString32 = (str: string) => {
-  let result = 0;
-  for (let i = 0; i < str.length; i++) {
-    result = (result * 31 + str.charCodeAt(i)) | 0;
-  }
-  return result;
-};
 
 export const pickAvatarBgColor = (str: string) => {
   const key = str.trim().toLowerCase();
