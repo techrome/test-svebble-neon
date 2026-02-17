@@ -46,7 +46,8 @@ type EnvVar =
   | "EMAIL_SMTP_PORT"
   | "EMAIL_SMTP_USER"
   | "EMAIL_SMTP_PASS"
-  | "EMAIL_FROM";
+  | "EMAIL_FROM"
+  | "WEBSOCKETS_API_KEY";
 
 type EnvRecord = Record<EnvVar, z.ZodType>;
 type ClientEnvRecord = Omit<Record<ClientEnvVar, z.ZodType>, "NODE_ENV">;
@@ -71,6 +72,7 @@ export const env = createEnv({
     VERCEL_URL: domain(false),
     VERCEL_PROJECT_PRODUCTION_URL: domain(false),
     OPENAI_API_TOKEN: requiredForProd(),
+    WEBSOCKETS_API_KEY: requiredForProd(),
 
     // common
     BASE_URL: z.url().optional(),

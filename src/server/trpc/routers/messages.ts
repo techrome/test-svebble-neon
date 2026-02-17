@@ -1,5 +1,6 @@
 import z from "zod";
 import { eq, desc, asc, lt, or } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 
 import { db } from "../../db/core";
 import * as schema from "../../db/schema";
@@ -7,6 +8,7 @@ import { router } from "../core";
 import {
   publicProcedureSSRDefaultRateLimit,
   privateProcedureDefaultRateLimit,
+  publicProcedureDefaultRateLimit,
 } from "../procedures";
 import * as sharedMessagesValidations from "@/utils/validators/shared/messages";
 import { throwIfZodError } from "../helpers/validate";
@@ -14,6 +16,11 @@ import { P } from "@/utils/permissions";
 import { after, before, beforeOrEqual } from "../../db/helpers/time";
 import { TRPCError } from "@trpc/server";
 import { unionAll } from "drizzle-orm/pg-core";
+import {
+  createChannelSubscribeTokenRequest,
+  publishChannelEvent,
+} from "../../websockets/core";
+import { waitUntil } from "@vercel/functions";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -46,6 +53,15 @@ const generateRandomText = (
 type Message = typeof schema.messages.$inferSelect;
 
 export const messagesRouter = router({
+  ablyTokenRequest: publicProcedureDefaultRateLimit.mutation(
+    async ({ ctx }) => {
+      const userId = `tmp-${randomUUID()}`;
+
+      return createChannelSubscribeTokenRequest({
+        userId,
+      });
+    }
+  ),
   get: publicProcedureSSRDefaultRateLimit
     .input(sharedMessagesValidations.messagesGetSchemaForm)
     .output(
@@ -58,6 +74,7 @@ export const messagesRouter = router({
     .query(async ({ ctx, input }) => {
       const rate = 0;
       const cursor = input.cursor;
+      //await new Promise((r) => setTimeout(r, 500));
       if (cursor) {
         if (cursor.direction && cursor.id) {
           if (cursor.direction === "backward") {
@@ -118,7 +135,7 @@ export const messagesRouter = router({
 
         const rows = await db.select().from(combined).orderBy(asc(combined.id));
 
-        if (!rows.length || !rows.some((row) => row.id === input.around)) {
+        if (!rows.length) {
           throw new TRPCError({ code: "NOT_FOUND" });
         }
 
@@ -170,9 +187,19 @@ export const messagesRouter = router({
           .safeParse(input)
       );
 
-      await db
+      const [newRow] = await db
         .insert(schema.messages)
-        .values({ content: input.content, user_id: ctx.user.id });
+        .values({ content: input.content, user_id: ctx.user.id })
+        .returning();
+      waitUntil(
+        publishChannelEvent({
+          data: {
+            ...newRow,
+            id: String(newRow.id),
+          },
+          eventName: "messages:create",
+        }).catch((e) => console.error("Ably publish failed", e))
+      );
     }),
   update: privateProcedureDefaultRateLimit([P.messages.update])
     .input(sharedMessagesValidations.messageUpdateSchemaForm)
