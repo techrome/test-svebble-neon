@@ -127,6 +127,13 @@
       "when": 1771595778539,
       "tag": "0017_bizarre_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1771613584056,
+      "tag": "0018_little_menace",
+      "breakpoints": true
     }
   ]
 }

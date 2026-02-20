@@ -7,11 +7,11 @@ import {
   uniqueIndex,
   pgEnum,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 import { withDefaultColumns } from "../helpers/withDefaultColumns";
 import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import { user } from "./auth";
-import { sql } from "drizzle-orm";
 import {
   FILE_PURPOSE,
   FILE_PURPOSES_ENUM,

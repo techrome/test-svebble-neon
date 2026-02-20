@@ -6,15 +6,13 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 import { withDefaultColumns } from "../helpers/withDefaultColumns";
 import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import { user } from "./auth";
-import { channels } from "./channels";
 
-export const messages = pgTable(
-  "messages",
+export const channels = pgTable(
+  "channels",
   withDefaultColumns(
     {
       id: bigint("id", { mode: "bigint" })
@@ -23,18 +21,13 @@ export const messages = pgTable(
       user_id: uuid()
         .notNull()
         .references(() => user.id),
-      content: varchar({ length: TEXT_LIMITS.long }).notNull(),
-      channel_id: bigint("channel_id", { mode: "bigint" })
-        .notNull()
-        .references(() => channels.id),
+      name: varchar({ length: TEXT_LIMITS.title }).notNull(),
       deleted_at: timestamp({ withTimezone: true, precision: 3 }),
+      messages_updated_at: timestamp({ withTimezone: true, precision: 3 })
+        .notNull()
+        .defaultNow(),
     },
     { id: false }
   ),
-  (table) => [
-    index("messages_active_channel_id_id_index")
-      .on(table.channel_id, table.id)
-      .where(sql`${table.deleted_at} IS NULL`),
-    index("messages_user_id").on(table.user_id),
-  ]
+  (table) => [index("channels_user_id_index").on(table.user_id)]
 );
