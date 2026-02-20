@@ -7,8 +7,15 @@ import {
   WebsocketEventName,
   WebsocketPayload,
 } from "@/trpc/helpers/websockets";
+import { isDev } from "@/utils/isDev";
 
-export const ablyRest = new ably.Rest({ key: env.WEBSOCKETS_API_KEY });
+export const ablyRest = env.WEBSOCKETS_API_KEY
+  ? new ably.Rest({ key: env.WEBSOCKETS_API_KEY })
+  : null;
+
+if (!env.WEBSOCKETS_API_KEY && isDev) {
+  console.warn("No WEBSOCKETS_API_KEY provided. Websockets won't work.");
+}
 
 export type AblyTokenRequest = ably.TokenRequest;
 
@@ -16,7 +23,9 @@ export const createChannelSubscribeTokenRequest = async (opts: {
   userId: string;
   channelId?: string;
   ttlMs?: number;
-}): Promise<AblyTokenRequest> => {
+}): Promise<AblyTokenRequest | null> => {
+  if (!ablyRest) return null;
+
   const capability = {
     [getChannelId(opts.channelId)]: ["subscribe"],
   } satisfies Record<string, string[]>;
@@ -35,6 +44,8 @@ export const publishChannelEvent = async <
   eventName: EventName;
   data: WebsocketPayload<EventName>;
 }): Promise<void> => {
+  if (!ablyRest) return;
+
   await ablyRest.channels
     .get(getChannelId(opts.channelId))
     .publish(opts.eventName, opts.data);

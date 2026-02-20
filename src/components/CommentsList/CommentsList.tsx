@@ -24,14 +24,14 @@ export const Comment = ({
   const utils = trpc.useUtils();
   const commentsDeleteMutation = trpc.messages.delete.useMutation({
     onSuccess: () => {
-      utils.messages.get.invalidate();
+      //utils.messages.get.invalidate();
     },
   });
 
   const commentUpdateMutation = trpc.messages.update.useMutation({
     onSuccess: () => {
       setIsEdit(false);
-      utils.messages.get.invalidate();
+      //utils.messages.get.invalidate();
     },
   });
 

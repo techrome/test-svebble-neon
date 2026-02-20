@@ -57,6 +57,7 @@ import {
   subscribeWs,
   WebsocketEventName,
 } from "@/trpc/helpers/websockets";
+import { getQueryKey } from "@trpc/react-query";
 
 const searchSchemaForm = z.object({
   text: Text.Long(),
@@ -65,9 +66,9 @@ const searchSchemaForm = z.object({
 type SearchFormValues = z.infer<typeof searchSchemaForm>;
 
 const BASE_INDEX = 1_000_000_000;
-const PER_PAGE = 6;
+const PER_PAGE = 50;
 const MAX_PAGES = 5;
-const PREFETCH_ITEMS = 4;
+const PREFETCH_ITEMS = 6;
 
 const initialMessageQueryKey: RouterInput["messages"]["get"] = {
   limit: PER_PAGE,
@@ -148,10 +149,6 @@ const HomePage: AppPage = () => {
   const [messagesQueryKey, setMessagesQueryKey] = React.useState<
     RouterInput["messages"]["get"]
   >(initialMessageQueryKey);
-  const messagesQueryKeyRef = React.useRef(messagesQueryKey);
-  React.useEffect(() => {
-    messagesQueryKeyRef.current = messagesQueryKey;
-  }, [messagesQueryKey]);
 
   const messages = useAppQuery(
     trpc.messages.get.useInfiniteQuery(messagesQueryKey, {
@@ -164,9 +161,13 @@ const HomePage: AppPage = () => {
       refetchOnMount: false,
       refetchOnReconnect: false,
       refetchOnWindowFocus: false,
-      gcTime: CACHE_TIME.NORMAL,
+      gcTime: 0,
     })
   );
+
+  // React.useEffect(() => {
+  //   console.log("new data");
+  // }, [messages.data]);
 
   const [firstItemIndex, setFirstItemIndex] = React.useState<number | null>(
     null
@@ -190,7 +191,7 @@ const HomePage: AppPage = () => {
   );
 
   const initialTopMostItemIndex = React.useMemo(() => {
-    let result = 0;
+    let result = -1;
     if (totalItems && firstItemIndex !== null) {
       result =
         foundMessageIndex >= 0
@@ -200,73 +201,173 @@ const HomePage: AppPage = () => {
     return result;
   }, [foundMessageIndex, totalItems, firstItemIndex]);
 
-  // const websocketsClient = useWebsockets();
+  const highestLoadedId = messages.data?.items
+    ? messages.data.items[messages.data.items.length - 1].id
+    : null;
+  const lowestLoadedId = messages.data?.items
+    ? messages.data.items[0].id
+    : null;
 
-  // React.useEffect(() => {
-  //   if (!websocketsClient) return;
+  const websocketsDependencies = React.useRef({
+    messagesQueryKey,
+    highestLoadedId,
+    lowestLoadedId,
+  });
 
-  //   const channel = websocketsClient.channels.get(getChannelId());
+  websocketsDependencies.current = {
+    messagesQueryKey,
+    highestLoadedId,
+    lowestLoadedId,
+  };
 
-  //   // const invalidate = ((data, msg) => {
-  //   //   console.log({ data, msg });
-  //   //   void utils.messages.get.invalidate();
-  //   // }) satisfies Parameters<typeof subscribeWs>[2];
+  const websocketsClient = useWebsockets();
 
-  //   const unsubs = [
-  //     subscribeWs(channel, "messages:create", (data) => {
-  //       utils.messages.get.setInfiniteData(
-  //         messagesQueryKeyRef.current,
-  //         (queryData) => {
-  //           if (!queryData || !queryData.pages.length) return queryData;
+  React.useEffect(() => {
+    if (!websocketsClient) return;
 
-  //           let updatedPages = [...queryData.pages];
-  //           const newMessage = {
-  //             ...data,
-  //             created_at: new Date(data.created_at),
-  //             updated_at: new Date(data.updated_at),
-  //             id: BigInt(data.id),
-  //           };
-  //           const lastPage = updatedPages[updatedPages.length - 1];
-  //           const lastMessage = lastPage.items[lastPage.items.length - 1];
-  //           const shouldCreateNewPage = lastPage.items.length >= PER_PAGE;
+    const channel = websocketsClient.channels.get(getChannelId());
 
-  //           if (shouldCreateNewPage) {
-  //             updatedPages.push({
-  //               items: [newMessage],
-  //               returnedDirection: "forward",
-  //             });
-  //             let updatedPageParams = [...queryData.pageParams];
-  //             updatedPageParams.push({
-  //               id: lastMessage.id,
-  //               direction: "forward",
-  //             });
+    // const invalidate = ((data, msg) => {
+    //   console.log({ data, msg });
+    //   void utils.messages.get.invalidate();
+    // }) satisfies Parameters<typeof subscribeWs>[2];
 
-  //             return {
-  //               ...queryData,
-  //               pages: updatedPages,
-  //               pageParams: updatedPageParams,
-  //             };
-  //           } else {
-  //             updatedPages[updatedPages.length - 1] = {
-  //               ...updatedPages[updatedPages.length - 1],
-  //               items: [
-  //                 ...updatedPages[updatedPages.length - 1].items,
-  //                 newMessage,
-  //               ],
-  //             };
+    const unsubs = [
+      subscribeWs(channel, "messages:create", (data) => {
+        utils.messages.get.setInfiniteData(
+          websocketsDependencies.current.messagesQueryKey,
+          (queryData) => {
+            if (!queryData || !queryData.pages.length) return queryData;
 
-  //             return { ...queryData, pages: updatedPages };
-  //           }
-  //         }
-  //       );
-  //     }),
-  //   ];
+            let updatedPages = [...queryData.pages];
+            const newMessage = {
+              ...data,
+              created_at: new Date(data.created_at),
+              updated_at: new Date(data.updated_at),
+              id: BigInt(data.id),
+            };
+            const lastPage = updatedPages[updatedPages.length - 1];
+            const lastMessage = lastPage.items[lastPage.items.length - 1];
+            const shouldCreateNewPage = lastPage.items.length >= PER_PAGE;
 
-  //   return () => {
-  //     unsubs.forEach((u) => u());
-  //     void channel.detach();
-  //   };
-  // }, [websocketsClient]);
+            if (shouldCreateNewPage) {
+              updatedPages.push({
+                items: [newMessage],
+                returnedDirection: "forward",
+              });
+              let updatedPageParams = [...queryData.pageParams];
+              updatedPageParams.push({
+                id: lastMessage.id,
+                direction: "forward",
+              });
+
+              return {
+                ...queryData,
+                pages: updatedPages,
+                pageParams: updatedPageParams,
+              };
+            } else {
+              updatedPages[updatedPages.length - 1] = {
+                ...updatedPages[updatedPages.length - 1],
+                items: [
+                  ...updatedPages[updatedPages.length - 1].items,
+                  newMessage,
+                ],
+              };
+
+              return { ...queryData, pages: updatedPages };
+            }
+          }
+        );
+      }),
+      subscribeWs(channel, "messages:update", (data) => {
+        const itemToUpdateId = BigInt(data.id);
+        const lowestLoadedId = websocketsDependencies.current.lowestLoadedId;
+        const highestLoadedId = websocketsDependencies.current.highestLoadedId;
+        if (
+          !lowestLoadedId ||
+          !highestLoadedId ||
+          itemToUpdateId < lowestLoadedId ||
+          itemToUpdateId > highestLoadedId
+        ) {
+          return;
+        }
+        utils.messages.get.setInfiniteData(
+          websocketsDependencies.current.messagesQueryKey,
+          (queryData) => {
+            if (!queryData || !queryData.pages.length) return queryData;
+
+            let updatedPages = [...queryData.pages];
+            for (let i = 0; i < updatedPages.length; i++) {
+              const page = updatedPages[i];
+              const foundItemIndex = page.items.findIndex(
+                (m) => m.id === itemToUpdateId
+              );
+              if (foundItemIndex >= 0) {
+                let updatedItems = [...page.items];
+                updatedItems[foundItemIndex] = {
+                  ...data,
+                  created_at: new Date(data.created_at),
+                  updated_at: new Date(data.updated_at),
+                  id: itemToUpdateId,
+                };
+
+                updatedPages[i] = {
+                  ...updatedPages[i],
+                  items: updatedItems,
+                };
+                return { ...queryData, pages: updatedPages };
+              }
+            }
+            return queryData;
+          }
+        );
+      }),
+      subscribeWs(channel, "messages:delete", (data) => {
+        const itemToDeleteId = BigInt(data.id);
+        const lowestLoadedId = websocketsDependencies.current.lowestLoadedId;
+        const highestLoadedId = websocketsDependencies.current.highestLoadedId;
+        if (
+          !lowestLoadedId ||
+          !highestLoadedId ||
+          itemToDeleteId < lowestLoadedId ||
+          itemToDeleteId > highestLoadedId
+        ) {
+          return;
+        }
+        utils.messages.get.setInfiniteData(
+          websocketsDependencies.current.messagesQueryKey,
+          (queryData) => {
+            if (!queryData || !queryData.pages.length) return queryData;
+
+            let updatedPages = [...queryData.pages];
+            for (let i = 0; i < updatedPages.length; i++) {
+              const page = updatedPages[i];
+              const foundItemIndex = page.items.findIndex(
+                (m) => m.id === itemToDeleteId
+              );
+              if (foundItemIndex >= 0) {
+                let updatedItems = [...page.items];
+                updatedItems.splice(foundItemIndex, 1);
+
+                updatedPages[i] = {
+                  ...updatedPages[i],
+                  items: updatedItems,
+                };
+                return { ...queryData, pages: updatedPages };
+              }
+            }
+            return queryData;
+          }
+        );
+      }),
+    ];
+
+    return () => {
+      unsubs.forEach((u) => u());
+      void channel.detach();
+    };
+  }, [websocketsClient]);
 
   const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
     onSuccess: () => {
@@ -522,7 +623,6 @@ const HomePage: AppPage = () => {
           pages: data.pages.slice(lowestPageIndex, highestPageIndex + 1),
         };
       });
-      console.log("end");
     }
   };
 
@@ -533,6 +633,55 @@ const HomePage: AppPage = () => {
 
     setUrlMessageId();
   };
+
+  const debouncedRangeChangedDependencies = React.useRef({
+    firstItemIndex,
+    totalItems,
+    tryLoadOlder,
+    tryLoadNewer,
+  });
+
+  debouncedRangeChangedDependencies.current = {
+    firstItemIndex,
+    totalItems,
+    tryLoadOlder,
+    tryLoadNewer,
+  };
+
+  // eslint-disable-next-line
+  const debouncedRangeChanged = React.useCallback(
+    // eslint-disable-next-line
+    debounce<
+      NonNullable<React.ComponentProps<typeof Virtuoso>["rangeChanged"]>
+    >(async (range) => {
+      const { firstItemIndex, totalItems, tryLoadNewer, tryLoadOlder } =
+        debouncedRangeChangedDependencies.current;
+      if (firstItemIndex === null) return;
+      visibleRangeRef.current = {
+        visibleStartIndex: range.startIndex,
+        visibleEndIndex: range.endIndex,
+      };
+      const localVisibleStartIndex = Math.max(
+        0,
+        range.startIndex - firstItemIndex
+      );
+      const localVisibleEndIndex = Math.max(0, range.endIndex - firstItemIndex);
+
+      if (localVisibleStartIndex <= PREFETCH_ITEMS) {
+        await tryLoadOlder();
+      }
+      if (localVisibleEndIndex >= totalItems - 1 - PREFETCH_ITEMS) {
+        await tryLoadNewer();
+      }
+    }, 50),
+    []
+  );
+
+  React.useEffect(() => {
+    return () => {
+      debouncedRangeChanged.cancel();
+    };
+  }, [debouncedRangeChanged]);
 
   React.useEffect(() => {
     if (isPolling) {
@@ -596,7 +745,14 @@ const HomePage: AppPage = () => {
           behavior: "smooth",
         });
       } else {
-        await utils.messages.get.invalidate();
+        qc.removeQueries({
+          queryKey: getQueryKey(
+            trpc.messages.get,
+            messagesQueryKey,
+            "infinite"
+          ),
+          exact: true,
+        });
         setMessagesQueryKey((prev) => ({
           ...prev,
           around: urlMessageId || undefined,
@@ -700,30 +856,7 @@ const HomePage: AppPage = () => {
                       : undefined
                   }
                   defaultItemHeight={80}
-                  rangeChanged={async (range) => {
-                    visibleRangeRef.current = {
-                      visibleStartIndex: range.startIndex,
-                      visibleEndIndex: range.endIndex,
-                    };
-                    const localVisibleStartIndex = Math.max(
-                      0,
-                      range.startIndex - firstItemIndex
-                    );
-                    const localVisibleEndIndex = Math.max(
-                      0,
-                      range.endIndex - firstItemIndex
-                    );
-
-                    if (localVisibleStartIndex <= PREFETCH_ITEMS) {
-                      await tryLoadOlder();
-                    }
-                    if (
-                      localVisibleEndIndex >=
-                      totalItems - 1 - PREFETCH_ITEMS
-                    ) {
-                      await tryLoadNewer();
-                    }
-                  }}
+                  rangeChanged={debouncedRangeChanged}
                   atBottomThreshold={50}
                   data={messages.data?.items}
                   computeItemKey={(_, item) => String(item.id)}
@@ -742,7 +875,7 @@ const HomePage: AppPage = () => {
                   }}
                   components={{
                     Header: () => {
-                      if (messages.isFetchingPreviousPage) {
+                      if (messages.hasPreviousPage) {
                         return (
                           <div className="p-4 bg-amber-400">Loading...</div>
                         );
@@ -769,7 +902,7 @@ const HomePage: AppPage = () => {
                       return null;
                     },
                     Footer: () => {
-                      if (messages.isFetchingNextPage) {
+                      if (messages.hasNextPage) {
                         return (
                           <div className="p-4 bg-amber-400">Loading...</div>
                         );

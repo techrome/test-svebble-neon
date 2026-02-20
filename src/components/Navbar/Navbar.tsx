@@ -197,7 +197,7 @@ const NavbarInner = () => {
         }
         attempts += 1;
 
-        if (attempts < 5) {
+        if (attempts < 15) {
           scrollToIdTimerRef.current = setTimeout(tryScroll, 200);
         }
       };

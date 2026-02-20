@@ -22,22 +22,31 @@ export const useWebsockets = () => {
   );
 
   React.useEffect(() => {
-    const ablyClient = createAblyClient({
-      async authCallback(_data, callback) {
-        try {
-          const tokenRequest = await tokenMutation.mutateAsync();
-          callback(null, tokenRequest);
-        } catch (err) {
-          callback(err as ErrorInfo, null);
-        }
-      },
-    });
-
-    setRealtimeClient(ablyClient);
+    let ablyClient: BaseRealtime | null = null;
+    const run = async () => {
+      let initialTokenRequest = await tokenMutation.mutateAsync();
+      if (!initialTokenRequest) return;
+      ablyClient = createAblyClient({
+        async authCallback(_data, callback) {
+          try {
+            let tokenRequest = initialTokenRequest;
+            initialTokenRequest = null;
+            if (!tokenRequest) {
+              tokenRequest = await tokenMutation.mutateAsync();
+            }
+            if (!tokenRequest) throw new Error("No websockets token");
+            callback(null, tokenRequest);
+          } catch (err) {
+            callback(err as ErrorInfo, null);
+          }
+        },
+      });
+      setRealtimeClient(ablyClient);
+    };
+    run();
 
     return () => {
-      ablyClient.close();
-      setRealtimeClient(null);
+      ablyClient?.close();
     };
   }, []);
 

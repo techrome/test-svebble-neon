@@ -1,5 +1,5 @@
 import z from "zod";
-import { eq, desc, asc, lt, or } from "drizzle-orm";
+import { eq, desc, asc, lt, or, and } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { db } from "../../db/core";
@@ -8,7 +8,7 @@ import { router } from "../core";
 import {
   publicProcedureSSRDefaultRateLimit,
   privateProcedureDefaultRateLimit,
-  publicProcedureDefaultRateLimit,
+  publicProcedure,
 } from "../procedures";
 import * as sharedMessagesValidations from "@/utils/validators/shared/messages";
 import { throwIfZodError } from "../helpers/validate";
@@ -21,6 +21,7 @@ import {
   publishChannelEvent,
 } from "../../websockets/core";
 import { waitUntil } from "@vercel/functions";
+import { rateLimitMiddlewares } from "../ratelimit";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -53,15 +54,14 @@ const generateRandomText = (
 type Message = typeof schema.messages.$inferSelect;
 
 export const messagesRouter = router({
-  ablyTokenRequest: publicProcedureDefaultRateLimit.mutation(
-    async ({ ctx }) => {
+  ablyTokenRequest: publicProcedure
+    .use(rateLimitMiddlewares.websockets_token)
+    .mutation(async ({ ctx }) => {
       const userId = `tmp-${randomUUID()}`;
-
       return createChannelSubscribeTokenRequest({
         userId,
       });
-    }
-  ),
+    }),
   get: publicProcedureSSRDefaultRateLimit
     .input(sharedMessagesValidations.messagesGetSchemaForm)
     .output(
@@ -198,7 +198,7 @@ export const messagesRouter = router({
             id: String(newRow.id),
           },
           eventName: "messages:create",
-        }).catch((e) => console.error("Ably publish failed", e))
+        }).catch((e) => console.error("Ably message create publish failed", e))
       );
     }),
   update: privateProcedureDefaultRateLimit([P.messages.update])
@@ -210,16 +210,54 @@ export const messagesRouter = router({
           .safeParse(input)
       );
 
-      const res = await db
+      const [updatedRow] = await db
         .update(schema.messages)
         .set({ content: input.content })
-        .where(eq(schema.messages.id, input.id));
-      return res;
+        .where(
+          and(
+            eq(schema.messages.id, input.id),
+            eq(schema.messages.user_id, ctx.user.id)
+          )
+        )
+        .returning();
+
+      if (!updatedRow) throw new TRPCError({ code: "NOT_FOUND" });
+
+      waitUntil(
+        publishChannelEvent({
+          data: {
+            ...updatedRow,
+            id: String(updatedRow.id),
+          },
+          eventName: "messages:update",
+        }).catch((e) => console.error("Ably message update publish failed", e))
+      );
+      return updatedRow;
     }),
   delete: privateProcedureDefaultRateLimit([P.messages.delete])
     .input(sharedMessagesValidations.messageDeleteSchemaForm)
-    .mutation(async ({ input }) => {
-      await db.delete(schema.messages).where(eq(schema.messages.id, input.id));
+    .mutation(async ({ input, ctx }) => {
+      const [deletedRow] = await db
+        .delete(schema.messages)
+        .where(
+          and(
+            eq(schema.messages.id, input.id),
+            eq(schema.messages.user_id, ctx.user.id)
+          )
+        )
+        .returning();
+
+      if (!deletedRow) throw new TRPCError({ code: "NOT_FOUND" });
+
+      waitUntil(
+        publishChannelEvent({
+          data: {
+            id: String(deletedRow.id),
+          },
+          eventName: "messages:delete",
+        }).catch((e) => console.error("Ably message delete publish failed", e))
+      );
+      return true;
     }),
   deleteAll: privateProcedureDefaultRateLimit([P.messages.delete]).mutation(
     async () => {
