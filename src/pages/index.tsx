@@ -30,13 +30,13 @@ import {
   VerticalStack,
 } from "@/components/Layout/Containers";
 import { useAppSnackbar } from "@/utils/snackbar";
-import { CACHE_TIME } from "@/utils/cacheTime";
+import { CACHE_TIME, seconds } from "@/utils/cacheTime";
 import IconButton from "@/components/Button/IconButton";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import { SectionWrapper } from "@/pages/app/my-profile";
 import { Divider } from "@/components/Layout/Dividers";
 import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
-import { useQueryClient } from "@tanstack/react-query";
+import { InfiniteData, useQueryClient } from "@tanstack/react-query";
 import z from "zod";
 import { Text } from "@/utils/validators/helpers/text";
 import { useUser } from "@/trpc/hooks/useUser";
@@ -104,6 +104,8 @@ const messageQuerySelectors = {
   }),
 } satisfies NonNullable<MessageQueryOptions>;
 
+const baseIntervalMs = Number(seconds(5));
+
 const HomePage: AppPage = () => {
   const localModal = useLocalModal();
   const { closeModal, openModal } = useGlobalModal();
@@ -150,12 +152,56 @@ const HomePage: AppPage = () => {
     RouterInput["messages"]["get"]
   >(initialMessageQueryKey);
 
+  const refetchIntervalVars = React.useRef<{
+    dataBefore:
+      | Parameters<
+          Exclude<
+            NonNullable<MessageQueryOptions>["refetchInterval"],
+            number | boolean | undefined
+          >
+        >[0]["state"]["data"]
+      | undefined;
+    currentIntervalMs: number;
+    maxIntervalMs: number;
+    intervalStepMs: number;
+    wasFetching: boolean;
+  }>({
+    dataBefore: undefined,
+    currentIntervalMs: baseIntervalMs,
+    maxIntervalMs: Number(seconds(30)),
+    intervalStepMs: baseIntervalMs,
+    wasFetching: false,
+  });
+
   const messages = useAppQuery(
     trpc.messages.get.useInfiniteQuery(messagesQueryKey, {
       enabled: queryInitializing === false,
       ...messageQuerySelectors,
       refetchInterval(query) {
-        return query.state.error || !isPolling ? false : 4000;
+        const vars = refetchIntervalVars.current;
+        if (query.state.error || !isPolling) {
+          vars.wasFetching = false;
+          vars.currentIntervalMs = baseIntervalMs;
+          return false;
+        }
+
+        const isFetching = query.state.fetchStatus === "fetching";
+
+        if (isFetching && !vars.wasFetching) vars.dataBefore = query.state.data;
+
+        if (!isFetching && vars.wasFetching) {
+          vars.currentIntervalMs =
+            vars.dataBefore === query.state.data
+              ? Math.min(
+                  vars.maxIntervalMs,
+                  vars.currentIntervalMs + vars.intervalStepMs
+                )
+              : baseIntervalMs;
+        }
+
+        vars.wasFetching = isFetching;
+
+        return vars.currentIntervalMs;
       },
       staleTime: Infinity,
       refetchOnMount: false,
@@ -729,10 +775,12 @@ const HomePage: AppPage = () => {
   React.useEffect(() => {
     if (!router.isReady) return;
 
+    refetchIntervalVars.current.wasFetching = false;
+    refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
     setQueryInitializing(true);
     setIsScrollToMessageDone(false);
     setIsMessageHighlightConsumed(false);
-  }, [router]);
+  }, [urlMessageId]);
 
   React.useEffect(() => {
     if (!queryInitializing) return;
