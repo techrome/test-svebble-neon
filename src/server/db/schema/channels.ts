@@ -10,6 +10,7 @@ import {
 import { withDefaultColumns } from "../helpers/withDefaultColumns";
 import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import { user } from "./auth";
+import { sql } from "drizzle-orm";
 
 export const channels = pgTable(
   "channels",
@@ -22,12 +23,16 @@ export const channels = pgTable(
         .notNull()
         .references(() => user.id),
       name: varchar({ length: TEXT_LIMITS.title }).notNull(),
-      deleted_at: timestamp({ withTimezone: true, precision: 3 }),
       messages_updated_at: timestamp({ withTimezone: true, precision: 3 })
         .notNull()
         .defaultNow(),
+      deleted_at: timestamp({ withTimezone: true, precision: 3 }),
     },
     { id: false }
   ),
-  (table) => [index("channels_user_id_index").on(table.user_id)]
+  (table) => [
+    index("channels_active_user_id_index")
+      .on(table.user_id)
+      .where(sql`${table.deleted_at} IS NULL`),
+  ]
 );
