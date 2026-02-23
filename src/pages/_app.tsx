@@ -71,14 +71,14 @@ const App = ({ Component, pageProps }: AppProps) => {
                     bundler not to drop it from prod build. the real font is applied in _document.tsx*/}
                     <div
                       className={clsx(
-                        "flex flex-col min-h-screen",
+                        "flex flex-col h-dvh min-h-[max(500px,100dvh)]",
                         roboto.variable
                       )}
                     >
                       <Navbar />
                       <Section
                         addClassName={clsx(
-                          "flex-1 flex flex-col",
+                          "flex-1 flex flex-col min-h-0",
                           Component.disablePadding ? "p-0!" : false
                         )}
                       >

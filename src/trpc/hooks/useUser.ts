@@ -1,7 +1,7 @@
 import React from "react";
 import { trpc } from "@/trpc";
 import useAppQuery, { UseAppQueryOptions } from "@/utils/hooks/useAppQuery";
-import { CACHE_TIME } from "@/utils/cacheTime";
+import { CACHE_TIME_MS } from "@/utils/cacheTime";
 import { AuthedUserContext } from "@/components/PrivateRoute/PrivateRoute";
 
 type TRPCQueryOptions = Omit<
@@ -15,7 +15,7 @@ export const useUser = (
 ) => {
   const user = useAppQuery(
     trpc.auth.user.useQuery(undefined, {
-      staleTime: CACHE_TIME.LONG,
+      staleTime: CACHE_TIME_MS.LONG,
       ...trpcQueryOptions,
     }),
     appQueryOptions

@@ -33,7 +33,7 @@ import {
 } from "@/utils/validators/shared/auth";
 import { trpc } from "@/trpc";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
-import { CACHE_TIME } from "@/utils/cacheTime";
+import { CACHE_TIME_MS } from "@/utils/cacheTime";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import { normalizeText } from "@/utils/stringUtils";
 import Tooltip from "@/components/Tooltip/Tooltip";
@@ -317,7 +317,7 @@ export const UsernameInput = <TFV extends Username>({
   const usernameAvailabilityQuery = useAppQuery(
     trpc.user.checkUsernameAvailability.useQuery(
       { username: debouncedUsername },
-      { staleTime: CACHE_TIME.NORMAL, retry: false, enabled: !queryDisabled }
+      { staleTime: CACHE_TIME_MS.NORMAL, retry: false, enabled: !queryDisabled }
     ),
     { disableLoadingBoundary: true }
   );

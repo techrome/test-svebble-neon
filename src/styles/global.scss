@@ -112,11 +112,10 @@ html {
 }
 
 .rotating-dash-frame {
-  position: relative;
-  display: block;
+  @apply relative flex flex-col;
 
   .dash-frame-content {
-    position: relative;
+    @apply relative flex flex-col;
     z-index: 1;
   }
 

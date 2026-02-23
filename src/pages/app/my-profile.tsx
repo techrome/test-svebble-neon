@@ -35,7 +35,7 @@ import Signup, {
 } from "@/components/AuthForm/Signup";
 import { useGlobalModal, useLocalModal } from "@/utils/hooks/useOverlay";
 import Confirm from "@/components/Modals/Confirm/Confirm";
-import { CACHE_TIME, minutes, seconds } from "@/utils/cacheTime";
+import { CACHE_TIME_MS, minutes, seconds } from "@/utils/cacheTime";
 import { PROVIDER_IDS } from "@/utils/constants";
 import { isPlaceholderEmail } from "@/trpc/helpers/email";
 import { useFreshUser } from "@/trpc/hooks/useFreshUser";
@@ -531,7 +531,7 @@ const PasswordFormWrapper = () => {
   const userAccounts = trpc.user.listUserAccounts.useQuery(
     { id: userData.id },
     {
-      staleTime: CACHE_TIME.NORMAL,
+      staleTime: CACHE_TIME_MS.NORMAL,
     }
   );
 
@@ -893,7 +893,7 @@ const Sections = () => {
       <SectionWrapper>
         <BasicProfileForm />
       </SectionWrapper>
-      <SectionWrapper>
+      <SectionWrapper id={ANCHORS.username}>
         <UsernameForm />
       </SectionWrapper>
       <SectionWrapper>

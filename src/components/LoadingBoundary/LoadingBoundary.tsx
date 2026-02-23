@@ -10,9 +10,10 @@ type Props = {
   children: React.ReactNode;
   alwaysActive?: boolean;
   isOuter?: boolean;
+  minH?: boolean;
 };
 
-const LoadingBoundary = ({ children, alwaysActive, isOuter }: Props) => {
+const LoadingBoundary = ({ children, alwaysActive, isOuter, minH }: Props) => {
   const [queryKeys, setQueryKeys] = React.useState<QueryKeys>({});
   const hasActiveQueries = Object.keys(queryKeys).length > 0;
 
@@ -21,6 +22,7 @@ const LoadingBoundary = ({ children, alwaysActive, isOuter }: Props) => {
       <AnimationWrapper
         active={alwaysActive || hasActiveQueries}
         isOuter={isOuter}
+        minH={minH}
       >
         {children}
       </AnimationWrapper>

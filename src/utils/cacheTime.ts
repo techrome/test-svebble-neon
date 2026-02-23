@@ -15,7 +15,7 @@ export const minutes = timeBuilder<"minutes">(60_000);
 export const hours = timeBuilder<"hours">(3_600_000);
 export const days = timeBuilder<"days">(86_400_000);
 
-export const CACHE_TIME = {
+export const CACHE_TIME_MS = {
   REALTIME: seconds(0),
   QUICKEST: seconds(15),
   QUICKER: seconds(30),
@@ -24,3 +24,10 @@ export const CACHE_TIME = {
   LONG: minutes(30),
   STATIC: days(1),
 } as const;
+
+const msToSeconds = <const T extends Record<string, number>>(msObj: T) =>
+  Object.fromEntries(Object.entries(msObj).map(([k, v]) => [k, v / 1_000])) as {
+    readonly [K in keyof T]: T[K];
+  };
+
+export const CACHE_TIME_S = msToSeconds(CACHE_TIME_MS);
