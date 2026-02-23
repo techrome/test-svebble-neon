@@ -18,12 +18,20 @@ type UrlObjectWithAllRoutes = Omit<
 
 type Props = {
   children: React.ReactNode;
+  disabled?: boolean;
 } & Omit<MuiLinksProps, "component" | "href"> &
   Omit<NextLinkProps, "href"> & {
     href: AllRoutes | UrlObjectWithAllRoutes;
   };
 
-const Link = ({ children, ...props }: Props) => {
+const Link = ({ children, disabled, ...props }: Props) => {
+  if (disabled) {
+    return (
+      <MuiLink component="span" aria-disabled tabIndex={-1} {...props}>
+        {children}
+      </MuiLink>
+    );
+  }
   return (
     <MuiLink component={NextLink} {...props}>
       {children}

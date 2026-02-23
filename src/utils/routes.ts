@@ -8,6 +8,7 @@ export const oauthRoutePrefix = "oauth";
 
 export const ANCHORS = {
   email: "email",
+  username: "username",
   linkAccount: "linkAccount",
 } as const;
 
@@ -27,6 +28,7 @@ export const ROUTES = {
   private_emailVerified: `/${privateRoutePrefix}/email-verified`,
   private_myProfile: `/${privateRoutePrefix}/my-profile`,
   private_settings: `/${privateRoutePrefix}/settings`,
+  channels: (id: string): `/channels/${string}` => `/channels/${id}`,
   //   users: (id: string): `/users/${string}` => `/users/${id}`,
 } as const satisfies Record<string, Route | DynamicRoute>;
 
