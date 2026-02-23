@@ -1,11 +1,13 @@
+import {
+  numericIdQuerySchema,
+  numericIdSchema,
+} from "@/utils/validators/helpers/custom";
 import { Text } from "@/utils/validators/helpers/text";
 import z from "zod";
 
-export const messageIdSchema = z.bigint().positive();
-export const messageIdQuerySchema = z
-  .string()
-  .regex(/^[1-9]\d*$/)
-  .transform((val) => BigInt(val));
+export const messagesGetWebsocketsToken = z.object({
+  channelId: numericIdQuerySchema,
+});
 
 export const messagesGetSchemaForm = z.object({
   limit: z
@@ -14,12 +16,13 @@ export const messagesGetSchemaForm = z.object({
     .max(50)
     .refine((val) => val % 2 === 0, "Must be an even integer")
     .default(30),
-  around: messageIdQuerySchema.optional(),
+  around: numericIdQuerySchema.optional(),
+  channelId: numericIdQuerySchema,
   cursor: z
     .object({
       direction: z.enum(["forward", "backward"]).optional(),
-      id: messageIdSchema.optional(),
-      around: messageIdQuerySchema.optional(),
+      id: numericIdSchema.optional(),
+      around: numericIdQuerySchema.optional(),
     })
     .optional(),
   direction: z.enum(["forward", "backward"]).optional(),
@@ -27,6 +30,7 @@ export const messagesGetSchemaForm = z.object({
 
 export const messageCreateSchemaForm = z.object({
   content: z.string(),
+  channelId: numericIdSchema,
 });
 export const makeMessageCreateSchemaForm = (isVerifiedUser?: boolean) =>
   messageCreateSchemaForm.safeExtend({
@@ -34,7 +38,7 @@ export const makeMessageCreateSchemaForm = (isVerifiedUser?: boolean) =>
   });
 
 export const messageUpdateSchemaForm = messageCreateSchemaForm.extend({
-  id: messageIdSchema,
+  id: numericIdSchema,
 });
 export const makeMessageUpdateSchemaForm = (isVerifiedUser?: boolean) =>
   makeMessageCreateSchemaForm(isVerifiedUser).extend({

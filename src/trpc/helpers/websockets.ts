@@ -19,7 +19,7 @@ export type WebsocketEventName = keyof WebsocketEvents;
 export type WebsocketPayload<EventName extends WebsocketEventName> =
   WebsocketEvents[EventName];
 
-export const getChannelId = (id?: string) => "test-1"; //`channel:${id || "test"}`;
+export const getChannelId = (id: string) => `channel:${id}`;
 
 export const subscribeWs = <EventName extends WebsocketEventName>(
   channel: RealtimeChannel,

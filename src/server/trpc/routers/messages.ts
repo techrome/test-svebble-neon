@@ -1,5 +1,5 @@
 import z from "zod";
-import { eq, desc, asc, lt, or, and } from "drizzle-orm";
+import { eq, desc, asc, lt, or, and, isNull, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { db } from "../../db/core";
@@ -22,6 +22,7 @@ import {
 } from "../../websockets/core";
 import { waitUntil } from "@vercel/functions";
 import { rateLimitMiddlewares } from "../ratelimit";
+import { numericIdSchema } from "@/utils/validators/helpers/custom";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -56,10 +57,12 @@ type Message = typeof schema.messages.$inferSelect;
 export const messagesRouter = router({
   ablyTokenRequest: publicProcedure
     .use(rateLimitMiddlewares.websockets_token)
-    .mutation(async ({ ctx }) => {
+    .input(sharedMessagesValidations.messagesGetWebsocketsToken)
+    .mutation(async ({ ctx, input }) => {
       const userId = `tmp-${randomUUID()}`;
       return createChannelSubscribeTokenRequest({
         userId,
+        channelId: String(input.channelId),
       });
     }),
   get: publicProcedureSSRDefaultRateLimit
@@ -83,7 +86,13 @@ export const messagesRouter = router({
             const rows = await db
               .select()
               .from(schema.messages)
-              .where(before(schema.messages.id, cursor.id))
+              .where(
+                and(
+                  eq(schema.messages.channel_id, input.channelId),
+                  isNull(schema.messages.deleted_at),
+                  before(schema.messages.id, cursor.id)
+                )
+              )
               .orderBy(desc(schema.messages.id))
               .limit(input.limit);
 
@@ -95,7 +104,13 @@ export const messagesRouter = router({
             const rows = await db
               .select()
               .from(schema.messages)
-              .where(after(schema.messages.id, cursor.id))
+              .where(
+                and(
+                  eq(schema.messages.channel_id, input.channelId),
+                  isNull(schema.messages.deleted_at),
+                  after(schema.messages.id, cursor.id)
+                )
+              )
               .orderBy(asc(schema.messages.id))
               .limit(input.limit);
 
@@ -114,7 +129,13 @@ export const messagesRouter = router({
         const prevIncl = db
           .select()
           .from(schema.messages)
-          .where(beforeOrEqual(schema.messages.id, input.around))
+          .where(
+            and(
+              eq(schema.messages.channel_id, input.channelId),
+              isNull(schema.messages.deleted_at),
+              beforeOrEqual(schema.messages.id, input.around)
+            )
+          )
           .orderBy(desc(schema.messages.id))
           .limit(sideLimit + 1) // +1 because it includes the target message
           .as("prevIncl");
@@ -122,7 +143,13 @@ export const messagesRouter = router({
         const next = db
           .select()
           .from(schema.messages)
-          .where(after(schema.messages.id, input.around))
+          .where(
+            and(
+              eq(schema.messages.channel_id, input.channelId),
+              isNull(schema.messages.deleted_at),
+              after(schema.messages.id, input.around)
+            )
+          )
           .orderBy(asc(schema.messages.id))
           .limit(sideLimit)
           .as("next");
@@ -145,6 +172,12 @@ export const messagesRouter = router({
       const rows = await db
         .select()
         .from(schema.messages)
+        .where(
+          and(
+            eq(schema.messages.channel_id, input.channelId),
+            isNull(schema.messages.deleted_at)
+          )
+        )
         .orderBy(desc(schema.messages.id))
         .limit(input.limit);
 
@@ -155,6 +188,7 @@ export const messagesRouter = router({
       z.object({
         isBulk: z.boolean(),
         count: z.number().min(1).max(200).default(200),
+        channelId: numericIdSchema,
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -164,6 +198,7 @@ export const messagesRouter = router({
           rows.push({
             content: `${i + 1} - ${generateRandomText(minLength, maxLength, alphanumeric)}`,
             user_id: ctx.user.id,
+            channel_id: input.channelId,
           });
         }
         await db.insert(schema.messages).values(rows);
@@ -172,9 +207,11 @@ export const messagesRouter = router({
         for (let i = 0; i < input.count; i++) {
           const randomText = `${i + 1} - ${seed}`;
 
-          await db
-            .insert(schema.messages)
-            .values({ content: randomText, user_id: ctx.user.id });
+          await db.insert(schema.messages).values({
+            content: randomText,
+            user_id: ctx.user.id,
+            channel_id: input.channelId,
+          });
         }
       }
     }),
@@ -189,17 +226,24 @@ export const messagesRouter = router({
 
       const [newRow] = await db
         .insert(schema.messages)
-        .values({ content: input.content, user_id: ctx.user.id })
+        .values({
+          content: input.content,
+          user_id: ctx.user.id,
+          channel_id: input.channelId,
+        })
         .returning();
       waitUntil(
         publishChannelEvent({
           data: {
             ...newRow,
+            channel_id: String(newRow.channel_id),
             id: String(newRow.id),
           },
           eventName: "messages:create",
+          channelId: String(input.channelId),
         }).catch((e) => console.error("Ably message create publish failed", e))
       );
+      return newRow;
     }),
   update: privateProcedureDefaultRateLimit([P.messages.update])
     .input(sharedMessagesValidations.messageUpdateSchemaForm)
@@ -227,9 +271,11 @@ export const messagesRouter = router({
         publishChannelEvent({
           data: {
             ...updatedRow,
+            channel_id: String(updatedRow.channel_id),
             id: String(updatedRow.id),
           },
           eventName: "messages:update",
+          channelId: String(input.channelId),
         }).catch((e) => console.error("Ably message update publish failed", e))
       );
       return updatedRow;
@@ -238,7 +284,8 @@ export const messagesRouter = router({
     .input(sharedMessagesValidations.messageDeleteSchemaForm)
     .mutation(async ({ input, ctx }) => {
       const [deletedRow] = await db
-        .delete(schema.messages)
+        .update(schema.messages)
+        .set({ deleted_at: sql`now()` })
         .where(
           and(
             eq(schema.messages.id, input.id),
@@ -255,6 +302,7 @@ export const messagesRouter = router({
             id: String(deletedRow.id),
           },
           eventName: "messages:delete",
+          channelId: String(deletedRow.channel_id),
         }).catch((e) => console.error("Ably message delete publish failed", e))
       );
       return true;

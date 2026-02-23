@@ -15,7 +15,11 @@ const createAblyClient = (opts: {
   });
 };
 
-export const useWebsockets = () => {
+type Props = {
+  channelId: string;
+};
+
+export const useWebsockets = (props: Props) => {
   const tokenMutation = trpc.messages.ablyTokenRequest.useMutation();
   const [realtimeClient, setRealtimeClient] = React.useState<Realtime | null>(
     null
@@ -24,7 +28,9 @@ export const useWebsockets = () => {
   React.useEffect(() => {
     let ablyClient: BaseRealtime | null = null;
     const run = async () => {
-      let initialTokenRequest = await tokenMutation.mutateAsync();
+      let initialTokenRequest = await tokenMutation.mutateAsync({
+        channelId: props.channelId,
+      });
       if (!initialTokenRequest) return;
       ablyClient = createAblyClient({
         async authCallback(_data, callback) {
@@ -32,7 +38,9 @@ export const useWebsockets = () => {
             let tokenRequest = initialTokenRequest;
             initialTokenRequest = null;
             if (!tokenRequest) {
-              tokenRequest = await tokenMutation.mutateAsync();
+              tokenRequest = await tokenMutation.mutateAsync({
+                channelId: props.channelId,
+              });
             }
             if (!tokenRequest) throw new Error("No websockets token");
             callback(null, tokenRequest);

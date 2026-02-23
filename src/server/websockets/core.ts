@@ -21,7 +21,7 @@ export type AblyTokenRequest = ably.TokenRequest;
 
 export const createChannelSubscribeTokenRequest = async (opts: {
   userId: string;
-  channelId?: string;
+  channelId: string;
   ttlMs?: number;
 }): Promise<AblyTokenRequest | null> => {
   if (!ablyRest) return null;
@@ -40,7 +40,7 @@ export const createChannelSubscribeTokenRequest = async (opts: {
 export const publishChannelEvent = async <
   EventName extends WebsocketEventName,
 >(opts: {
-  channelId?: string;
+  channelId: string;
   eventName: EventName;
   data: WebsocketPayload<EventName>;
 }): Promise<void> => {

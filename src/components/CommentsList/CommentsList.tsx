@@ -71,6 +71,7 @@ export const Comment = ({
               commentUpdateMutation.mutate({
                 content: editInfo.content,
                 id: editInfo.id,
+                channelId: editInfo.channel_id,
               });
             }}
             disabled={commentUpdateMutation.isPending}

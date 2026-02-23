@@ -5,6 +5,7 @@ import { publicProcedureSSRDefaultRateLimit } from "../procedures";
 import { authRouter } from "./auth";
 import { userRouter } from "./user";
 import { messagesRouter } from "./messages";
+import { channelsRouter } from "./channels";
 
 export const appRouter = router({
   hello: publicProcedureSSRDefaultRateLimit
@@ -24,6 +25,7 @@ export const appRouter = router({
   auth: authRouter,
   user: userRouter,
   messages: messagesRouter,
+  channels: channelsRouter,
 });
 
 export type AppRouter = typeof appRouter;
