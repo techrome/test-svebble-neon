@@ -23,9 +23,11 @@ export const channels = pgTable(
         .notNull()
         .references(() => user.id),
       name: varchar({ length: TEXT_LIMITS.title }).notNull(),
-      messages_updated_at: timestamp({ withTimezone: true, precision: 3 })
+      messages_version: bigint("messages_version", {
+        mode: "bigint",
+      })
         .notNull()
-        .defaultNow(),
+        .default(sql`0`),
       deleted_at: timestamp({ withTimezone: true, precision: 3 }),
     },
     { id: false }
