@@ -301,7 +301,7 @@ const ChannelListWrapper = () => {
         `${defaultPadding} h-full min-h-[300px] flex flex-1 flex-col max-w-2xs max-md:hidden rounded-none ring ring-[var(--mui-palette-divider)]`
       )}
     >
-      <LoadingBoundary isOuter minH>
+      <LoadingBoundary isOuter addClassName="min-h-0">
         <ChannelList />
       </LoadingBoundary>
     </Paper>

@@ -10,12 +10,14 @@ type CommentProps = {
   comment: RouterOutput["messages"]["get"]["items"][number];
   shouldHighlight?: boolean;
   onHighlightConsumed?: (v: true) => void;
+  isPolling: boolean;
 };
 
 export const Comment = ({
   comment,
   shouldHighlight,
   onHighlightConsumed,
+  isPolling,
 }: CommentProps) => {
   const [isHighlighted, setIsHighlighted] = React.useState(shouldHighlight);
   const [isEdit, setIsEdit] = React.useState(false);
@@ -24,14 +26,18 @@ export const Comment = ({
   const utils = trpc.useUtils();
   const commentsDeleteMutation = trpc.messages.delete.useMutation({
     onSuccess: () => {
-      //utils.messages.get.invalidate();
+      if (isPolling) {
+        utils.messages.get.invalidate();
+      }
     },
   });
 
   const commentUpdateMutation = trpc.messages.update.useMutation({
     onSuccess: () => {
       setIsEdit(false);
-      //utils.messages.get.invalidate();
+      if (isPolling) {
+        utils.messages.get.invalidate();
+      }
     },
   });
 

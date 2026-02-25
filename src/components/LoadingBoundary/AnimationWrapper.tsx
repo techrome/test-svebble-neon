@@ -6,7 +6,7 @@ type AnimationWrapperProps = {
   children: React.ReactNode;
   active?: boolean;
   isOuter?: boolean;
-  minH?: boolean;
+  addClassName?: string;
 };
 
 const DELAY_MS = 200;
@@ -90,7 +90,7 @@ const AnimationWrapper = ({
   active = false,
   children,
   isOuter,
-  minH,
+  addClassName,
 }: AnimationWrapperProps) => {
   const contentWrapperRef = React.useRef<HTMLDivElement | null>(null);
   const rectRef = React.useRef<SVGRectElement | null>(null);
@@ -139,10 +139,10 @@ const AnimationWrapper = ({
   }, [active]);
 
   return (
-    <div className={clsx("rotating-dash-frame", minH && "min-h-0")}>
+    <div className={clsx("rotating-dash-frame", addClassName)}>
       <div
         ref={contentWrapperRef}
-        className={clsx("dash-frame-content", minH && "min-h-0")}
+        className={clsx("dash-frame-content", addClassName)}
       >
         {children}
       </div>

@@ -59,6 +59,110 @@ import {
 } from "@/trpc/helpers/websockets";
 import { getQueryKey } from "@trpc/react-query";
 import ChannelListWrapper from "@/components/Chat/ChannelList";
+import Skeleton from "@/components/Skeleton/Skeleton";
+import { useScreenHeight } from "@/utils/hooks/useScreenHeight";
+
+type Options = {
+  root?: Element | null;
+  rootMargin?: string;
+  threshold?: number;
+  enabled?: boolean;
+};
+
+export function useOnEnterView(
+  onEnter: () => void,
+  {
+    root = null,
+    rootMargin = "0px",
+    threshold = 0,
+    enabled = true,
+  }: Options = {}
+) {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const onEnterRef = React.useRef(onEnter);
+  // eslint-disable-next-line
+  onEnterRef.current = onEnter;
+
+  React.useEffect(() => {
+    if (!enabled) return;
+    const el = ref.current;
+    if (!el) return;
+
+    let wasIntersecting = false;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const isIntersecting = Boolean(entry.isIntersecting);
+
+        if (isIntersecting && !wasIntersecting) {
+          onEnterRef.current();
+        }
+
+        wasIntersecting = isIntersecting;
+      },
+      { root, rootMargin, threshold }
+    );
+
+    io.observe(el);
+    return () => io.disconnect();
+  }, [enabled, root, rootMargin, threshold]);
+
+  return ref;
+}
+
+const SKELETON_CONFIG = {
+  AVG_ROW_HEIGHT_PX: 80,
+  MIN_ROWS: 12,
+  MAX_ROWS: 60,
+  WIDTHS: [0.35, 0.55, 0.7, 0.42, 0.62, 0.48, 0.8],
+} as const;
+
+const emptyFunc = () => {};
+const MessagesSkeleton = ({
+  scrollerEl,
+  onEnter,
+}: {
+  scrollerEl?: HTMLElement | null;
+  onEnter?: () => void;
+}) => {
+  const screenHeight = useScreenHeight();
+
+  const rowCount = React.useMemo(() => {
+    const rawCount = Math.ceil(
+      screenHeight / SKELETON_CONFIG.AVG_ROW_HEIGHT_PX
+    );
+    return Math.min(
+      SKELETON_CONFIG.MAX_ROWS,
+      Math.max(SKELETON_CONFIG.MIN_ROWS, rawCount)
+    );
+  }, [screenHeight]);
+
+  const onEnterCallback = onEnter || emptyFunc;
+  const ref = useOnEnterView(onEnterCallback, {
+    root: scrollerEl,
+    enabled: Boolean(onEnter),
+    rootMargin: "200px 0px",
+    threshold: 0,
+  });
+
+  return (
+    <div className="p-2" ref={ref}>
+      {Array.from({ length: rowCount }).map((_, i) => {
+        const widthPercent =
+          100 * SKELETON_CONFIG.WIDTHS[i % SKELETON_CONFIG.WIDTHS.length];
+        return (
+          <HorizontalStack key={i} addClassName="items-center">
+            <Skeleton variant="circular" height={50} width={50} />
+            <Skeleton
+              height={SKELETON_CONFIG.AVG_ROW_HEIGHT_PX}
+              width={`${widthPercent}%`}
+            />
+          </HorizontalStack>
+        );
+      })}
+    </div>
+  );
+};
 
 const searchSchemaForm = z.object({
   text: Text.Long(),
@@ -69,7 +173,6 @@ type SearchFormValues = z.infer<typeof searchSchemaForm>;
 const BASE_INDEX = 1_000_000_000;
 const PER_PAGE = 50;
 const MAX_PAGES = 5;
-const PREFETCH_ITEMS = 6;
 
 type MessageQueryOptions = Parameters<
   typeof trpc.messages.get.useInfiniteQuery
@@ -121,7 +224,6 @@ const ChannelInner = ({ channel }: Props) => {
   const qc = useQueryClient();
   const utils = trpc.useUtils();
   const router = useRouter();
-  console.log("router", { ...router });
 
   const messageCreateSchema = React.useMemo(
     () => makeMessageCreateSchemaForm(user.data?.user?.emailVerified),
@@ -137,12 +239,14 @@ const ChannelInner = ({ channel }: Props) => {
     resolver: zodResolver(searchSchemaForm),
   });
 
+  const scrollerElRef = React.useRef<HTMLElement | null>(null);
   const visibleRangeRef = React.useRef<{
     visibleStartIndex: number;
     visibleEndIndex: number;
   } | null>(null);
   const virtuosoRef = React.useRef<VirtuosoHandle>(null);
 
+  const [shouldRenderLoaders, setShouldRenderLoaders] = React.useState(false);
   const [isScrollToMessageDone, setIsScrollToMessageDone] =
     React.useState<boolean>(true);
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
@@ -227,22 +331,18 @@ const ChannelInner = ({ channel }: Props) => {
     [router.query.messageId]
   );
 
-  // TODO
   const foundMessageIndex = React.useMemo(
     () =>
-      urlMessageId && messages.data?.items
+      urlMessageId && messages.data?.items && !isMessageHighlightConsumed
         ? messages.data?.items.findIndex((m) => m.id === BigInt(urlMessageId))
         : -1,
-    [messages.data?.items, urlMessageId]
+    [messages.data?.items, urlMessageId, isMessageHighlightConsumed]
   );
 
   const initialTopMostItemIndex = React.useMemo(() => {
     let result = -1;
     if (totalItems && firstItemIndex !== null) {
-      result =
-        foundMessageIndex >= 0
-          ? foundMessageIndex
-          : firstItemIndex + totalItems - 1;
+      result = foundMessageIndex >= 0 ? foundMessageIndex : totalItems - 1;
     }
     return result;
   }, [foundMessageIndex, totalItems, firstItemIndex]);
@@ -435,7 +535,9 @@ const ChannelInner = ({ channel }: Props) => {
   const messageCreateMutation = trpc.messages.create.useMutation({
     onSuccess: () => {
       form.reset();
-      //utils.messages.get.invalidate();
+      if (isPolling) {
+        utils.messages.get.invalidate();
+      }
     },
   });
 
@@ -683,62 +785,57 @@ const ChannelInner = ({ channel }: Props) => {
     }
   };
 
-  const retryInvalidate = () => {
-    if (!messages.isError || messages.isFetching) {
-      return;
-    }
-
-    setUrlMessageId();
-  };
-
-  const debouncedRangeChangedDependencies = React.useRef({
-    firstItemIndex,
-    totalItems,
+  const debouncedLoadersDependencies = React.useRef({
     tryLoadOlder,
     tryLoadNewer,
+    shouldRenderLoaders,
+    setShouldRenderLoaders,
   });
 
-  debouncedRangeChangedDependencies.current = {
-    firstItemIndex,
-    totalItems,
+  debouncedLoadersDependencies.current = {
     tryLoadOlder,
     tryLoadNewer,
+    shouldRenderLoaders,
+    setShouldRenderLoaders,
   };
-
   // eslint-disable-next-line
   const debouncedRangeChanged = React.useCallback(
     // eslint-disable-next-line
     debounce<
-      NonNullable<React.ComponentProps<typeof Virtuoso>["rangeChanged"]>
-    >(async (range) => {
-      const { firstItemIndex, totalItems, tryLoadNewer, tryLoadOlder } =
-        debouncedRangeChangedDependencies.current;
-
-      if (firstItemIndex === null) return;
-      visibleRangeRef.current = {
-        visibleStartIndex: range.startIndex,
-        visibleEndIndex: range.endIndex,
-      };
-      const localVisibleStartIndex = Math.max(
-        0,
-        range.startIndex - firstItemIndex
-      );
-      const localVisibleEndIndex = Math.max(0, range.endIndex - firstItemIndex);
-
-      if (localVisibleStartIndex <= PREFETCH_ITEMS) {
-        await tryLoadOlder();
-      }
-      if (localVisibleEndIndex >= totalItems - 1 - PREFETCH_ITEMS) {
-        await tryLoadNewer();
+      | NonNullable<React.ComponentProps<typeof Virtuoso>["rangeChanged"]>
+      | (() => void)
+    >(async () => {
+      const { shouldRenderLoaders, setShouldRenderLoaders } =
+        debouncedLoadersDependencies.current;
+      if (!shouldRenderLoaders) {
+        setShouldRenderLoaders(true);
       }
     }, 50),
     []
   );
+
+  // eslint-disable-next-line
+  const debouncedLoadMoreItems = React.useCallback(
+    // eslint-disable-next-line
+    debounce(async (isLoadNewer?: boolean) => {
+      const { tryLoadNewer, tryLoadOlder } =
+        debouncedLoadersDependencies.current;
+
+      if (isLoadNewer) {
+        await tryLoadNewer();
+      } else {
+        await tryLoadOlder();
+      }
+    }, 50),
+    []
+  );
+
   React.useEffect(() => {
     return () => {
       debouncedRangeChanged.cancel();
+      debouncedLoadMoreItems.cancel();
     };
-  }, [debouncedRangeChanged]);
+  }, [debouncedRangeChanged, debouncedLoadMoreItems]);
 
   React.useEffect(() => {
     if (isPolling) {
@@ -784,14 +881,30 @@ const ChannelInner = ({ channel }: Props) => {
     messagesQueryKey,
   ]);
 
-  React.useEffect(() => {
-    if (!router.isReady) return;
-
+  const resetMessagesList = () => {
     refetchIntervalVars.current.wasFetching = false;
     refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
     setQueryInitializing(true);
     setIsScrollToMessageDone(false);
     setIsMessageHighlightConsumed(false);
+  };
+
+  const retryInvalidate = () => {
+    if (!messages.isError || messages.isFetching) {
+      return;
+    }
+
+    if (urlMessageId) {
+      setUrlMessageId();
+    } else {
+      resetMessagesList();
+    }
+  };
+
+  React.useEffect(() => {
+    if (!router.isReady) return;
+
+    resetMessagesList();
   }, [urlMessageId]);
 
   React.useEffect(() => {
@@ -805,6 +918,7 @@ const ChannelInner = ({ channel }: Props) => {
           behavior: "smooth",
         });
       } else {
+        setShouldRenderLoaders(false);
         qc.removeQueries({
           queryKey: getQueryKey(
             trpc.messages.get,
@@ -849,7 +963,7 @@ const ChannelInner = ({ channel }: Props) => {
     <Paper
       elevation={1}
       className={clsx(
-        `flex flex-1 flex-col rounded-none ring ring-[var(--mui-palette-divider)]`
+        `min-h-0 flex-1 flex flex-col rounded-none ring ring-[var(--mui-palette-divider)]`
       )}
     >
       <HorizontalStack addClassName="justify-between items-center">
@@ -875,8 +989,8 @@ const ChannelInner = ({ channel }: Props) => {
           />
         </form>
       </HorizontalStack>
-      <div className="w-full flex flex-col flex-1">
-        <div className="flex-1">
+      <div className="w-full min-h-0 flex flex-col flex-1">
+        <div className="flex-1 min-h-0 overflow-y-auto">
           {shouldRenderList && initialTopMostItemIndex !== -1 ? (
             <Virtuoso
               key={messagesQueryKey.around || "default"}
@@ -899,8 +1013,19 @@ const ChannelInner = ({ channel }: Props) => {
                     }
                   : undefined
               }
-              defaultItemHeight={80}
-              rangeChanged={debouncedRangeChanged}
+              defaultItemHeight={SKELETON_CONFIG.AVG_ROW_HEIGHT_PX}
+              rangeChanged={(range) => {
+                visibleRangeRef.current = {
+                  visibleStartIndex: range.startIndex,
+                  visibleEndIndex: range.endIndex,
+                };
+                debouncedRangeChanged(range);
+              }}
+              scrollerRef={(el) => {
+                if (el instanceof HTMLElement) {
+                  scrollerElRef.current = el;
+                }
+              }}
               atBottomThreshold={50}
               data={messages.data?.items}
               computeItemKey={(_, item) => String(item.id)}
@@ -913,81 +1038,110 @@ const ChannelInner = ({ channel }: Props) => {
                         ? false
                         : urlMessageId === String(comment.id)
                     }
-                    onHighlightConsumed={setIsMessageHighlightConsumed}
+                    onHighlightConsumed={() => {
+                      if (shouldRenderLoaders) {
+                        setIsMessageHighlightConsumed(true);
+                      }
+                    }}
+                    isPolling={isPolling}
                   />
                 );
               }}
-              components={{
-                Header: () => {
-                  if (messages.hasPreviousPage) {
-                    return <div className="p-4 bg-amber-400">Loading...</div>;
-                  }
-                  if (messages.isFetchPreviousPageError) {
-                    return (
-                      <VerticalStack>
-                        <Typography>Failed to load older messages</Typography>
-                        <Button
-                          variant="contained"
-                          color="inherit"
-                          startIcon={<ReplayIcon />}
-                          onClick={() => tryLoadOlder(true)}
-                          size="large"
-                          className="w-fit"
-                        >
-                          Retry
-                        </Button>
-                      </VerticalStack>
-                    );
-                  }
-                  return null;
-                },
-                Footer: () => {
-                  if (messages.hasNextPage) {
-                    return <div className="p-4 bg-amber-400">Loading...</div>;
-                  }
+              components={
+                shouldRenderLoaders
+                  ? {
+                      Header: () => {
+                        if (messages.isFetchPreviousPageError) {
+                          return (
+                            <VerticalStack>
+                              <Typography>
+                                Failed to load older messages
+                              </Typography>
+                              <Button
+                                variant="contained"
+                                color="inherit"
+                                startIcon={<ReplayIcon />}
+                                onClick={() => tryLoadOlder(true)}
+                                size="large"
+                                className="w-fit"
+                              >
+                                Retry
+                              </Button>
+                            </VerticalStack>
+                          );
+                        }
+                        if (messages.hasPreviousPage) {
+                          return (
+                            <MessagesSkeleton
+                              scrollerEl={scrollerElRef.current}
+                              onEnter={() => {
+                                debouncedLoadMoreItems();
+                              }}
+                            />
+                          );
+                        }
+                        return null;
+                      },
+                      Footer: () => {
+                        if (messages.isFetchNextPageError) {
+                          return (
+                            <VerticalStack>
+                              <Typography>
+                                Failed to load newer messages
+                              </Typography>
+                              <Button
+                                variant="contained"
+                                color="inherit"
+                                startIcon={<ReplayIcon />}
+                                onClick={() => tryLoadNewer(true)}
+                                size="large"
+                                className="w-fit"
+                              >
+                                Retry
+                              </Button>
+                            </VerticalStack>
+                          );
+                        }
+                        if (
+                          !messages.isFetchNextPageError &&
+                          !messages.isFetchPreviousPageError &&
+                          messages.isError
+                        ) {
+                          return (
+                            <VerticalStack>
+                              <Typography>Failed to load messages</Typography>
+                              <Button
+                                variant="contained"
+                                color="inherit"
+                                startIcon={<ReplayIcon />}
+                                onClick={retryInvalidate}
+                                size="large"
+                                className="w-fit"
+                              >
+                                Retry
+                              </Button>
+                            </VerticalStack>
+                          );
+                        }
+                        if (messages.hasNextPage) {
+                          return (
+                            <MessagesSkeleton
+                              scrollerEl={scrollerElRef.current}
+                              onEnter={() => {
+                                debouncedLoadMoreItems(true);
+                              }}
+                            />
+                          );
+                        }
 
-                  if (messages.isFetchNextPageError) {
-                    return (
-                      <VerticalStack>
-                        <Typography>Failed to load newer messages</Typography>
-                        <Button
-                          variant="contained"
-                          color="inherit"
-                          startIcon={<ReplayIcon />}
-                          onClick={() => tryLoadNewer(true)}
-                          size="large"
-                          className="w-fit"
-                        >
-                          Retry
-                        </Button>
-                      </VerticalStack>
-                    );
-                  }
-                  if (
-                    !messages.isFetchNextPageError &&
-                    !messages.isFetchPreviousPageError &&
-                    messages.isError
-                  ) {
-                    return (
-                      <VerticalStack>
-                        <Typography>Failed to load messages</Typography>
-                        <Button
-                          variant="contained"
-                          color="inherit"
-                          startIcon={<ReplayIcon />}
-                          onClick={retryInvalidate}
-                          size="large"
-                          className="w-fit"
-                        >
-                          Retry
-                        </Button>
-                      </VerticalStack>
-                    );
-                  }
-                  return null;
-                },
-              }}
+                        return null;
+                      },
+                    }
+                  : {}
+              }
             />
+          ) : messages.isFetching ? (
+            <MessagesSkeleton />
           ) : messages.isError ? (
             <VerticalStack>
               <Typography>Failed to load any messages</Typography>
@@ -1004,6 +1158,7 @@ const ChannelInner = ({ channel }: Props) => {
             </VerticalStack>
           ) : null}
         </div>
+
         {user.data?.user?.id ? (
           <form
             onSubmit={form.handleSubmit(onSubmit)}
@@ -1071,8 +1226,11 @@ const ChannelInner = ({ channel }: Props) => {
             </HorizontalStack>
           </form>
         ) : (
-          <VerticalStack addClassName="p-2 bg-[var(--mui-palette-FilledInput-bg)] items-center">
-            <Typography>Please authorize to start messaging.</Typography>
+          <VerticalStack
+            spacing="xs"
+            addClassName="p-2 bg-[var(--mui-palette-FilledInput-bg)] items-center"
+          >
+            <Typography>Please log in to send a message.</Typography>
             <HorizontalStack addClassName="justify-center">
               <Button
                 isLoading={guestLoginMutation.isPending}
@@ -1129,13 +1287,15 @@ const Channel: AppPage = () => {
   );
 
   return (
-    <div className="flex-1 flex flex-col mt-3">
-      <HorizontalStack addClassName="flex-1">
+    <div className="flex-1 flex flex-col mt-3 min-h-0">
+      <HorizontalStack addClassName="flex-1 min-h-0">
         <ChannelListWrapper />
         {!urlChannelId ? null : !foundChannel ? (
           <div>Channel not found</div>
         ) : (
-          <ChannelInner key={foundChannel.id} channel={foundChannel} />
+          <LoadingBoundary addClassName="min-h-0 h-full flex-1">
+            <ChannelInner key={foundChannel.id} channel={foundChannel} />
+          </LoadingBoundary>
         )}
       </HorizontalStack>
     </div>
