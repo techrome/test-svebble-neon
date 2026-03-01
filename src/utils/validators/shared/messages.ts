@@ -22,7 +22,6 @@ export const messagesGetSchemaForm = z.object({
     .object({
       direction: z.enum(["forward", "backward"]).optional(),
       id: numericIdSchema.optional(),
-      around: numericIdQuerySchema.optional(),
     })
     .optional(),
   direction: z.enum(["forward", "backward"]).optional(),
@@ -47,6 +46,10 @@ export const makeMessageUpdateSchemaForm = (isVerifiedUser?: boolean) =>
 
 export const messageDeleteSchemaForm = messageUpdateSchemaForm.pick({
   id: true,
+});
+
+export const messageBulkDeleteSchemaForm = messageUpdateSchemaForm.pick({
+  channelId: true,
 });
 
 export type MessageCreateFormValues = z.infer<

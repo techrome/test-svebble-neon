@@ -131,7 +131,10 @@ const AddOrEditChannelForm = (props: AddOrEditChannelFormProps) => {
           variant="contained"
           type="submit"
           size="large"
-          isLoading={isSubmitting}
+          isLoading={
+            channelCreateMutation.isPending || channelUpdateMutation.isPending
+          }
+          disabled={isSubmitting}
         >
           {props.isEdit ? "Save" : "Create channel"}
         </Button>
@@ -148,6 +151,7 @@ const AddOrEditChannelForm = (props: AddOrEditChannelFormProps) => {
             onClick={() => {
               deleteChannelMutation.mutate({ id: props.channel.id });
             }}
+            isLoading={deleteChannelMutation.isPending}
             disabled={isSubmitting}
           >
             Delete channel

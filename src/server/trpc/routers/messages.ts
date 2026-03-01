@@ -307,9 +307,12 @@ export const messagesRouter = router({
       );
       return true;
     }),
-  deleteAll: privateProcedureDefaultRateLimit([P.messages.delete]).mutation(
-    async () => {
-      await db.delete(schema.messages);
-    }
-  ),
+  deleteAll: privateProcedureDefaultRateLimit([P.messages.delete])
+    .input(sharedMessagesValidations.messageBulkDeleteSchemaForm)
+    .mutation(async ({ input }) => {
+      await db
+        .update(schema.messages)
+        .set({ deleted_at: sql`now()` })
+        .where(eq(schema.messages.channel_id, input.channelId));
+    }),
 });
