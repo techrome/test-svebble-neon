@@ -1,5 +1,15 @@
 import z from "zod";
-import { eq, desc, asc, lt, or, and, isNull, sql } from "drizzle-orm";
+import {
+  eq,
+  desc,
+  asc,
+  lt,
+  or,
+  and,
+  isNull,
+  sql,
+  getTableColumns,
+} from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { db } from "../../db/core";
@@ -78,6 +88,23 @@ export const messagesRouter = router({
       const rate = 0;
       const cursor = input.cursor;
       //await new Promise((r) => setTimeout(r, 500));
+
+      const activeChannelMessages = db
+        .select(getTableColumns(schema.messages))
+        .from(schema.messages)
+        .innerJoin(
+          schema.channels,
+          eq(schema.messages.channel_id, schema.channels.id)
+        )
+        .where(
+          and(
+            eq(schema.messages.channel_id, input.channelId)
+            //isNull(schema.messages.deleted_at),
+            // isNull(schema.channels.deleted_at)
+          )
+        )
+        .as("active_messages");
+
       if (cursor) {
         if (cursor.direction && cursor.id) {
           if (cursor.direction === "backward") {
@@ -85,15 +112,9 @@ export const messagesRouter = router({
 
             const rows = await db
               .select()
-              .from(schema.messages)
-              .where(
-                and(
-                  eq(schema.messages.channel_id, input.channelId),
-                  isNull(schema.messages.deleted_at),
-                  before(schema.messages.id, cursor.id)
-                )
-              )
-              .orderBy(desc(schema.messages.id))
+              .from(activeChannelMessages)
+              .where(before(activeChannelMessages.id, cursor.id))
+              .orderBy(desc(activeChannelMessages.id))
               .limit(input.limit);
 
             return { items: rows.reverse(), returnedDirection: "backward" };
@@ -103,15 +124,9 @@ export const messagesRouter = router({
             if (Math.random() < rate) throw new Error("idk");
             const rows = await db
               .select()
-              .from(schema.messages)
-              .where(
-                and(
-                  eq(schema.messages.channel_id, input.channelId),
-                  isNull(schema.messages.deleted_at),
-                  after(schema.messages.id, cursor.id)
-                )
-              )
-              .orderBy(asc(schema.messages.id))
+              .from(activeChannelMessages)
+              .where(after(activeChannelMessages.id, cursor.id))
+              .orderBy(asc(activeChannelMessages.id))
               .limit(input.limit);
 
             return { items: rows, returnedDirection: "forward" };
@@ -128,29 +143,17 @@ export const messagesRouter = router({
 
         const prevIncl = db
           .select()
-          .from(schema.messages)
-          .where(
-            and(
-              eq(schema.messages.channel_id, input.channelId),
-              isNull(schema.messages.deleted_at),
-              beforeOrEqual(schema.messages.id, input.around)
-            )
-          )
-          .orderBy(desc(schema.messages.id))
+          .from(activeChannelMessages)
+          .where(beforeOrEqual(activeChannelMessages.id, input.around))
+          .orderBy(desc(activeChannelMessages.id))
           .limit(sideLimit + 1) // +1 because it includes the target message
           .as("prevIncl");
 
         const next = db
           .select()
-          .from(schema.messages)
-          .where(
-            and(
-              eq(schema.messages.channel_id, input.channelId),
-              isNull(schema.messages.deleted_at),
-              after(schema.messages.id, input.around)
-            )
-          )
-          .orderBy(asc(schema.messages.id))
+          .from(activeChannelMessages)
+          .where(after(activeChannelMessages.id, input.around))
+          .orderBy(asc(activeChannelMessages.id))
           .limit(sideLimit)
           .as("next");
 
@@ -171,14 +174,8 @@ export const messagesRouter = router({
       if (Math.random() < rate) throw new Error("idk");
       const rows = await db
         .select()
-        .from(schema.messages)
-        .where(
-          and(
-            eq(schema.messages.channel_id, input.channelId),
-            isNull(schema.messages.deleted_at)
-          )
-        )
-        .orderBy(desc(schema.messages.id))
+        .from(activeChannelMessages)
+        .orderBy(desc(activeChannelMessages.id))
         .limit(input.limit);
 
       return { items: rows.reverse(), returnedDirection: "backward" };
@@ -224,14 +221,28 @@ export const messagesRouter = router({
           .safeParse(input)
       );
 
+      const channelIdSubquery = db
+        .select({ id: schema.channels.id })
+        .from(schema.channels)
+        .where(
+          and(
+            eq(schema.channels.id, input.channelId)
+            //  isNull(schema.channels.deleted_at)
+          )
+        )
+        .limit(1);
+
       const [newRow] = await db
         .insert(schema.messages)
         .values({
           content: input.content,
           user_id: ctx.user.id,
-          channel_id: input.channelId,
+          channel_id: sql`${channelIdSubquery}`,
         })
         .returning();
+
+      if (!newRow) throw new TRPCError({ code: "NOT_FOUND" });
+
       waitUntil(
         publishChannelEvent({
           data: {
@@ -240,7 +251,7 @@ export const messagesRouter = router({
             id: String(newRow.id),
           },
           eventName: "messages:create",
-          channelId: String(input.channelId),
+          channelId: String(newRow.channel_id),
         }).catch((e) => console.error("Ably message create publish failed", e))
       );
       return newRow;
@@ -257,13 +268,17 @@ export const messagesRouter = router({
       const [updatedRow] = await db
         .update(schema.messages)
         .set({ content: input.content })
+        .from(schema.channels)
         .where(
           and(
             eq(schema.messages.id, input.id),
-            eq(schema.messages.user_id, ctx.user.id)
+            eq(schema.messages.user_id, ctx.user.id),
+            isNull(schema.messages.deleted_at),
+            isNull(schema.channels.deleted_at),
+            eq(schema.messages.channel_id, schema.channels.id)
           )
         )
-        .returning();
+        .returning(getTableColumns(schema.messages));
 
       if (!updatedRow) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -275,7 +290,7 @@ export const messagesRouter = router({
             id: String(updatedRow.id),
           },
           eventName: "messages:update",
-          channelId: String(input.channelId),
+          channelId: String(updatedRow.channel_id),
         }).catch((e) => console.error("Ably message update publish failed", e))
       );
       return updatedRow;
