@@ -7,11 +7,16 @@ type MessageSerializable = ToSerializable<
   RouterOutput["messages"]["get"]["items"][number]
 >;
 
+type Payload<T> = {
+  message: T;
+  channelVersion: string;
+};
+
 export type WebsocketEvents = {
-  "messages:create": MessageSerializable;
-  "messages:update": MessageSerializable;
+  "messages:create": Payload<MessageSerializable>;
+  "messages:update": Payload<MessageSerializable>;
   "messages:delete": {
-    id: MessageSerializable["id"];
+    id: Payload<MessageSerializable["id"]>;
   };
 };
 
