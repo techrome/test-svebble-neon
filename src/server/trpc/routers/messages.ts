@@ -221,40 +221,59 @@ export const messagesRouter = router({
           .safeParse(input)
       );
 
-      const channelIdSubquery = db
-        .select({ id: schema.channels.id })
-        .from(schema.channels)
-        .where(
-          and(
-            eq(schema.channels.id, input.channelId)
-            //  isNull(schema.channels.deleted_at)
+      const channelUpdate = db.$with("channel").as(
+        db
+          .update(schema.channels)
+          .set({
+            messages_version: sql`${schema.channels.messages_version} + 1`,
+          })
+          .where(
+            and(
+              eq(schema.channels.id, input.channelId),
+              isNull(schema.channels.deleted_at)
+            )
           )
-        )
-        .limit(1);
+          .returning({
+            messages_version: schema.channels.messages_version,
+            id: schema.channels.id,
+          })
+      );
 
-      const [newRow] = await db
-        .insert(schema.messages)
-        .values({
-          content: input.content,
-          user_id: ctx.user.id,
-          channel_id: sql`${channelIdSubquery}`,
-        })
-        .returning();
+      const messagesInsert = db.$with("message").as(
+        db
+          .insert(schema.messages)
+          .values({
+            content: input.content,
+            user_id: ctx.user.id,
+            channel_id: sql`(select ${channelUpdate.id} from ${channelUpdate})`,
+          })
+          .returning()
+      );
 
-      if (!newRow) throw new TRPCError({ code: "NOT_FOUND" });
+      const [newData] = await db
+        .with(channelUpdate, messagesInsert)
+        .select()
+        .from(messagesInsert)
+        .innerJoin(channelUpdate, sql`true`);
+
+      const newMessage = newData?.message;
+      if (!newMessage) throw new TRPCError({ code: "NOT_FOUND" });
 
       waitUntil(
         publishChannelEvent({
           data: {
-            ...newRow,
-            channel_id: String(newRow.channel_id),
-            id: String(newRow.id),
+            message: {
+              ...newMessage,
+              channel_id: String(newMessage.channel_id),
+              id: String(newMessage.id),
+            },
+            channelVersion: String(newData.channel.messages_version),
           },
           eventName: "messages:create",
-          channelId: String(newRow.channel_id),
+          channelId: String(newMessage.channel_id),
         }).catch((e) => console.error("Ably message create publish failed", e))
       );
-      return newRow;
+      return newData;
     }),
   update: privateProcedureDefaultRateLimit([P.messages.update])
     .input(sharedMessagesValidations.messageUpdateSchemaForm)
