@@ -10,7 +10,7 @@ import {
 import { withDefaultColumns } from "../helpers/withDefaultColumns";
 import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import { user } from "./auth";
-import { sql } from "drizzle-orm";
+import { isNotNull, isNull, sql } from "drizzle-orm";
 
 export const channels = pgTable(
   "channels",
@@ -33,8 +33,9 @@ export const channels = pgTable(
     { id: false }
   ),
   (table) => [
-    index("channels_active_user_id_index")
-      .on(table.user_id)
-      .where(sql`${table.deleted_at} IS NULL`),
+    index("channels_active_index").on(table.id).where(isNull(table.deleted_at)),
+    index("channels_cleanup_index")
+      .on(table.deleted_at, table.id)
+      .where(isNotNull(table.deleted_at)),
   ]
 );

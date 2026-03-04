@@ -6,7 +6,7 @@ import {
   uuid,
   varchar,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { isNotNull, isNull } from "drizzle-orm";
 
 import { withDefaultColumns } from "../helpers/withDefaultColumns";
 import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
@@ -32,9 +32,14 @@ export const messages = pgTable(
     { id: false }
   ),
   (table) => [
-    index("messages_active_channel_id_id_index")
+    index("messages_active_messages_by_user_index")
+      .on(table.user_id, table.id)
+      .where(isNull(table.deleted_at)),
+    index("messages_active_messages_index")
       .on(table.channel_id, table.id)
-      .where(sql`${table.deleted_at} IS NULL`),
-    index("messages_user_id").on(table.user_id),
+      .where(isNull(table.deleted_at)),
+    index("messages_cleanup_index")
+      .on(table.deleted_at, table.id)
+      .where(isNotNull(table.deleted_at)),
   ]
 );

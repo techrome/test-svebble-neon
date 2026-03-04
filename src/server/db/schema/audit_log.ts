@@ -31,8 +31,8 @@ export const audit_log = pgTable(
     ),
     index("audit_action_created_at_index").on(table.action, table.created_at),
     check(
-      "action_check",
-      sql`${table.action} in ${AUDIT_LOG_ACTION_ENUM.map((v) => literal(v))}`
+      "audit_action_check",
+      sql`${table.action} in ${AUDIT_LOG_ACTION_ENUM.map(literal)}`
     ),
   ]
 );

@@ -39,7 +39,7 @@ export const user = pgTable(
     index("deleted_at_index").on(table.deletedAt),
     check(
       "user_role_check",
-      sql`${table.role} in ${USER_ROLE_ENUM.map((v) => literal(v))}`
+      sql`${table.role} in ${USER_ROLE_ENUM.map(literal)}`
     ),
   ]
 );
