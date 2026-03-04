@@ -239,7 +239,7 @@ export const messagesRouter = router({
           })
       );
 
-      const messagesInsert = db.$with("message").as(
+      const messageInsert = db.$with("message").as(
         db
           .insert(schema.messages)
           .values({
@@ -251,9 +251,9 @@ export const messagesRouter = router({
       );
 
       const [newData] = await db
-        .with(channelUpdate, messagesInsert)
+        .with(channelUpdate, messageInsert)
         .select()
-        .from(messagesInsert)
+        .from(messageInsert)
         .innerJoin(channelUpdate, sql`true`);
 
       const newMessage = newData?.message;
@@ -267,7 +267,7 @@ export const messagesRouter = router({
               channel_id: String(newMessage.channel_id),
               id: String(newMessage.id),
             },
-            channelVersion: String(newData.channel.messages_version),
+            messagesVersion: String(newData.channel.messages_version),
           },
           eventName: "messages:create",
           channelId: String(newMessage.channel_id),
@@ -284,62 +284,130 @@ export const messagesRouter = router({
           .safeParse(input)
       );
 
-      const [updatedRow] = await db
-        .update(schema.messages)
-        .set({ content: input.content })
-        .from(schema.channels)
-        .where(
-          and(
-            eq(schema.messages.id, input.id),
-            eq(schema.messages.user_id, ctx.user.id),
-            isNull(schema.messages.deleted_at),
-            isNull(schema.channels.deleted_at),
-            eq(schema.messages.channel_id, schema.channels.id)
+      const messageUpdate = db.$with("message").as(
+        db
+          .update(schema.messages)
+          .set({ content: input.content })
+          .from(schema.channels)
+          .where(
+            and(
+              eq(schema.messages.id, input.id),
+              eq(schema.messages.user_id, ctx.user.id),
+              isNull(schema.messages.deleted_at),
+              isNull(schema.channels.deleted_at),
+              eq(schema.messages.channel_id, schema.channels.id)
+            )
           )
-        )
-        .returning(getTableColumns(schema.messages));
+          .returning(getTableColumns(schema.messages))
+      );
 
-      if (!updatedRow) throw new TRPCError({ code: "NOT_FOUND" });
+      const channelUpdate = db.$with("channel").as(
+        db
+          .update(schema.channels)
+          .set({
+            messages_version: sql`${schema.channels.messages_version} + 1`,
+          })
+          .where(
+            and(
+              eq(
+                schema.channels.id,
+                sql`(select ${messageUpdate.channel_id} from ${messageUpdate})`
+              ),
+              isNull(schema.channels.deleted_at)
+            )
+          )
+          .returning({
+            messages_version: schema.channels.messages_version,
+          })
+      );
+
+      const [updatedData] = await db
+        .with(messageUpdate, channelUpdate)
+        .select()
+        .from(messageUpdate)
+        .innerJoin(channelUpdate, sql`true`);
+
+      const updatedMessage = updatedData?.message;
+      if (!updatedMessage) throw new TRPCError({ code: "NOT_FOUND" });
 
       waitUntil(
         publishChannelEvent({
           data: {
-            ...updatedRow,
-            channel_id: String(updatedRow.channel_id),
-            id: String(updatedRow.id),
+            message: {
+              ...updatedMessage,
+              channel_id: String(updatedMessage.channel_id),
+              id: String(updatedMessage.id),
+            },
+            messagesVersion: String(updatedData.channel.messages_version),
           },
           eventName: "messages:update",
-          channelId: String(updatedRow.channel_id),
+          channelId: String(updatedMessage.channel_id),
         }).catch((e) => console.error("Ably message update publish failed", e))
       );
-      return updatedRow;
+      return updatedData;
     }),
   delete: privateProcedureDefaultRateLimit([P.messages.delete])
     .input(sharedMessagesValidations.messageDeleteSchemaForm)
     .mutation(async ({ input, ctx }) => {
-      const [deletedRow] = await db
-        .update(schema.messages)
-        .set({ deleted_at: sql`now()` })
-        .where(
-          and(
-            eq(schema.messages.id, input.id),
-            eq(schema.messages.user_id, ctx.user.id)
+      const messageUpdate = db.$with("message").as(
+        db
+          .update(schema.messages)
+          .set({ deleted_at: sql`now()` })
+          .from(schema.channels)
+          .where(
+            and(
+              eq(schema.messages.id, input.id),
+              eq(schema.messages.user_id, ctx.user.id),
+              isNull(schema.messages.deleted_at),
+              isNull(schema.channels.deleted_at),
+              eq(schema.messages.channel_id, schema.channels.id)
+            )
           )
-        )
-        .returning();
+          .returning(getTableColumns(schema.messages))
+      );
 
-      if (!deletedRow) throw new TRPCError({ code: "NOT_FOUND" });
+      const channelUpdate = db.$with("channel").as(
+        db
+          .update(schema.channels)
+          .set({
+            messages_version: sql`${schema.channels.messages_version} + 1`,
+          })
+          .where(
+            and(
+              eq(
+                schema.channels.id,
+                sql`(select ${messageUpdate.channel_id} from ${messageUpdate})`
+              ),
+              isNull(schema.channels.deleted_at)
+            )
+          )
+          .returning({
+            messages_version: schema.channels.messages_version,
+          })
+      );
+
+      const [updatedData] = await db
+        .with(messageUpdate, channelUpdate)
+        .select()
+        .from(messageUpdate)
+        .innerJoin(channelUpdate, sql`true`);
+
+      const updatedMessage = updatedData?.message;
+      if (!updatedMessage) throw new TRPCError({ code: "NOT_FOUND" });
 
       waitUntil(
         publishChannelEvent({
           data: {
-            id: String(deletedRow.id),
+            message: {
+              id: String(updatedMessage.id),
+            },
+            messagesVersion: String(updatedData.channel.messages_version),
           },
           eventName: "messages:delete",
-          channelId: String(deletedRow.channel_id),
+          channelId: String(updatedMessage.channel_id),
         }).catch((e) => console.error("Ably message delete publish failed", e))
       );
-      return true;
+      return updatedData;
     }),
   deleteAll: privateProcedureDefaultRateLimit([P.messages.delete])
     .input(sharedMessagesValidations.messageBulkDeleteSchemaForm)
