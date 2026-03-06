@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 import {
   LoadingBoundaryContext,
@@ -19,7 +19,7 @@ const LoadingBoundary = ({
   isOuter,
   addClassName,
 }: Props) => {
-  const [queryKeys, setQueryKeys] = React.useState<QueryKeys>({});
+  const [queryKeys, setQueryKeys] = useState<QueryKeys>({});
   const hasActiveQueries = Object.keys(queryKeys).length > 0;
 
   return (

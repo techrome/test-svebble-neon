@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { TextField, type TextFieldProps } from "@mui/material";
 import {
   type FieldPath,
@@ -100,9 +100,7 @@ type FullProps<TFV extends FieldValues, TName extends FieldPath<TFV>> = Props<
 const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
   props: FullProps<TFV, TName>
 ) => {
-  const [additionalProps, setAdditionalProps] = React.useState<TextFieldProps>(
-    {}
-  );
+  const [additionalProps, setAdditionalProps] = useState<TextFieldProps>({});
 
   const {
     name,

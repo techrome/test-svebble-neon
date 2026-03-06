@@ -1,4 +1,4 @@
-import React from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 type Store = {
   subscribers: Set<() => void>;
@@ -38,7 +38,7 @@ export const useRerenderOnInterval = (
 ) => {
   const store = getStore(intervalMs);
 
-  const subscribe = React.useCallback(
+  const subscribe = useCallback(
     (onStoreChange: () => void) => {
       if (disabled) return () => {};
 
@@ -53,12 +53,12 @@ export const useRerenderOnInterval = (
     [store, intervalMs, disabled]
   );
 
-  const getSnapshot = React.useCallback(
+  const getSnapshot = useCallback(
     () => (disabled ? false : store.tick),
     [store, disabled]
   );
 
-  // using React.useSyncExternalStore so that many subscribing components could read the same value
+  // using useSyncExternalStore so that many subscribing components could read the same value
   // and re-render at the same time without creating hook timer for each of them
-  return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 };

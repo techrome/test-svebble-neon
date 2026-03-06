@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import z from "zod";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
@@ -31,8 +31,7 @@ const emptyFormValues: FormValues = {
 };
 
 const ResetPassword = () => {
-  const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
-    React.useState(false);
+  const [passwordFieldWasFocused, setPasswordFieldWasFocused] = useState(false);
 
   const router = useRouter();
 
@@ -52,7 +51,7 @@ const ResetPassword = () => {
 
   const isSubmitting = resetPasswordMutation.isPending;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (token) {
       form.setValue("token", token);
     }

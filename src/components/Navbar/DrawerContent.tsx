@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useId, useMemo, useState } from "react";
 import {
   Typography,
   useColorScheme,
@@ -261,7 +261,7 @@ export const AuthButtons = (props: {
 
 export const DrawerContent = () => {
   const { mode, setMode } = useColorScheme();
-  const modeLabelId = React.useId();
+  const modeLabelId = useId();
 
   return (
     <VerticalStack withPadding addClassName="flex-1 overflow-y-auto">
@@ -502,7 +502,7 @@ const SearchOutsideForm = ({
     instantOnFalsyValue: true,
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (filterPopover.isOpen) {
       return;
     }
@@ -526,7 +526,7 @@ const SearchOutsideForm = ({
 };
 
 const SystemNotifications = () => {
-  const [filter, setFilter] = React.useState<FilterValues>(emptyFilter);
+  const [filter, setFilter] = useState<FilterValues>(emptyFilter);
 
   const systemNotifications = useAppSelector(
     (state) => state.snackbars.systemNotifications
@@ -540,7 +540,7 @@ const SystemNotifications = () => {
     defaultValues: emptyFilter,
     resolver: zodResolver(filterSchemaForm),
   });
-  const fuse = React.useMemo(
+  const fuse = useMemo(
     () =>
       new Fuse(systemNotifications, {
         keys: [
@@ -554,7 +554,7 @@ const SystemNotifications = () => {
     [systemNotifications]
   );
 
-  const filteredNotifications = React.useMemo(() => {
+  const filteredNotifications = useMemo(() => {
     let result: SnackbarType[] = systemNotifications;
     const searchText = normalizeText(filter.searchText);
     if (searchText) {
@@ -574,7 +574,7 @@ const SystemNotifications = () => {
     return result;
   }, [fuse, systemNotifications, filter]);
 
-  const activeFilterCount = React.useMemo(
+  const activeFilterCount = useMemo(
     () => countMeaningfulValues(filter),
     [filter]
   );
@@ -590,7 +590,7 @@ const SystemNotifications = () => {
     filterPopover.closePopover();
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     dispatch(readAllSystemNotifications());
     // eslint-disable-next-line
   }, []);
@@ -694,7 +694,7 @@ const SystemNotifications = () => {
 
 export const NotificationsContent = () => {
   const [selectedNotificationsTab, setSelectedNotificationsTab] =
-    React.useState<NotificationTabs>("normal");
+    useState<NotificationTabs>("normal");
   const unreadSystemNotificationsCount = useAppSelector(
     (state) =>
       state.snackbars.systemNotifications.filter((snack) => !snack.isRead)

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { CircularProgress, Typography } from "@mui/material";
 import ErrorIcon from "@mui/icons-material/Error";
 import EmailIcon from "@mui/icons-material/Email";
@@ -12,8 +12,8 @@ import { getRouterQueryValue } from "@/utils/query";
 const VerifyEmailRedirect = () => {
   const router = useRouter();
 
-  const [isMounted, setIsMounted] = React.useState(false);
-  React.useEffect(() => {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
     setIsMounted(true);
   }, []);
 

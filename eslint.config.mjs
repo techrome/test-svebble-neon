@@ -9,6 +9,7 @@ export default defineConfig([
     rules: {
       "prefer-const": "off",
       "react/display-name": "off",
+      "react-hooks/set-state-in-effect": "off",
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {

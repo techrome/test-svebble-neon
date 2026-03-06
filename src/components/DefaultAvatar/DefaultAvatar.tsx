@@ -12,7 +12,7 @@ import {
 } from "@mui/material/colors";
 import { Avatar, AvatarProps } from "@mui/material";
 import clsx from "clsx";
-import React from "react";
+import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { hashString32 } from "@/utils/stringUtils";
 
 export const AVATAR_BG_COLORS = [
@@ -47,10 +47,10 @@ type Props = AvatarProps & {
 };
 
 const DefaultAvatar = (props: Props) => {
-  const ref = React.useRef<HTMLDivElement | null>(null);
-  const [avatarSizePx, setAvatarSizePx] = React.useState<number | null>(null);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [avatarSizePx, setAvatarSizePx] = useState<number | null>(null);
 
-  const sx = React.useMemo<Props["sx"]>(() => {
+  const sx = useMemo<Props["sx"]>(() => {
     const bg = pickAvatarBgColor(props.seed);
     return {
       bgcolor: bg,
@@ -59,12 +59,9 @@ const DefaultAvatar = (props: Props) => {
     };
   }, [props.seed, avatarSizePx]);
 
-  const name = React.useMemo(
-    () => avatarInitial(props.name || "?"),
-    [props.name]
-  );
+  const name = useMemo(() => avatarInitial(props.name || "?"), [props.name]);
 
-  React.useLayoutEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     const updateAvatarSize = () => {

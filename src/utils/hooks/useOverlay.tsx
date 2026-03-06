@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useId, useRef, useState } from "react";
 import { ActionCreatorWithPayload } from "@reduxjs/toolkit";
 
 import Modal, { type ModalProps } from "@/components/Overlays/Modal";
@@ -20,7 +20,7 @@ const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
   const dispatch = useAppDispatch();
   const overlay = useAppSelector(selector);
 
-  const openOverlay = React.useCallback(
+  const openOverlay = useCallback(
     ({ content, props }: Omit<Overlay<Props>, "isOpen">) => {
       dispatch(
         setStateAction({
@@ -33,7 +33,7 @@ const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
     [dispatch, setStateAction]
   );
 
-  const updateOverlay = React.useCallback(
+  const updateOverlay = useCallback(
     (
       update: (
         currentOverlay: Overlay<Props>
@@ -44,11 +44,11 @@ const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
     [dispatch, setStateAction, overlay]
   );
 
-  const closeOverlay = React.useCallback(() => {
+  const closeOverlay = useCallback(() => {
     dispatch(setStateAction({ isOpen: false }));
   }, [dispatch, setStateAction]);
 
-  const clearOverlay = React.useCallback(() => {
+  const clearOverlay = useCallback(() => {
     dispatch(
       setStateAction({
         content: null,
@@ -96,11 +96,9 @@ type ModalInitialProps = PartialFor<
 >;
 
 export const useLocalModal = () => {
-  const [isOpen, setIsOpen] = React.useState<boolean>(false);
-  const initialPropsRef = React.useRef<ModalInitialProps>({});
-  const readyComponentRef = React.useRef<React.FC<ModalInitialProps> | null>(
-    null
-  );
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const initialPropsRef = useRef<ModalInitialProps>({});
+  const readyComponentRef = useRef<React.FC<ModalInitialProps> | null>(null);
 
   const openModal = () => {
     setIsOpen(true);
@@ -171,7 +169,7 @@ export const useGlobalDrawer = () => {
 };
 
 export const useLocalDrawer = () => {
-  const [isOpen, setIsOpen] = React.useState<boolean>(false);
+  const [isOpen, setIsOpen] = useState<boolean>(false);
 
   const openDrawer = () => {
     setIsOpen(true);
@@ -194,15 +192,13 @@ type PopoverInitialProps = PartialFor<
 >;
 
 export const useLocalPopover = () => {
-  const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
-  const id = React.useId();
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
+  const id = useId();
   const isOpen = Boolean(anchorEl);
   // using refs for performance. just keep this in mind whenever you use the hook
   // (e.g. don't wrap the ReadyComponent in React.memo unless you know what you're doing)
-  const initialPropsRef = React.useRef<PopoverInitialProps>({});
-  const readyComponentRef = React.useRef<React.FC<PopoverInitialProps> | null>(
-    null
-  );
+  const initialPropsRef = useRef<PopoverInitialProps>({});
+  const readyComponentRef = useRef<React.FC<PopoverInitialProps> | null>(null);
 
   const openPopover = (e: React.SyntheticEvent<HTMLElement>) => {
     setAnchorEl(e.currentTarget);

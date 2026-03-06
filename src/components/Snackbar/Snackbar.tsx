@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { CustomContentProps, useSnackbar } from "notistack";
 import { Alert, Collapse, Typography } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -48,7 +48,7 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
   const hasDuration = props.isSystemNotification
     ? false
     : Boolean(props.durationMs);
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, setExpanded] = useState(false);
   const { closeSnackbar } = useSnackbar();
   const { eventHandlers, isRunning } = useSnackbarProgressTimer({
     shouldAutoRun: hasDuration,

@@ -1,4 +1,4 @@
-import React from "react";
+import { useEffect, useState } from "react";
 import type { ClientOptions, ErrorInfo, Realtime } from "ably";
 import { BaseRealtime, FetchRequest, WebSocketTransport } from "ably/modular";
 import { trpc } from "@/trpc";
@@ -21,11 +21,9 @@ type Props = {
 
 export const useWebsockets = (props: Props) => {
   const tokenMutation = trpc.messages.ablyTokenRequest.useMutation();
-  const [realtimeClient, setRealtimeClient] = React.useState<Realtime | null>(
-    null
-  );
+  const [realtimeClient, setRealtimeClient] = useState<Realtime | null>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     let ablyClient: BaseRealtime | null = null;
     const run = async () => {
       let initialTokenRequest = await tokenMutation.mutateAsync({

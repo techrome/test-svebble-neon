@@ -1,4 +1,10 @@
-import React from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { type GetStaticProps } from "next";
 import Button from "@/components/Button/Button";
 import clsx from "clsx";
@@ -79,12 +85,12 @@ export function useOnEnterView(
     enabled = true,
   }: Options = {}
 ) {
-  const ref = React.useRef<HTMLDivElement | null>(null);
-  const onEnterRef = React.useRef(onEnter);
+  const ref = useRef<HTMLDivElement | null>(null);
+  const onEnterRef = useRef(onEnter);
   // eslint-disable-next-line
   onEnterRef.current = onEnter;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!enabled) return;
     const el = ref.current;
     if (!el) return;
@@ -136,7 +142,7 @@ const MessagesSkeleton = ({
 }) => {
   const screenHeight = useScreenHeight();
 
-  const rowCount = React.useMemo(() => {
+  const rowCount = useMemo(() => {
     const rawCount = Math.ceil(
       screenHeight / (fullHeight ? 1 : 2) / SKELETON_CONFIG.AVG_ROW_HEIGHT_PX
     );
@@ -245,9 +251,9 @@ const ChannelInner = ({ channel }: Props) => {
   const utils = trpc.useUtils();
   const router = useRouter();
 
-  const channelIdString = React.useMemo(() => String(channel.id), [channel.id]);
+  const channelIdString = useMemo(() => String(channel.id), [channel.id]);
 
-  const messageCreateSchema = React.useMemo(
+  const messageCreateSchema = useMemo(
     () => makeMessageCreateSchemaForm(user.data?.user?.emailVerified),
     [user.data?.user?.emailVerified]
   );
@@ -261,28 +267,28 @@ const ChannelInner = ({ channel }: Props) => {
     resolver: zodResolver(searchSchemaForm),
   });
 
-  const scrollerElRef = React.useRef<HTMLElement | null>(null);
-  const visibleRangeRef = React.useRef<{
+  const scrollerElRef = useRef<HTMLElement | null>(null);
+  const visibleRangeRef = useRef<{
     visibleStartIndex: number;
     visibleEndIndex: number;
   } | null>(null);
-  const virtuosoRef = React.useRef<VirtuosoHandle>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
 
-  const [shouldRenderLoaders, setShouldRenderLoaders] = React.useState(false);
+  const [shouldRenderLoaders, setShouldRenderLoaders] = useState(false);
   const [isScrollToMessageDone, setIsScrollToMessageDone] =
-    React.useState<boolean>(true);
+    useState<boolean>(true);
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
-    React.useState<boolean>(false);
+    useState<boolean>(false);
 
-  const [queryInitializing, setQueryInitializing] = React.useState<
-    boolean | null
-  >(null); // null for initial render before router is ready
-  const [isPolling, setIsPolling] = React.useState(false);
-  const [messagesQueryKey, setMessagesQueryKey] = React.useState<
+  const [queryInitializing, setQueryInitializing] = useState<boolean | null>(
+    null
+  ); // null for initial render before router is ready
+  const [isPolling, setIsPolling] = useState(false);
+  const [messagesQueryKey, setMessagesQueryKey] = useState<
     RouterInput["messages"]["get"]
   >({ limit: PER_PAGE, channelId: channelIdString });
 
-  const refetchIntervalVars = React.useRef<{
+  const refetchIntervalVars = useRef<{
     dataBefore:
       | Parameters<
           Exclude<
@@ -350,7 +356,7 @@ const ChannelInner = ({ channel }: Props) => {
       }
     )
   );
-  const highestAppliedMessagesVersion = React.useRef<bigint>(BigInt(0));
+  const highestAppliedMessagesVersion = useRef<bigint>(BigInt(0));
 
   const handleNewMessagesVersion = (newVersion: bigint) => {
     const expectedNewVersion =
@@ -367,18 +373,16 @@ const ChannelInner = ({ channel }: Props) => {
     }
   };
 
-  const [firstItemIndex, setFirstItemIndex] = React.useState<number | null>(
-    null
-  );
+  const [firstItemIndex, setFirstItemIndex] = useState<number | null>(null);
 
   const totalItems = messages.data?.items.length || 0;
 
-  const urlMessageId = React.useMemo(
+  const urlMessageId = useMemo(
     () => getRouterQueryValue(router.query.messageId),
     [router.query.messageId]
   );
 
-  const foundMessageIndex = React.useMemo(
+  const foundMessageIndex = useMemo(
     () =>
       urlMessageId && messages.data?.items && !isMessageHighlightConsumed
         ? messages.data?.items.findIndex((m) => m.id === BigInt(urlMessageId))
@@ -386,7 +390,7 @@ const ChannelInner = ({ channel }: Props) => {
     [messages.data?.items, urlMessageId, isMessageHighlightConsumed]
   );
 
-  const initialTopMostItemIndex = React.useMemo(() => {
+  const initialTopMostItemIndex = useMemo(() => {
     let result = -1;
     if (totalItems && firstItemIndex !== null) {
       result = foundMessageIndex >= 0 ? foundMessageIndex : totalItems - 1;
@@ -403,7 +407,7 @@ const ChannelInner = ({ channel }: Props) => {
     setShouldRenderLoaders(false);
   }, [shouldRenderList]);
 
-  const { highestLoadedId, lowestLoadedId } = React.useMemo(() => {
+  const { highestLoadedId, lowestLoadedId } = useMemo(() => {
     if (!messages.data?.items.length) {
       return {
         highestLoadedId: null,
@@ -416,7 +420,7 @@ const ChannelInner = ({ channel }: Props) => {
     };
   }, [messages.data?.items]);
 
-  const websocketsDependencies = React.useRef({
+  const websocketsDependencies = useRef({
     messagesQueryKey,
     highestLoadedId,
     lowestLoadedId,
@@ -440,9 +444,9 @@ const ChannelInner = ({ channel }: Props) => {
 
   const websocketsClient = useWebsockets({ channelId: channelIdString });
 
-  const websocketsMessageQueue = React.useRef<WebsocketItem[]>([]);
+  const websocketsMessageQueue = useRef<WebsocketItem[]>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!websocketsClient) return;
 
     const websocketsChannel = websocketsClient.channels.get(
@@ -714,10 +718,10 @@ const ChannelInner = ({ channel }: Props) => {
 
   const authDisabled = guestLoginMutation.isPending || user.isFetching;
 
-  const hasQueryLoadedInitialData = React.useRef(false);
-  const wasRefetching = React.useRef(false);
+  const hasQueryLoadedInitialData = useRef(false);
+  const wasRefetching = useRef(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const data = messages.data;
     if (!data?.pages.length) return;
 
@@ -980,7 +984,7 @@ const ChannelInner = ({ channel }: Props) => {
     }
   };
 
-  const debouncedLoadersDependencies = React.useRef({
+  const debouncedLoadersDependencies = useRef({
     tryLoadOlder,
     tryLoadNewer,
     shouldRenderLoaders,
@@ -994,7 +998,7 @@ const ChannelInner = ({ channel }: Props) => {
     setShouldRenderLoaders,
   };
   // eslint-disable-next-line
-  const debouncedRangeChanged = React.useCallback(
+  const debouncedRangeChanged = useCallback(
     // eslint-disable-next-line
     debounce<
       | NonNullable<React.ComponentProps<typeof Virtuoso>["rangeChanged"]>
@@ -1010,7 +1014,7 @@ const ChannelInner = ({ channel }: Props) => {
   );
 
   // eslint-disable-next-line
-  const debouncedLoadMoreItems = React.useCallback(
+  const debouncedLoadMoreItems = useCallback(
     // eslint-disable-next-line
     debounce(async (isLoadNewer?: boolean) => {
       const { tryLoadNewer, tryLoadOlder } =
@@ -1025,14 +1029,14 @@ const ChannelInner = ({ channel }: Props) => {
     []
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       debouncedRangeChanged.cancel();
       debouncedLoadMoreItems.cancel();
     };
   }, [debouncedRangeChanged, debouncedLoadMoreItems]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isPolling) {
       repairEmptyPageParams();
       trimPagesAroundViewport();
@@ -1040,7 +1044,7 @@ const ChannelInner = ({ channel }: Props) => {
     // eslint-disable-next-line
   }, [isPolling]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!totalItems) {
       setFirstItemIndex(null);
       return;
@@ -1075,13 +1079,13 @@ const ChannelInner = ({ channel }: Props) => {
     }
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!router.isReady) return;
 
     resetMessagesList();
   }, [urlMessageId]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!queryInitializing) return;
 
     const run = async () => {
@@ -1113,7 +1117,7 @@ const ChannelInner = ({ channel }: Props) => {
     // eslint-disable-next-line
   }, [queryInitializing]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (
       queryInitializing !== false ||
       isScrollToMessageDone ||
@@ -1451,11 +1455,11 @@ const Channel: AppPage = () => {
     staleTime: CACHE_TIME_MS.NORMAL,
   });
 
-  const urlChannelId = React.useMemo(
+  const urlChannelId = useMemo(
     () => getRouterQueryValue(router.query.channelId),
     [router.query.channelId]
   );
-  const foundChannel = React.useMemo(
+  const foundChannel = useMemo(
     () => channels.data?.items.find((c) => String(c.id) === urlChannelId),
     [channels.data?.items, urlChannelId]
   );

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -113,9 +113,8 @@ const BasicProfileForm = () => {
     resolver: zodResolver(basicProfileSchemaForm),
   });
   const nameIsDirty = form.formState.dirtyFields.name;
-  const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
-  const [avatarWasChanged, setAvatarWasChanged] =
-    React.useState<boolean>(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarWasChanged, setAvatarWasChanged] = useState<boolean>(false);
 
   const { addAppSnackbar } = useAppSnackbar();
   const avatarEditModal = useLocalModal();
@@ -214,11 +213,11 @@ const BasicProfileForm = () => {
     } catch {}
   };
 
-  const avatarFileSrc = React.useMemo(
+  const avatarFileSrc = useMemo(
     () => (avatarFile ? URL.createObjectURL(avatarFile) : ""),
     [avatarFile]
   );
-  React.useEffect(() => {
+  useEffect(() => {
     return () => URL.revokeObjectURL(avatarFileSrc);
   }, [avatarFileSrc]);
 
@@ -321,7 +320,7 @@ const BasicProfileForm = () => {
 
 const UsernameForm = () => {
   const userData = useAuthedUserData();
-  const schema = React.useMemo(
+  const schema = useMemo(
     () => makeUsernameSchemaForm(userData.username),
     [userData.username]
   );
@@ -430,10 +429,9 @@ const emptyPasswordFormValues: PasswordFormValues = {
 };
 
 const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
-  const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
-    React.useState(false);
+  const [passwordFieldWasFocused, setPasswordFieldWasFocused] = useState(false);
 
-  const schema = React.useMemo(
+  const schema = useMemo(
     () => makePasswordSchemaForm(hasOldPassword),
     [hasOldPassword]
   );
@@ -563,7 +561,7 @@ const PasswordFormWrapper = () => {
 };
 
 const EmailForm = () => {
-  const pollingStartedTime = React.useRef<Dayjs | null>(null);
+  const pollingStartedTime = useRef<Dayjs | null>(null);
   useFreshUser(
     {
       refetchInterval: (data) => {
@@ -603,7 +601,7 @@ const EmailForm = () => {
   );
   const freshUserData = useAuthedUserData();
 
-  const schema = React.useMemo(() => {
+  const schema = useMemo(() => {
     return makeEmailChangeSchemaForm(freshUserData.email);
   }, [freshUserData.email]);
   const form = useForm<EmailFormValues>({
@@ -653,7 +651,7 @@ const EmailForm = () => {
     ? freshUserData.email
     : freshUserData.pendingEmail;
 
-  React.useEffect(() => {
+  useEffect(() => {
     const bc = new BroadcastChannel("auth-events" satisfies BroadcastChannels);
     bc.onmessage = (event: MessageEvent<BroadcastChannelEvent>) => {
       if (event.data === "email-verified") {

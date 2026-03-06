@@ -1,4 +1,4 @@
-import React from "react";
+import { useContext } from "react";
 import { trpc } from "@/trpc";
 import useAppQuery, { UseAppQueryOptions } from "@/utils/hooks/useAppQuery";
 import { CACHE_TIME_MS } from "@/utils/cacheTime";
@@ -25,7 +25,7 @@ export const useUser = (
 };
 
 export const useAuthedUserData = () => {
-  const user = React.useContext(AuthedUserContext);
+  const user = useContext(AuthedUserContext);
 
   if (!user) {
     throw new Error(

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 
 type ChildObserverCallback = (el: HTMLElement) => void;
@@ -15,7 +15,7 @@ const useChildMutationObserver = (
   containerRef: React.RefObject<HTMLElement | null>,
   onChange: ChildObserverCallback
 ) => {
-  React.useEffect(() => {
+  useEffect(() => {
     const container = containerRef.current;
     if (!container) {
       return;
@@ -92,11 +92,11 @@ const AnimationWrapper = ({
   isOuter,
   addClassName,
 }: AnimationWrapperProps) => {
-  const contentWrapperRef = React.useRef<HTMLDivElement | null>(null);
-  const rectRef = React.useRef<SVGRectElement | null>(null);
-  const [delayedActive, setDelayedActive] = React.useState(false);
+  const contentWrapperRef = useRef<HTMLDivElement | null>(null);
+  const rectRef = useRef<SVGRectElement | null>(null);
+  const [delayedActive, setDelayedActive] = useState(false);
 
-  const copyContentBorderRadius = React.useCallback<ChildObserverCallback>(
+  const copyContentBorderRadius = useCallback<ChildObserverCallback>(
     (contentWrapperEl) => {
       if (!rectRef.current) {
         return;
@@ -125,7 +125,7 @@ const AnimationWrapper = ({
   );
   useChildMutationObserver(contentWrapperRef, copyContentBorderRadius);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (active) {
       const timeout = setTimeout(() => {
         setDelayedActive(true);

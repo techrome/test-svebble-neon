@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { CircularProgress, Typography } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
@@ -18,7 +18,7 @@ const EmailVerified = () => {
 
   const error = getRouterQueryValue(router.query.error);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (router.isReady && !error) {
       const bc = new BroadcastChannel(
         "auth-events" satisfies BroadcastChannels

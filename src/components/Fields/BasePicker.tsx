@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   useController,
   UseControllerReturn,
@@ -106,9 +106,9 @@ export const useBaseProps = <
 >(
   props: FullProps<TMuiProps, TFV, TName>
 ) => {
-  const [additionalProps, setAdditionalProps] = React.useState<
-    Partial<TMuiProps>
-  >({});
+  const [additionalProps, setAdditionalProps] = useState<Partial<TMuiProps>>(
+    {}
+  );
 
   const {
     name,

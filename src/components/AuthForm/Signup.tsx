@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Path,
@@ -193,7 +193,7 @@ export const PasswordStrengthMeter = <TFV extends Password>({
   const PASSWORD = "password" satisfies keyof Password as Path<TFV>;
   const password = useWatch({ control: form.control, name: PASSWORD });
 
-  const passwordStrengthInfo = React.useMemo(() => {
+  const passwordStrengthInfo = useMemo(() => {
     let anyRequiredRuleFailed = false;
 
     let result: {
@@ -372,8 +372,7 @@ export const UsernameInput = <TFV extends Username>({
 };
 
 const Signup = (props: Props) => {
-  const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
-    React.useState(false);
+  const [passwordFieldWasFocused, setPasswordFieldWasFocused] = useState(false);
 
   const isDesktop = useIsDesktop();
 

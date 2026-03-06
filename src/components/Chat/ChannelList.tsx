@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import ViewListIcon from "@mui/icons-material/ViewList";
 import clsx from "clsx";
 import {
@@ -92,7 +92,7 @@ const AddOrEditChannelForm = (props: AddOrEditChannelFormProps) => {
     },
   });
 
-  const schema = React.useMemo(
+  const schema = useMemo(
     () => makeChannelCreateSchemaForm(user.data?.user?.emailVerified),
     [user.data?.user?.emailVerified]
   );
@@ -174,12 +174,12 @@ const ChannelList = () => {
   const utils = trpc.useUtils();
   const router = useRouter();
   const user = useUser();
-  const urlCurrentChannelId = React.useMemo(
+  const urlCurrentChannelId = useMemo(
     () => getRouterQueryValue(router.query.channelId),
     [router.query.channelId]
   );
 
-  const canManageChannels = React.useMemo(() => {
+  const canManageChannels = useMemo(() => {
     if (!user.data?.user) return false;
 
     return hasPermissions(user.data?.user, [

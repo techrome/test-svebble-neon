@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 export interface UseSnackbarProgressTimerOptions {
   shouldAutoRun?: boolean;
@@ -15,23 +15,23 @@ export const useSnackbarProgressTimer = (
     pauseOnWindowBlur = true,
   } = opts;
 
-  const [isRunning, setIsRunning] = React.useState<boolean>(shouldAutoRun);
+  const [isRunning, setIsRunning] = useState<boolean>(shouldAutoRun);
 
-  const isHoveredRef = React.useRef<boolean>(false);
+  const isHoveredRef = useRef<boolean>(false);
 
-  const play = React.useCallback(() => {
+  const play = useCallback(() => {
     if (shouldAutoRun) {
       setIsRunning(true);
     }
   }, [shouldAutoRun]);
 
-  const pause = React.useCallback(() => {
+  const pause = useCallback(() => {
     if (shouldAutoRun) {
       setIsRunning(false);
     }
   }, [shouldAutoRun]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!pauseOnWindowBlur || !shouldAutoRun) {
       return;
     }

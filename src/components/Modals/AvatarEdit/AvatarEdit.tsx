@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Slider, Typography } from "@mui/material";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
@@ -161,22 +161,22 @@ const AvatarChangeModal = ({
   onConfirm: (file: File) => void;
 }) => {
   const cropModal = useLocalModal();
-  const [rawFile, setRawFile] = React.useState<File | null>(null);
-  const [rawFileDimensions, setRawFileDimensions] = React.useState<{
+  const [rawFile, setRawFile] = useState<File | null>(null);
+  const [rawFileDimensions, setRawFileDimensions] = useState<{
     width: number;
     height: number;
   } | null>(null);
-  const rawFileSrc = React.useMemo(
+  const rawFileSrc = useMemo(
     () => (rawFile ? URL.createObjectURL(rawFile) : ""),
     [rawFile]
   );
 
-  const cropperRef = React.useRef<FixedCropperRef>(null);
-  const cropperPreviewRef = React.useRef<CropperPreviewRef>(null);
+  const cropperRef = useRef<FixedCropperRef>(null);
+  const cropperPreviewRef = useRef<CropperPreviewRef>(null);
 
   const { addAppSnackbar } = useAppSnackbar();
 
-  React.useEffect(() => {
+  useEffect(() => {
     return () => URL.revokeObjectURL(rawFileSrc);
   }, [rawFileSrc]);
 

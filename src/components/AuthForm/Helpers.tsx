@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import { CircularProgress, Typography } from "@mui/material";
 import PersonIcon from "@mui/icons-material/Person";
 import Image from "next/image";
@@ -90,7 +90,7 @@ export const AuthWrapper = (props: WrapperProps) => {
   const { addAppSnackbar, closeAppSnackbar } = useAppSnackbar();
   const qc = useQueryClient();
 
-  const oauthPopupRef = React.useRef<Window | null>(null);
+  const oauthPopupRef = useRef<Window | null>(null);
 
   const openOauthPopup = () => {
     const popupWidth = 520;

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { AppBar, Toolbar, Typography } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import NotificationsIcon from "@mui/icons-material/Notifications";
@@ -50,9 +50,7 @@ const NavbarInner = () => {
   const utils = trpc.useUtils();
   const { addAppSnackbar, closeAppSnackbar } = useAppSnackbar();
   const user = useUser();
-  const scrollToIdTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
+  const scrollToIdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const userData = user.data?.user;
   const previousUserId = usePrevious(userData?.id);
@@ -60,7 +58,7 @@ const NavbarInner = () => {
   const hasAuthenticated =
     Boolean(userData?.id) && previousUserId !== userData?.id;
 
-  React.useEffect(() => {
+  useEffect(() => {
     const isVerifyEmailPage = router.pathname === ROUTES.verifyEmailRedirect;
     if (hasAuthenticated) {
       const snackbarId = nanoid();
@@ -173,7 +171,7 @@ const NavbarInner = () => {
     // eslint-disable-next-line
   }, [hasAuthenticated]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const clearScrollToIdTimer = () => {
       if (scrollToIdTimerRef.current !== null) {
         clearTimeout(scrollToIdTimerRef.current);
@@ -226,7 +224,7 @@ const NavbarInner = () => {
     // eslint-disable-next-line
   }, [router.events]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const navbar = document.getElementById("navbar");
     if (navbar) {
       const updateNavbarHeightCssVar = () => {

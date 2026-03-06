@@ -1,13 +1,13 @@
-import React from "react";
+import { useEffect, useState } from "react";
 
 export const useDebouncedValue = <T,>(
   value: T,
   timeoutMs: number,
   options?: { instantOnFalsyValue?: boolean; instantOnTruthyValue?: boolean }
 ): T => {
-  const [debounced, setDebounced] = React.useState(value);
+  const [debounced, setDebounced] = useState(value);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (
       (options?.instantOnFalsyValue && !value) ||
       (options?.instantOnTruthyValue && value)

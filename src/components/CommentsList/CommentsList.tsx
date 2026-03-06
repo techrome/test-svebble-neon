@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 
 import { trpc, type RouterOutput } from "@/trpc";
@@ -19,9 +19,9 @@ export const Comment = ({
   onHighlightConsumed,
   isPolling,
 }: CommentProps) => {
-  const [isHighlighted, setIsHighlighted] = React.useState(shouldHighlight);
-  const [isEdit, setIsEdit] = React.useState(false);
-  const [editInfo, setEditInfo] = React.useState(comment);
+  const [isHighlighted, setIsHighlighted] = useState(shouldHighlight);
+  const [isEdit, setIsEdit] = useState(false);
+  const [editInfo, setEditInfo] = useState(comment);
 
   const utils = trpc.useUtils();
   const commentsDeleteMutation = trpc.messages.delete.useMutation({
@@ -41,7 +41,7 @@ export const Comment = ({
     },
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (shouldHighlight) {
       setIsHighlighted(false);
       requestAnimationFrame(() => {
@@ -49,6 +49,7 @@ export const Comment = ({
         onHighlightConsumed?.(true);
       });
     }
+    // eslint-disable-next-line
   }, [shouldHighlight]);
 
   return (

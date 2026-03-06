@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/router";
 import {
   OAUTH_DONE,
@@ -9,7 +9,7 @@ import { getRouterQueryValue } from "@/utils/query";
 const OauthDone = () => {
   const router = useRouter();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!router.isReady) return;
     const status = (getRouterQueryValue(router.query.status) || "") as
       | OauthPopupMessage["status"]
