@@ -1,3 +1,17 @@
+diff --git a/node_modules/@tanstack/query-core/build/modern/utils.cjs b/node_modules/@tanstack/query-core/build/modern/utils.cjs
+index 495c37e..3a9cc43 100644
+--- a/node_modules/@tanstack/query-core/build/modern/utils.cjs
++++ b/node_modules/@tanstack/query-core/build/modern/utils.cjs
+@@ -156,6 +156,9 @@ function replaceEqualDeep(a, b, depth = 0) {
+   if (a === b) {
+     return a;
+   }
++  if (a instanceof Date && b instanceof Date) {
++    return a.getTime() === b.getTime() ? a : b;
++  }
+   if (depth > 500) return b;
+   const array = isPlainArray(a) && isPlainArray(b);
+   if (!array && !(isPlainObject(a) && isPlainObject(b))) return b;
 diff --git a/node_modules/@tanstack/query-core/build/modern/utils.js b/node_modules/@tanstack/query-core/build/modern/utils.js
 index 8a91036..1e0add6 100644
 --- a/node_modules/@tanstack/query-core/build/modern/utils.js
