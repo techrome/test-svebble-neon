@@ -83,14 +83,19 @@ export const publicProcedureDefaultRateLimit = publicProcedure.use(
   rateLimitMiddlewares.default
 );
 
-export const privateCachedProcedure = (neededPerms: RolePermissions) =>
-  publicProcedure.use(withCachedAuth).use(withPermissionCheck(neededPerms));
-export const privateProcedure = (neededPerms: RolePermissions) =>
-  publicProcedure.use(withAuth).use(withPermissionCheck(neededPerms));
-
-export const privateCachedProcedureDefaultRateLimit = (
-  neededPerms: RolePermissions
-) => privateCachedProcedure(neededPerms).use(rateLimitMiddlewares.default);
-export const privateProcedureDefaultRateLimit = (
-  neededPerms: RolePermissions
-) => privateProcedure(neededPerms).use(rateLimitMiddlewares.default);
+export const privateCachedProcedure = (
+  neededPerms: RolePermissions,
+  ratelimiter?: (typeof rateLimitMiddlewares)[keyof typeof rateLimitMiddlewares]
+) =>
+  publicProcedure
+    .use(ratelimiter || rateLimitMiddlewares.default)
+    .use(withCachedAuth)
+    .use(withPermissionCheck(neededPerms));
+export const privateProcedure = (
+  neededPerms: RolePermissions,
+  ratelimiter?: (typeof rateLimitMiddlewares)[keyof typeof rateLimitMiddlewares]
+) =>
+  publicProcedure
+    .use(ratelimiter || rateLimitMiddlewares.default)
+    .use(withAuth)
+    .use(withPermissionCheck(neededPerms));

@@ -1,28 +1,19 @@
 import z from "zod";
-import { eq, desc, asc, lt, or, and, sql, isNull } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
+import { eq, desc, and, sql, isNull } from "drizzle-orm";
 
 import { db } from "../../db/core";
 import * as schema from "../../db/schema";
 import { router } from "../core";
 import {
   publicProcedureSSRDefaultRateLimit,
-  privateProcedureDefaultRateLimit,
-  publicProcedure,
+  privateProcedure,
 } from "../procedures";
 import * as sharedChannelsValidations from "@/utils/validators/shared/channels";
 import { throwIfZodError } from "../helpers/validate";
 import { P } from "@/utils/permissions";
-import { after, before, beforeOrEqual } from "../../db/helpers/time";
 import { TRPCError } from "@trpc/server";
-import { unionAll } from "drizzle-orm/pg-core";
-import {
-  createChannelSubscribeTokenRequest,
-  publishChannelEvent,
-} from "../../websockets/core";
-import { waitUntil } from "@vercel/functions";
-import { rateLimitMiddlewares } from "../ratelimit";
-import { numericIdSchema } from "@/utils/validators/helpers/custom";
+
+import { numericIdQuerySchema } from "@/utils/validators/helpers/custom";
 
 type Channel = typeof schema.channels.$inferSelect;
 
@@ -40,12 +31,34 @@ export const channelsRouter = router({
       const rows = await db
         .select()
         .from(schema.channels)
-        .where(isNull(schema.channels.deleted_at))
+        //.where(isNull(schema.channels.deleted_at))
         .orderBy(desc(schema.channels.id));
 
       return { items: rows.reverse() };
     }),
-  create: privateProcedureDefaultRateLimit([P.channels.create])
+  getMessagesVersion: publicProcedureSSRDefaultRateLimit
+    .input(
+      z.object({
+        channelId: numericIdQuerySchema,
+      })
+    )
+    .query(async ({ input }) => {
+      const [channelRow] = await db
+        .select({ messages_version: schema.channels.messages_version })
+        .from(schema.channels)
+        .where(
+          and(
+            isNull(schema.channels.deleted_at),
+            eq(schema.channels.id, input.channelId)
+          )
+        )
+        .limit(1);
+
+      if (!channelRow) throw new TRPCError({ code: "NOT_FOUND" });
+
+      return channelRow.messages_version;
+    }),
+  create: privateProcedure([P.channels.create])
     .input(sharedChannelsValidations.channelCreateSchemaForm)
     .mutation(async ({ input, ctx }) => {
       throwIfZodError(
@@ -63,7 +76,7 @@ export const channelsRouter = router({
         .returning();
       return newRow;
     }),
-  update: privateProcedureDefaultRateLimit([P.channels.update])
+  update: privateProcedure([P.channels.update])
     .input(sharedChannelsValidations.channelUpdateSchemaForm)
     .mutation(async ({ input, ctx }) => {
       throwIfZodError(
@@ -77,6 +90,7 @@ export const channelsRouter = router({
         .set({ name: input.name })
         .where(
           and(
+            isNull(schema.channels.deleted_at),
             eq(schema.channels.id, input.id),
             eq(schema.channels.user_id, ctx.user.id)
           )
@@ -87,7 +101,7 @@ export const channelsRouter = router({
 
       return updatedRow;
     }),
-  delete: privateProcedureDefaultRateLimit([P.channels.delete])
+  delete: privateProcedure([P.channels.delete])
     .input(sharedChannelsValidations.channelDeleteSchemaForm)
     .mutation(async ({ input, ctx }) => {
       const [deletedRow] = await db
@@ -105,9 +119,7 @@ export const channelsRouter = router({
 
       return true;
     }),
-  deleteAll: privateProcedureDefaultRateLimit([P.channels.delete]).mutation(
-    async () => {
-      await db.delete(schema.channels);
-    }
-  ),
+  deleteAll: privateProcedure([P.channels.delete]).mutation(async () => {
+    await db.delete(schema.channels);
+  }),
 });

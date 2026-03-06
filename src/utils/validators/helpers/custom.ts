@@ -12,6 +12,7 @@ export const numericIdQuerySchema = z
   .string()
   .regex(/^[1-9]\d*$/)
   .transform((val) => BigInt(val));
+export const versionSchema = z.bigint().min(BigInt(0));
 
 type ZodShape = z.ZodRawShape;
 type MaskFor<TShape extends ZodShape> = Partial<Record<keyof TShape, true>>;

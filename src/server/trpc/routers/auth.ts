@@ -49,13 +49,13 @@ export const authRouter = router({
       user: authResponse?.response?.user,
     };
   }),
-  freshUser: privateProcedure([])
-    .use(rateLimitMiddlewares.auth_sensitive)
-    .query(async ({ ctx }) => {
+  freshUser: privateProcedure([], rateLimitMiddlewares.auth_sensitive).query(
+    async ({ ctx }) => {
       return {
         user: ctx.user,
       };
-    }),
+    }
+  ),
   signUpCredentials: publicProcedure
     .use(rateLimitMiddlewares.auth_signUp)
     .input(signupSchemaForm)

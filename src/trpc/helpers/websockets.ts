@@ -9,20 +9,24 @@ type MessageSerializable = ToSerializable<
 
 type Payload<T> = {
   message: T;
-  channelVersion: string;
+  messagesVersion: string;
 };
 
 export type WebsocketEvents = {
   "messages:create": Payload<MessageSerializable>;
   "messages:update": Payload<MessageSerializable>;
-  "messages:delete": {
-    id: Payload<MessageSerializable["id"]>;
-  };
+  "messages:delete": Payload<{ id: MessageSerializable["id"] }>;
 };
 
 export type WebsocketEventName = keyof WebsocketEvents;
 export type WebsocketPayload<EventName extends WebsocketEventName> =
   WebsocketEvents[EventName];
+export type WebsocketItem = {
+  [K in WebsocketEventName]: {
+    eventName: K;
+    data: WebsocketPayload<K>;
+  };
+}[WebsocketEventName];
 
 export const getChannelId = (id: string) => `channel:${id}`;
 

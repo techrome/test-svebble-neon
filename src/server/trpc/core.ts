@@ -20,6 +20,7 @@ export const trpc = initTRPC.context<TRPCContext>().create({
           error.cause.status === "INTERNAL_SERVER_ERROR"
         : shape.data.httpStatus === 500 ||
           error.code === "INTERNAL_SERVER_ERROR");
+    console.error("TRPC Error:", shape.message, "Path:", shape.data.path);
 
     if (isProd500Error) {
       return {

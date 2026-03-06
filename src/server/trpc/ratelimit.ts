@@ -94,6 +94,7 @@ const rateLimits = {
   auth_login: { max: 5, window: "60s" },
   auth_usernameCheck: { max: 15, window: "60s" },
   auth_avatarUpload: { max: 7, window: "120s" },
+  auth_messagesWrite: { max: 30, window: "60s" },
 } as const satisfies Record<string, WindowSpec>;
 
 type RateLimitMiddlewares = {

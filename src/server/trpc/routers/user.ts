@@ -106,11 +106,10 @@ export const userRouter = router({
       });
       return response;
     }),
-  updateUserBasicInfo: privateProcedure([
-    P.user.basicInfo.update,
-    P.user.avatar.update,
-  ])
-    .use(rateLimitMiddlewares.auth_sensitive)
+  updateUserBasicInfo: privateProcedure(
+    [P.user.basicInfo.update, P.user.avatar.update],
+    rateLimitMiddlewares.auth_sensitive
+  )
     .input(
       basicProfileSchemaForm.safeExtend({
         image: z.string().nullable().optional(),
@@ -243,8 +242,10 @@ export const userRouter = router({
         })
       );
     }),
-  updateUserUsername: privateProcedure([P.user.username.update])
-    .use(rateLimitMiddlewares.auth_sensitive)
+  updateUserUsername: privateProcedure(
+    [P.user.username.update],
+    rateLimitMiddlewares.auth_sensitive
+  )
     .input(usernameSchemaForm)
     .mutation(async ({ ctx, input }) => {
       const currentUser = ctx.user;
@@ -291,8 +292,10 @@ export const userRouter = router({
         })
       );
     }),
-  changeUserPassword: privateProcedure([P.user.password.update])
-    .use(rateLimitMiddlewares.auth_sensitive)
+  changeUserPassword: privateProcedure(
+    [P.user.password.update],
+    rateLimitMiddlewares.auth_sensitive
+  )
     .input(passwordSchemaForm)
     .mutation(async ({ input, ctx }) => {
       const cookieForwarder = getCookieForwarder(ctx);
@@ -326,8 +329,10 @@ export const userRouter = router({
         );
       }
     }),
-  changeEmail: privateProcedure([P.user.email.update])
-    .use(rateLimitMiddlewares.auth_changeEmail)
+  changeEmail: privateProcedure(
+    [P.user.email.update],
+    rateLimitMiddlewares.auth_changeEmail
+  )
     .input(emailSchemaForm)
     .mutation(async ({ ctx, input }) => {
       const cookieForwarder = getCookieForwarder(ctx);
@@ -361,21 +366,24 @@ export const userRouter = router({
       }
       return { email: input.email };
     }),
-  cancelPendingEmail: privateCachedProcedure([P.user.email.update])
-    .use(rateLimitMiddlewares.auth_changeEmail)
-    .mutation(async ({ ctx }) => {
-      return getCookieForwarder(ctx)((opts) =>
-        auth.api.updateUser({
-          body: {
-            pendingEmail: null,
-            pendingEmailSetAt: null,
-          },
-          ...opts,
-        })
-      );
-    }),
-  listUserAccounts: privateCachedProcedure([P.account.read])
-    .use(rateLimitMiddlewares.auth_normal)
+  cancelPendingEmail: privateCachedProcedure(
+    [P.user.email.update],
+    rateLimitMiddlewares.auth_changeEmail
+  ).mutation(async ({ ctx }) => {
+    return getCookieForwarder(ctx)((opts) =>
+      auth.api.updateUser({
+        body: {
+          pendingEmail: null,
+          pendingEmailSetAt: null,
+        },
+        ...opts,
+      })
+    );
+  }),
+  listUserAccounts: privateCachedProcedure(
+    [P.account.read],
+    rateLimitMiddlewares.auth_normal
+  )
     .input(
       z.object({
         // unused id just for cache busting on the client
@@ -389,8 +397,10 @@ export const userRouter = router({
         })
       )
     ),
-  createAvatarUploadUrl: privateProcedure([P.user.avatar.create])
-    .use(rateLimitMiddlewares.auth_avatarUpload)
+  createAvatarUploadUrl: privateProcedure(
+    [P.user.avatar.create],
+    rateLimitMiddlewares.auth_avatarUpload
+  )
     .input(avatarUploadUrlSchema)
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
@@ -429,64 +439,60 @@ export const userRouter = router({
         } as const,
       };
     }),
-  deleteUser: privateProcedure([P.user.delete])
-    .use(rateLimitMiddlewares.auth_sensitive)
-    .mutation(async ({ ctx }) => {
-      if (ctx.user.deletedAt) {
-        throw new TRPCError({
-          code: "UNPROCESSABLE_CONTENT",
-          message: "Your account is already in the process of being deleted.",
-        });
-      }
-      const userId = ctx.user.id;
-
-      const verificationIdentifiers = [
-        ctx.user.email,
-        ctx.user.pendingEmail,
-      ].filter((v): v is string => typeof v === "string" && v.length > 0);
-
-      const cookieForwarder = getCookieForwarder(ctx);
-      const logoutRes = await cookieForwarder((opts) =>
-        auth.api.signOut({
-          ...opts,
-        })
-      );
-
-      await db.transaction(async (tx) => {
-        await tx
-          .update(schema.user)
-          .set({
-            deletedAt: sql`now()`,
-            name: "Deleted user",
-            image: null,
-            email:
-              `deleted+${userId}@${PLACEHOLDER_EMAIL_DOMAIN}`.toLowerCase(),
-            emailVerified: false,
-            displayUsername: null,
-            username: null,
-            remainingUsernameChanges: null,
-            hasRandomUsername: false,
-            pendingEmail: null,
-            pendingEmailSetAt: null,
-          })
-          .where(eq(schema.user.id, userId));
-
-        await tx
-          .delete(schema.session)
-          .where(eq(schema.session.userId, userId));
-        await tx
-          .delete(schema.account)
-          .where(eq(schema.account.userId, userId));
-
-        if (verificationIdentifiers.length > 0) {
-          await tx
-            .delete(schema.verification)
-            .where(
-              inArray(schema.verification.identifier, verificationIdentifiers)
-            );
-        }
+  deleteUser: privateProcedure(
+    [P.user.delete],
+    rateLimitMiddlewares.auth_sensitive
+  ).mutation(async ({ ctx }) => {
+    if (ctx.user.deletedAt) {
+      throw new TRPCError({
+        code: "UNPROCESSABLE_CONTENT",
+        message: "Your account is already in the process of being deleted.",
       });
+    }
+    const userId = ctx.user.id;
 
-      return logoutRes;
-    }),
+    const verificationIdentifiers = [
+      ctx.user.email,
+      ctx.user.pendingEmail,
+    ].filter((v): v is string => typeof v === "string" && v.length > 0);
+
+    const cookieForwarder = getCookieForwarder(ctx);
+    const logoutRes = await cookieForwarder((opts) =>
+      auth.api.signOut({
+        ...opts,
+      })
+    );
+
+    await db.transaction(async (tx) => {
+      await tx
+        .update(schema.user)
+        .set({
+          deletedAt: sql`now()`,
+          name: "Deleted user",
+          image: null,
+          email: `deleted+${userId}@${PLACEHOLDER_EMAIL_DOMAIN}`.toLowerCase(),
+          emailVerified: false,
+          displayUsername: null,
+          username: null,
+          remainingUsernameChanges: null,
+          hasRandomUsername: false,
+          pendingEmail: null,
+          pendingEmailSetAt: null,
+        })
+        .where(eq(schema.user.id, userId));
+
+      await tx.delete(schema.session).where(eq(schema.session.userId, userId));
+      await tx.delete(schema.account).where(eq(schema.account.userId, userId));
+
+      if (verificationIdentifiers.length > 0) {
+        await tx
+          .delete(schema.verification)
+          .where(
+            inArray(schema.verification.identifier, verificationIdentifiers)
+          );
+      }
+    });
+
+    return logoutRes;
+  }),
 });

@@ -36,3 +36,5 @@ export type ToSerializable<T> = T extends bigint
   : IsPlainObject<T> extends true
     ? { [K in keyof T]: ToSerializable<T[K]> }
     : T;
+
+export type NullableFields<T> = { [K in keyof T]: T[K] | null };
