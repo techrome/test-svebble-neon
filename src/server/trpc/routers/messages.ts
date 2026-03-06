@@ -3,36 +3,35 @@ import {
   eq,
   desc,
   asc,
-  lt,
-  or,
   and,
   isNull,
   sql,
   getTableColumns,
+  type SQL,
 } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
+import { unionAll } from "drizzle-orm/pg-core";
+import { TRPCError } from "@trpc/server";
+import { waitUntil } from "@vercel/functions";
 
 import { db } from "../../db/core";
 import * as schema from "../../db/schema";
 import { router } from "../core";
-import {
-  publicProcedureSSRDefaultRateLimit,
-  privateProcedureDefaultRateLimit,
-  publicProcedure,
-} from "../procedures";
+import { privateProcedure, publicProcedure } from "../procedures";
 import * as sharedMessagesValidations from "@/utils/validators/shared/messages";
 import { throwIfZodError } from "../helpers/validate";
 import { P } from "@/utils/permissions";
 import { after, before, beforeOrEqual } from "../../db/helpers/time";
-import { TRPCError } from "@trpc/server";
-import { unionAll } from "drizzle-orm/pg-core";
 import {
   createChannelSubscribeTokenRequest,
   publishChannelEvent,
 } from "../../websockets/core";
-import { waitUntil } from "@vercel/functions";
 import { rateLimitMiddlewares } from "../ratelimit";
-import { numericIdSchema } from "@/utils/validators/helpers/custom";
+import {
+  numericIdSchema,
+  versionSchema,
+} from "@/utils/validators/helpers/custom";
+import { type NullableFields } from "@/utils/types";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -75,13 +74,14 @@ export const messagesRouter = router({
         channelId: String(input.channelId),
       });
     }),
-  get: publicProcedureSSRDefaultRateLimit
+  get: publicProcedure
     .input(sharedMessagesValidations.messagesGetSchemaForm)
     .output(
       z.object({
         items: z.array(z.custom<Message>()),
         returnedDirection:
           sharedMessagesValidations.messagesGetSchemaForm.shape.direction.optional(),
+        messages_version: versionSchema,
       })
     )
     .query(async ({ ctx, input }) => {
@@ -89,47 +89,82 @@ export const messagesRouter = router({
       const cursor = input.cursor;
       //await new Promise((r) => setTimeout(r, 500));
 
-      const activeChannelMessages = db
-        .select(getTableColumns(schema.messages))
-        .from(schema.messages)
-        .innerJoin(
-          schema.channels,
-          eq(schema.messages.channel_id, schema.channels.id)
-        )
-        .where(
-          and(
-            eq(schema.messages.channel_id, input.channelId)
-            //isNull(schema.messages.deleted_at),
-            // isNull(schema.channels.deleted_at)
-          )
-        )
-        .as("active_messages");
+      const channelFilter = and(
+        eq(schema.channels.id, input.channelId),
+        isNull(schema.channels.deleted_at)
+      );
+
+      const messagesJoinOn = (...extra: Array<SQL | undefined>) =>
+        and(
+          eq(schema.messages.channel_id, schema.channels.id),
+          isNull(schema.messages.deleted_at),
+          ...extra
+        );
+
+      const toPayload = (
+        rows: Array<{
+          messages_version: bigint;
+          message: NullableFields<Message> | null;
+        }>
+      ) => {
+        if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
+        const messages_version = rows[0].messages_version;
+        const items = rows.flatMap((r) =>
+          r.message && r.message.id ? [r.message as Message] : []
+        );
+        return { messages_version, items };
+      };
 
       if (cursor) {
         if (cursor.direction && cursor.id) {
           if (cursor.direction === "backward") {
-            if (Math.random() < rate) throw new Error("idk");
+            if (Math.random() < rate) throw new Error("Test error");
 
             const rows = await db
-              .select()
-              .from(activeChannelMessages)
-              .where(before(activeChannelMessages.id, cursor.id))
-              .orderBy(desc(activeChannelMessages.id))
+              .select({
+                messages_version: schema.channels.messages_version,
+                message: schema.messages,
+              })
+              .from(schema.channels)
+              .leftJoin(
+                schema.messages,
+                and(messagesJoinOn(before(schema.messages.id, cursor.id)))
+              )
+              .where(channelFilter)
+              .orderBy(desc(schema.messages.id))
               .limit(input.limit);
 
-            return { items: rows.reverse(), returnedDirection: "backward" };
+            const { messages_version, items } = toPayload(rows);
+            return {
+              items: items.reverse(),
+              messages_version,
+              returnedDirection: "backward",
+            };
           }
 
           if (cursor.direction === "forward") {
-            if (Math.random() < rate) throw new Error("idk");
+            if (Math.random() < rate) throw new Error("Test error");
+
             const rows = await db
-              .select()
-              .from(activeChannelMessages)
-              .where(after(activeChannelMessages.id, cursor.id))
-              .orderBy(asc(activeChannelMessages.id))
+              .select({
+                messages_version: schema.channels.messages_version,
+                message: schema.messages,
+              })
+              .from(schema.channels)
+              .leftJoin(
+                schema.messages,
+                and(messagesJoinOn(after(schema.messages.id, cursor.id)))
+              )
+              .where(channelFilter)
+              .orderBy(asc(schema.messages.id))
               .limit(input.limit);
 
-            return { items: rows, returnedDirection: "forward" };
+            const { messages_version, items } = toPayload(rows);
+            return {
+              items,
+              messages_version,
+              returnedDirection: "forward",
+            };
           }
         }
         throw new TRPCError({
@@ -138,22 +173,36 @@ export const messagesRouter = router({
         });
       }
       if (input.around) {
-        if (Math.random() < rate) throw new Error("idk");
+        if (Math.random() < rate) throw new Error("Test error");
         const sideLimit = input.limit / 2;
 
         const prevIncl = db
-          .select()
-          .from(activeChannelMessages)
-          .where(beforeOrEqual(activeChannelMessages.id, input.around))
-          .orderBy(desc(activeChannelMessages.id))
+          .select({
+            messages_version: schema.channels.messages_version,
+            message: getTableColumns(schema.messages),
+          })
+          .from(schema.channels)
+          .leftJoin(
+            schema.messages,
+            and(messagesJoinOn(beforeOrEqual(schema.messages.id, input.around)))
+          )
+          .where(channelFilter)
+          .orderBy(desc(schema.messages.id))
           .limit(sideLimit + 1) // +1 because it includes the target message
           .as("prevIncl");
 
         const next = db
-          .select()
-          .from(activeChannelMessages)
-          .where(after(activeChannelMessages.id, input.around))
-          .orderBy(asc(activeChannelMessages.id))
+          .select({
+            messages_version: schema.channels.messages_version,
+            message: getTableColumns(schema.messages),
+          })
+          .from(schema.channels)
+          .leftJoin(
+            schema.messages,
+            and(messagesJoinOn(after(schema.messages.id, input.around)))
+          )
+          .where(channelFilter)
+          .orderBy(asc(schema.messages.id))
           .limit(sideLimit)
           .as("next");
 
@@ -163,24 +212,37 @@ export const messagesRouter = router({
           db.select().from(next)
         ).as("combined");
 
-        const rows = await db.select().from(combined).orderBy(asc(combined.id));
+        const rows = await db
+          .select()
+          .from(combined)
+          .orderBy(asc(combined.message.id));
 
-        if (!rows.length) {
-          throw new TRPCError({ code: "NOT_FOUND" });
-        }
+        const { items, messages_version } = toPayload(rows);
 
-        return { items: rows };
+        return { items, messages_version };
       }
-      if (Math.random() < rate) throw new Error("idk");
+      if (Math.random() < rate) throw new Error("Test error");
+
       const rows = await db
-        .select()
-        .from(activeChannelMessages)
-        .orderBy(desc(activeChannelMessages.id))
+        .select({
+          messages_version: schema.channels.messages_version,
+          message: schema.messages,
+        })
+        .from(schema.channels)
+        .leftJoin(schema.messages, and(messagesJoinOn()))
+        .where(channelFilter)
+        .orderBy(desc(schema.messages.id))
         .limit(input.limit);
 
-      return { items: rows.reverse(), returnedDirection: "backward" };
+      const { messages_version, items } = toPayload(rows);
+
+      return {
+        items: items.reverse(),
+        messages_version,
+        returnedDirection: "backward",
+      };
     }),
-  createSpam: privateProcedureDefaultRateLimit([P.messages.create])
+  createSpam: privateProcedure([P.messages.create])
     .input(
       z.object({
         isBulk: z.boolean(),
@@ -212,7 +274,10 @@ export const messagesRouter = router({
         }
       }
     }),
-  create: privateProcedureDefaultRateLimit([P.messages.create])
+  create: privateProcedure(
+    [P.messages.create],
+    rateLimitMiddlewares.auth_messagesWrite
+  )
     .input(sharedMessagesValidations.messageCreateSchemaForm)
     .mutation(async ({ input, ctx }) => {
       throwIfZodError(
@@ -275,7 +340,10 @@ export const messagesRouter = router({
       );
       return newData;
     }),
-  update: privateProcedureDefaultRateLimit([P.messages.update])
+  update: privateProcedure(
+    [P.messages.update],
+    rateLimitMiddlewares.auth_messagesWrite
+  )
     .input(sharedMessagesValidations.messageUpdateSchemaForm)
     .mutation(async ({ input, ctx }) => {
       throwIfZodError(
@@ -346,7 +414,10 @@ export const messagesRouter = router({
       );
       return updatedData;
     }),
-  delete: privateProcedureDefaultRateLimit([P.messages.delete])
+  delete: privateProcedure(
+    [P.messages.delete],
+    rateLimitMiddlewares.auth_messagesWrite
+  )
     .input(sharedMessagesValidations.messageDeleteSchemaForm)
     .mutation(async ({ input, ctx }) => {
       const messageUpdate = db.$with("message").as(
@@ -409,7 +480,7 @@ export const messagesRouter = router({
       );
       return updatedData;
     }),
-  deleteAll: privateProcedureDefaultRateLimit([P.messages.delete])
+  deleteAll: privateProcedure([P.messages.delete])
     .input(sharedMessagesValidations.messageBulkDeleteSchemaForm)
     .mutation(async ({ input }) => {
       await db
