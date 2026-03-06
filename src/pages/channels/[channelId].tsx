@@ -55,7 +55,7 @@ import { useWebsockets } from "@/trpc/hooks/useWebsockets";
 import {
   getChannelId,
   subscribeWs,
-  WebsocketEventName,
+  type WebsocketItem,
 } from "@/trpc/helpers/websockets";
 import { getQueryKey } from "@trpc/react-query";
 import ChannelListWrapper from "@/components/Chat/ChannelList";
@@ -124,24 +124,27 @@ const SKELETON_CONFIG = {
 } as const;
 
 const emptyFunc = () => {};
+
 const MessagesSkeleton = ({
   scrollerEl,
   onEnter,
+  fullHeight,
 }: {
   scrollerEl?: HTMLElement | null;
   onEnter?: () => void;
+  fullHeight?: boolean;
 }) => {
   const screenHeight = useScreenHeight();
 
   const rowCount = React.useMemo(() => {
     const rawCount = Math.ceil(
-      screenHeight / 2 / SKELETON_CONFIG.AVG_ROW_HEIGHT_PX
+      screenHeight / (fullHeight ? 1 : 2) / SKELETON_CONFIG.AVG_ROW_HEIGHT_PX
     );
     return Math.min(
       SKELETON_CONFIG.MAX_ROWS,
       Math.max(SKELETON_CONFIG.MIN_ROWS, rawCount)
     );
-  }, [screenHeight]);
+  }, [screenHeight, fullHeight]);
 
   const onEnterCallback = onEnter || emptyFunc;
   const ref = useOnEnterView(onEnterCallback, {
@@ -242,6 +245,8 @@ const ChannelInner = ({ channel }: Props) => {
   const utils = trpc.useUtils();
   const router = useRouter();
 
+  const channelIdString = React.useMemo(() => String(channel.id), [channel.id]);
+
   const messageCreateSchema = React.useMemo(
     () => makeMessageCreateSchemaForm(user.data?.user?.emailVerified),
     [user.data?.user?.emailVerified]
@@ -275,7 +280,7 @@ const ChannelInner = ({ channel }: Props) => {
   const [isPolling, setIsPolling] = React.useState(false);
   const [messagesQueryKey, setMessagesQueryKey] = React.useState<
     RouterInput["messages"]["get"]
-  >({ limit: PER_PAGE, channelId: String(channel.id) });
+  >({ limit: PER_PAGE, channelId: channelIdString });
 
   const refetchIntervalVars = React.useRef<{
     dataBefore:
@@ -336,6 +341,32 @@ const ChannelInner = ({ channel }: Props) => {
     })
   );
 
+  const messagesVersion = useAppQuery(
+    trpc.channels.getMessagesVersion.useQuery(
+      { channelId: channelIdString },
+      {
+        staleTime: CACHE_TIME_MS.QUICK,
+        refetchInterval: CACHE_TIME_MS.QUICK,
+      }
+    )
+  );
+  const highestAppliedMessagesVersion = React.useRef<bigint>(BigInt(0));
+
+  const handleNewMessagesVersion = (newVersion: bigint) => {
+    const expectedNewVersion =
+      highestAppliedMessagesVersion.current + BigInt(1);
+
+    if (newVersion === expectedNewVersion) {
+      highestAppliedMessagesVersion.current = newVersion;
+      return true;
+    } else {
+      if (newVersion > expectedNewVersion) {
+        setIsPolling(true);
+      }
+      return false;
+    }
+  };
+
   const [firstItemIndex, setFirstItemIndex] = React.useState<number | null>(
     null
   );
@@ -390,6 +421,10 @@ const ChannelInner = ({ channel }: Props) => {
     highestLoadedId,
     lowestLoadedId,
     firstItemIndex,
+    messages,
+    isPolling,
+    setIsPolling,
+    handleNewMessagesVersion,
   });
 
   websocketsDependencies.current = {
@@ -397,15 +432,21 @@ const ChannelInner = ({ channel }: Props) => {
     highestLoadedId,
     lowestLoadedId,
     firstItemIndex,
+    messages,
+    isPolling,
+    setIsPolling,
+    handleNewMessagesVersion,
   };
 
-  const websocketsClient = useWebsockets({ channelId: String(channel.id) });
+  const websocketsClient = useWebsockets({ channelId: channelIdString });
+
+  const websocketsMessageQueue = React.useRef<WebsocketItem[]>([]);
 
   React.useEffect(() => {
     if (!websocketsClient) return;
 
     const websocketsChannel = websocketsClient.channels.get(
-      getChannelId(String(channel.id))
+      getChannelId(channelIdString)
     );
 
     // const invalidate = ((data, msg) => {
@@ -415,22 +456,38 @@ const ChannelInner = ({ channel }: Props) => {
 
     const unsubs = [
       subscribeWs(websocketsChannel, "messages:create", (data) => {
-        const { messagesQueryKey } = websocketsDependencies.current;
+        const { messagesQueryKey, isPolling, handleNewMessagesVersion } =
+          websocketsDependencies.current;
+        const message = data.message;
+        const newMessagesVersion = BigInt(data.messagesVersion);
+        if (isPolling) {
+          websocketsMessageQueue.current.push({
+            eventName: "messages:create",
+            data,
+          });
+          return;
+        }
+        if (!handleNewMessagesVersion(newMessagesVersion)) {
+          return;
+        }
 
         utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-          if (!queryData || !queryData.pages.length) return queryData;
+          if (!queryData || !queryData.pages.length || messages.hasNextPage) {
+            return queryData;
+          }
           let updatedPages = [...queryData.pages];
           const newMessage = {
-            ...data,
-            created_at: new Date(data.created_at),
-            updated_at: new Date(data.updated_at),
-            id: BigInt(data.id),
-            channel_id: BigInt(data.channel_id),
+            ...message,
+            created_at: new Date(message.created_at),
+            updated_at: new Date(message.updated_at),
+            id: BigInt(message.id),
+            channel_id: BigInt(message.channel_id),
           } satisfies Message;
 
           updatedPages[updatedPages.length - 1] = {
             ...updatedPages[updatedPages.length - 1],
             items: [...updatedPages[updatedPages.length - 1].items, newMessage],
+            messages_version: newMessagesVersion,
           };
 
           const shouldCreateNewPage =
@@ -440,6 +497,7 @@ const ChannelInner = ({ channel }: Props) => {
             updatedPages.push({
               items: [],
               returnedDirection: "forward",
+              messages_version: newMessagesVersion,
             });
             let updatedPageParams = [...queryData.pageParams];
             updatedPageParams.push({
@@ -458,9 +516,27 @@ const ChannelInner = ({ channel }: Props) => {
         });
       }),
       subscribeWs(websocketsChannel, "messages:update", (data) => {
-        const itemToUpdateId = BigInt(data.id);
-        const { lowestLoadedId, highestLoadedId, messagesQueryKey } =
-          websocketsDependencies.current;
+        const message = data.message;
+        const itemToUpdateId = BigInt(message.id);
+        const {
+          lowestLoadedId,
+          highestLoadedId,
+          messagesQueryKey,
+          isPolling,
+          handleNewMessagesVersion,
+        } = websocketsDependencies.current;
+        const newMessagesVersion = BigInt(data.messagesVersion);
+        if (isPolling) {
+          websocketsMessageQueue.current.push({
+            eventName: "messages:update",
+            data,
+          });
+          return;
+        }
+        if (!handleNewMessagesVersion(newMessagesVersion)) {
+          return;
+        }
+
         if (
           !lowestLoadedId ||
           !highestLoadedId ||
@@ -481,16 +557,17 @@ const ChannelInner = ({ channel }: Props) => {
             if (foundItemIndex >= 0) {
               let updatedItems = [...page.items];
               updatedItems[foundItemIndex] = {
-                ...data,
-                created_at: new Date(data.created_at),
-                updated_at: new Date(data.updated_at),
+                ...message,
+                created_at: new Date(message.created_at),
+                updated_at: new Date(message.updated_at),
                 id: itemToUpdateId,
-                channel_id: BigInt(data.channel_id),
+                channel_id: BigInt(message.channel_id),
               };
 
               updatedPages[i] = {
                 ...updatedPages[i],
                 items: updatedItems,
+                messages_version: newMessagesVersion,
               };
               return { ...queryData, pages: updatedPages };
             }
@@ -499,14 +576,27 @@ const ChannelInner = ({ channel }: Props) => {
         });
       }),
       subscribeWs(websocketsChannel, "messages:delete", (data) => {
-        const itemToDeleteId = BigInt(data.id);
+        const message = data.message;
+        const itemToDeleteId = BigInt(message.id);
         const {
           lowestLoadedId,
           highestLoadedId,
           firstItemIndex,
           messagesQueryKey,
+          isPolling,
+          handleNewMessagesVersion,
         } = websocketsDependencies.current;
-
+        const newMessagesVersion = BigInt(data.messagesVersion);
+        if (isPolling) {
+          websocketsMessageQueue.current.push({
+            eventName: "messages:delete",
+            data,
+          });
+          return;
+        }
+        if (!handleNewMessagesVersion(newMessagesVersion)) {
+          return;
+        }
         if (
           !lowestLoadedId ||
           !highestLoadedId ||
@@ -547,6 +637,7 @@ const ChannelInner = ({ channel }: Props) => {
               updatedPages[i] = {
                 ...updatedPages[i],
                 items: updatedItems,
+                messages_version: newMessagesVersion,
               };
             }
             if (isTargetMessageAboveViewport) {
@@ -623,6 +714,34 @@ const ChannelInner = ({ channel }: Props) => {
 
   const authDisabled = guestLoginMutation.isPending || user.isFetching;
 
+  const hasQueryLoadedInitialData = React.useRef(false);
+  const wasRefetching = React.useRef(false);
+
+  React.useEffect(() => {
+    const data = messages.data;
+    if (!data?.pages.length) return;
+
+    if (!hasQueryLoadedInitialData.current) {
+      hasQueryLoadedInitialData.current = true;
+      highestAppliedMessagesVersion.current = data.pages[0].messages_version;
+      return;
+    }
+
+    if (
+      wasRefetching.current &&
+      !messages.isRefetching &&
+      !messages.isRefetchError
+    ) {
+      highestAppliedMessagesVersion.current =
+        data.pages[data.pages.length - 1].messages_version;
+    }
+
+    wasRefetching.current = messages.isRefetching;
+  }, [messages.dataUpdatedAt, messages.isRefetching]);
+  console.log({
+    highestAppliedMessagesVersion: highestAppliedMessagesVersion.current,
+  });
+
   const tryLoadOlder = async (ignoreError?: boolean) => {
     if (
       !messages.hasPreviousPage ||
@@ -635,11 +754,16 @@ const ChannelInner = ({ channel }: Props) => {
     const res = await messages.fetchPreviousPage({ cancelRefetch: false });
     if (res.isFetchPreviousPageError) return;
 
-    const prependedCount = res.data?.pages?.[0]?.items.length || 0;
+    const newPage = res.data?.pages?.[0];
+    const prependedCount = newPage?.items.length || 0;
     if (prependedCount) {
       setFirstItemIndex((prev) =>
         prev !== null ? prev - prependedCount : prev
       );
+    }
+
+    if (newPage?.messages_version) {
+      highestAppliedMessagesVersion.current = newPage.messages_version;
     }
 
     utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
@@ -660,7 +784,7 @@ const ChannelInner = ({ channel }: Props) => {
     });
   };
 
-  console.log({ ...messages.data });
+  console.log({ ...messages });
 
   const tryLoadNewer = async (ignoreError?: boolean) => {
     if (
@@ -673,6 +797,13 @@ const ChannelInner = ({ channel }: Props) => {
 
     const res = await messages.fetchNextPage({ cancelRefetch: false });
     if (res.isFetchNextPageError) return;
+
+    const newPage = res.data?.pages?.length
+      ? res.data.pages[res.data.pages.length - 1]
+      : undefined;
+    if (newPage?.messages_version) {
+      highestAppliedMessagesVersion.current = newPage.messages_version;
+    }
 
     utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
       let data = queryData;
@@ -925,6 +1056,8 @@ const ChannelInner = ({ channel }: Props) => {
   const resetMessagesList = () => {
     refetchIntervalVars.current.wasFetching = false;
     refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
+    hasQueryLoadedInitialData.current = false;
+    wasRefetching.current = false;
     setQueryInitializing(true);
     setIsScrollToMessageDone(false);
     setIsMessageHighlightConsumed(false);
@@ -1182,7 +1315,7 @@ const ChannelInner = ({ channel }: Props) => {
               }
             />
           ) : messages.isFetching ? (
-            <MessagesSkeleton />
+            <MessagesSkeleton fullHeight />
           ) : messages.isError ? (
             <VerticalStack>
               <Typography>Failed to load any messages</Typography>
