@@ -111,7 +111,7 @@ export function useOnEnterView(
 }
 
 const BASE_INDEX = 1_000_000_000;
-const PER_PAGE = 10;
+const PER_PAGE = 50;
 const MAX_PAGES = 5;
 
 const SKELETON_CONFIG = {
@@ -1106,6 +1106,10 @@ const ChannelInner = ({ channel }: Props) => {
         // eslint-disable-next-line
         useEffect(() => {
           let timeout: null | ReturnType<typeof setTimeout> = null;
+          if (!messages.hasPreviousPage) {
+            setIsLoaderVisible(false);
+            return;
+          }
           if (
             isLoaderVisible &&
             isIdle &&
@@ -1153,8 +1157,6 @@ const ChannelInner = ({ channel }: Props) => {
             <MessagesSkeleton
               scrollerEl={scrollerElRef.current}
               onIntersectionChange={(isVisible) => {
-                console.log("header", isVisible);
-
                 setIsLoaderVisible(isVisible);
               }}
             />
@@ -1181,14 +1183,10 @@ const ChannelInner = ({ channel }: Props) => {
         // eslint-disable-next-line
         useEffect(() => {
           let timeout: null | ReturnType<typeof setTimeout> = null;
-          console.log({
-            isLoaderVisible,
-            isIdle,
-            hasNextPage: messages.hasNextPage,
-            isFetching: messages.isFetching,
-            isError: messages.isError,
-          });
-
+          if (!messages.hasNextPage) {
+            setIsLoaderVisible(false);
+            return;
+          }
           if (
             isLoaderVisible &&
             isIdle &&
@@ -1257,8 +1255,6 @@ const ChannelInner = ({ channel }: Props) => {
             <MessagesSkeleton
               scrollerEl={scrollerElRef.current}
               onIntersectionChange={(isVisible) => {
-                console.log("has", isVisible);
-
                 setIsLoaderVisible(isVisible);
               }}
             />
