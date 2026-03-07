@@ -77,7 +77,7 @@ type Options = {
 };
 
 export function useOnEnterView(
-  onEnter: () => void,
+  onIntersectionChange: (isVisible: boolean) => void,
   {
     root = null,
     rootMargin = "0px",
@@ -86,26 +86,18 @@ export function useOnEnterView(
   }: Options = {}
 ) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const onEnterRef = useRef(onEnter);
+  const onIntersectionChangeRef = useRef(onIntersectionChange);
   // eslint-disable-next-line
-  onEnterRef.current = onEnter;
+  onIntersectionChangeRef.current = onIntersectionChange;
 
   useEffect(() => {
     if (!enabled) return;
     const el = ref.current;
     if (!el) return;
 
-    let wasIntersecting = false;
-
     const io = new IntersectionObserver(
       ([entry]) => {
-        const isIntersecting = entry.isIntersecting;
-
-        if (isIntersecting && !wasIntersecting) {
-          onEnterRef.current();
-        }
-
-        wasIntersecting = isIntersecting;
+        onIntersectionChangeRef.current(entry.isIntersecting);
       },
       { root, rootMargin, threshold }
     );
@@ -133,11 +125,11 @@ const emptyFunc = () => {};
 
 const MessagesSkeleton = ({
   scrollerEl,
-  onEnter,
+  onIntersectionChange,
   fullHeight,
 }: {
   scrollerEl?: HTMLElement | null;
-  onEnter?: () => void;
+  onIntersectionChange?: (isVisible: boolean) => void;
   fullHeight?: boolean;
 }) => {
   const screenHeight = useScreenHeight();
@@ -152,10 +144,10 @@ const MessagesSkeleton = ({
     );
   }, [screenHeight, fullHeight]);
 
-  const onEnterCallback = onEnter || emptyFunc;
-  const ref = useOnEnterView(onEnterCallback, {
+  const onIntersectionChangeCallback = onIntersectionChange || emptyFunc;
+  const ref = useOnEnterView(onIntersectionChangeCallback, {
     root: scrollerEl,
-    enabled: Boolean(onEnter),
+    enabled: Boolean(onIntersectionChange),
     rootMargin: "200px 0px",
     threshold: 0,
   });
@@ -274,7 +266,7 @@ const ChannelInner = ({ channel }: Props) => {
   } | null>(null);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
 
-  const [shouldRenderLoaders, setShouldRenderLoaders] = useState(false);
+  const [isIdle, setIsIdle] = useState(false);
   const [isScrollToMessageDone, setIsScrollToMessageDone] =
     useState<boolean>(true);
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
@@ -402,10 +394,6 @@ const ChannelInner = ({ channel }: Props) => {
     Boolean(totalItems) &&
     firstItemIndex !== null &&
     initialTopMostItemIndex !== -1;
-
-  useEffectAfterMount(() => {
-    setShouldRenderLoaders(false);
-  }, [shouldRenderList]);
 
   const { highestLoadedId, lowestLoadedId } = useMemo(() => {
     if (!messages.data?.items.length) {
@@ -742,16 +730,12 @@ const ChannelInner = ({ channel }: Props) => {
 
     wasRefetching.current = messages.isRefetching;
   }, [messages.dataUpdatedAt, messages.isRefetching]);
-  console.log({
-    highestAppliedMessagesVersion: highestAppliedMessagesVersion.current,
-  });
+  // console.log({
+  //   highestAppliedMessagesVersion: highestAppliedMessagesVersion.current,
+  // });
 
   const tryLoadOlder = async (ignoreError?: boolean) => {
-    if (
-      !messages.hasPreviousPage ||
-      messages.isFetchingPreviousPage ||
-      (ignoreError ? false : messages.isFetchPreviousPageError)
-    ) {
+    if (ignoreError ? false : messages.isFetchPreviousPageError) {
       return;
     }
 
@@ -791,11 +775,7 @@ const ChannelInner = ({ channel }: Props) => {
   console.log({ ...messages });
 
   const tryLoadNewer = async (ignoreError?: boolean) => {
-    if (
-      !messages.hasNextPage ||
-      messages.isFetchingNextPage ||
-      (ignoreError ? false : messages.isFetchNextPageError)
-    ) {
+    if (ignoreError ? false : messages.isFetchNextPageError) {
       return;
     }
 
@@ -928,7 +908,7 @@ const ChannelInner = ({ channel }: Props) => {
 
       const pageIndexDiff =
         visibleEndIndexBelongsToPageIndex - visibleStartIndexBelongsToPageIndex;
-      if (pageIndexDiff < 0 || pageIndexDiff > MAX_PAGES - 1) {
+      if (pageIndexDiff < 0 || pageIndexDiff > MAX_PAGES - 2) {
         return;
       }
 
@@ -985,45 +965,21 @@ const ChannelInner = ({ channel }: Props) => {
   };
 
   const debouncedLoadersDependencies = useRef({
-    tryLoadOlder,
-    tryLoadNewer,
-    shouldRenderLoaders,
-    setShouldRenderLoaders,
+    isIdle,
+    setIsIdle,
   });
 
   debouncedLoadersDependencies.current = {
-    tryLoadOlder,
-    tryLoadNewer,
-    shouldRenderLoaders,
-    setShouldRenderLoaders,
+    isIdle,
+    setIsIdle,
   };
   // eslint-disable-next-line
-  const debouncedRangeChanged = useCallback(
+  const debouncedMakeIdle = useCallback(
     // eslint-disable-next-line
-    debounce<
-      | NonNullable<React.ComponentProps<typeof Virtuoso>["rangeChanged"]>
-      | (() => void)
-    >(async () => {
-      const { shouldRenderLoaders, setShouldRenderLoaders } =
-        debouncedLoadersDependencies.current;
-      if (!shouldRenderLoaders) {
-        setShouldRenderLoaders(true);
-      }
-    }, 50),
-    []
-  );
-
-  // eslint-disable-next-line
-  const debouncedLoadMoreItems = useCallback(
-    // eslint-disable-next-line
-    debounce(async (isLoadNewer?: boolean) => {
-      const { tryLoadNewer, tryLoadOlder } =
-        debouncedLoadersDependencies.current;
-
-      if (isLoadNewer) {
-        await tryLoadNewer();
-      } else {
-        await tryLoadOlder();
+    debounce(async () => {
+      const { isIdle, setIsIdle } = debouncedLoadersDependencies.current;
+      if (!isIdle) {
+        setIsIdle(true);
       }
     }, 50),
     []
@@ -1031,10 +987,9 @@ const ChannelInner = ({ channel }: Props) => {
 
   useEffect(() => {
     return () => {
-      debouncedRangeChanged.cancel();
-      debouncedLoadMoreItems.cancel();
+      debouncedMakeIdle.cancel();
     };
-  }, [debouncedRangeChanged, debouncedLoadMoreItems]);
+  }, [debouncedMakeIdle]);
 
   useEffect(() => {
     if (isPolling) {
@@ -1062,6 +1017,7 @@ const ChannelInner = ({ channel }: Props) => {
     refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
     hasQueryLoadedInitialData.current = false;
     wasRefetching.current = false;
+    setIsIdle(false);
     setQueryInitializing(true);
     setIsScrollToMessageDone(false);
     setIsMessageHighlightConsumed(false);
@@ -1088,32 +1044,25 @@ const ChannelInner = ({ channel }: Props) => {
   useEffect(() => {
     if (!queryInitializing) return;
 
-    const run = async () => {
-      if (foundMessageIndex >= 0) {
-        virtuosoRef.current?.scrollToIndex({
-          index: foundMessageIndex,
-          align: "center",
-          behavior: "smooth",
-        });
-      } else {
-        setShouldRenderLoaders(false);
-        qc.removeQueries({
-          queryKey: getQueryKey(
-            trpc.messages.get,
-            messagesQueryKey,
-            "infinite"
-          ),
-          exact: true,
-        });
-        setMessagesQueryKey((prev) => ({
-          ...prev,
-          around: urlMessageId || undefined,
-        }));
-      }
+    if (foundMessageIndex >= 0) {
+      virtuosoRef.current?.scrollToIndex({
+        index: foundMessageIndex,
+        align: "center",
+        behavior: "smooth",
+      });
+    } else {
+      qc.removeQueries({
+        queryKey: getQueryKey(trpc.messages.get, messagesQueryKey, "infinite"),
+        exact: true,
+      });
+      setMessagesQueryKey((prev) => ({
+        ...prev,
+        around: urlMessageId || undefined,
+      }));
+    }
 
-      setQueryInitializing(false);
-    };
-    run();
+    setQueryInitializing(false);
+
     // eslint-disable-next-line
   }, [queryInitializing]);
 
@@ -1136,6 +1085,198 @@ const ChannelInner = ({ channel }: Props) => {
     setIsScrollToMessageDone(true);
     // eslint-disable-next-line
   }, [isScrollToMessageDone, messages.data?.items, queryInitializing]);
+
+  const virtuosoContext = {
+    messages,
+    scrollerElRef,
+    retryInvalidate,
+    tryLoadOlder,
+    tryLoadNewer,
+    isIdle,
+  };
+
+  const MessagesHeader = useMemo(
+    () =>
+      ({ context }: { context: typeof virtuosoContext }) => {
+        const { messages, tryLoadOlder, scrollerElRef, isIdle } = context;
+
+        // eslint-disable-next-line
+        const [isLoaderVisible, setIsLoaderVisible] = useState(false);
+
+        // eslint-disable-next-line
+        useEffect(() => {
+          let timeout: null | ReturnType<typeof setTimeout> = null;
+          if (
+            isLoaderVisible &&
+            isIdle &&
+            messages.hasPreviousPage &&
+            !messages.isFetching &&
+            !messages.isError
+          ) {
+            timeout = setTimeout(() => {
+              tryLoadOlder();
+            }, 50);
+          }
+          return () => {
+            if (timeout) {
+              clearTimeout(timeout);
+            }
+          };
+          // eslint-disable-next-line
+        }, [
+          isLoaderVisible,
+          isIdle,
+          messages.isFetching,
+          messages.isError,
+          messages.hasPreviousPage,
+        ]);
+
+        if (messages.isFetchPreviousPageError) {
+          return (
+            <VerticalStack>
+              <Typography>Failed to load older messages</Typography>
+              <Button
+                variant="contained"
+                color="inherit"
+                startIcon={<ReplayIcon />}
+                onClick={() => tryLoadOlder(true)}
+                size="large"
+                className="w-fit"
+              >
+                Retry
+              </Button>
+            </VerticalStack>
+          );
+        }
+        if (messages.hasPreviousPage) {
+          return (
+            <MessagesSkeleton
+              scrollerEl={scrollerElRef.current}
+              onIntersectionChange={(isVisible) => {
+                console.log("header", isVisible);
+
+                setIsLoaderVisible(isVisible);
+              }}
+            />
+          );
+        }
+        return null;
+      },
+    []
+  );
+  const MessagesFooter = useMemo(
+    () =>
+      ({ context }: { context: typeof virtuosoContext }) => {
+        const {
+          messages,
+          scrollerElRef,
+          retryInvalidate,
+          tryLoadNewer,
+          isIdle,
+        } = context;
+
+        // eslint-disable-next-line
+        const [isLoaderVisible, setIsLoaderVisible] = useState(false);
+
+        // eslint-disable-next-line
+        useEffect(() => {
+          let timeout: null | ReturnType<typeof setTimeout> = null;
+          console.log({
+            isLoaderVisible,
+            isIdle,
+            hasNextPage: messages.hasNextPage,
+            isFetching: messages.isFetching,
+            isError: messages.isError,
+          });
+
+          if (
+            isLoaderVisible &&
+            isIdle &&
+            messages.hasNextPage &&
+            !messages.isFetching &&
+            !messages.isError
+          ) {
+            timeout = setTimeout(() => {
+              tryLoadNewer();
+            }, 50);
+          }
+          return () => {
+            if (timeout) {
+              clearTimeout(timeout);
+            }
+          };
+          // eslint-disable-next-line
+        }, [
+          isLoaderVisible,
+          isIdle,
+          messages.isFetching,
+          messages.isError,
+          messages.hasNextPage,
+        ]);
+
+        if (messages.isFetchNextPageError) {
+          return (
+            <VerticalStack>
+              <Typography>Failed to load newer messages</Typography>
+              <Button
+                variant="contained"
+                color="inherit"
+                startIcon={<ReplayIcon />}
+                onClick={() => tryLoadNewer(true)}
+                size="large"
+                className="w-fit"
+              >
+                Retry
+              </Button>
+            </VerticalStack>
+          );
+        }
+        if (
+          !messages.isFetchNextPageError &&
+          !messages.isFetchPreviousPageError &&
+          messages.isError
+        ) {
+          return (
+            <VerticalStack>
+              <Typography>Failed to load messages</Typography>
+              <Button
+                variant="contained"
+                color="inherit"
+                startIcon={<ReplayIcon />}
+                onClick={retryInvalidate}
+                size="large"
+                className="w-fit"
+              >
+                Retry
+              </Button>
+            </VerticalStack>
+          );
+        }
+        if (messages.hasNextPage) {
+          return (
+            <MessagesSkeleton
+              scrollerEl={scrollerElRef.current}
+              onIntersectionChange={(isVisible) => {
+                console.log("has", isVisible);
+
+                setIsLoaderVisible(isVisible);
+              }}
+            />
+          );
+        }
+
+        return null;
+      },
+    []
+  );
+
+  const MessagesComponents = useMemo(
+    () => ({
+      Header: MessagesHeader,
+      Footer: MessagesFooter,
+    }),
+    []
+  );
 
   return (
     <Paper
@@ -1191,13 +1332,13 @@ const ChannelInner = ({ channel }: Props) => {
                     }
                   : undefined
               }
-              defaultItemHeight={SKELETON_CONFIG.AVG_ROW_HEIGHT_PX}
               rangeChanged={(range) => {
                 visibleRangeRef.current = {
                   visibleStartIndex: range.startIndex,
                   visibleEndIndex: range.endIndex,
                 };
-                debouncedRangeChanged(range);
+                setIsIdle(false);
+                debouncedMakeIdle();
               }}
               scrollerRef={(el) => {
                 if (el instanceof HTMLElement) {
@@ -1217,106 +1358,14 @@ const ChannelInner = ({ channel }: Props) => {
                         : urlMessageId === String(comment.id)
                     }
                     onHighlightConsumed={() => {
-                      if (shouldRenderLoaders) {
-                        setIsMessageHighlightConsumed(true);
-                      }
+                      setIsMessageHighlightConsumed(true);
                     }}
                     isPolling={isPolling}
                   />
                 );
               }}
-              components={
-                shouldRenderLoaders
-                  ? {
-                      Header: () => {
-                        if (messages.isFetchPreviousPageError) {
-                          return (
-                            <VerticalStack>
-                              <Typography>
-                                Failed to load older messages
-                              </Typography>
-                              <Button
-                                variant="contained"
-                                color="inherit"
-                                startIcon={<ReplayIcon />}
-                                onClick={() => tryLoadOlder(true)}
-                                size="large"
-                                className="w-fit"
-                              >
-                                Retry
-                              </Button>
-                            </VerticalStack>
-                          );
-                        }
-                        if (messages.hasPreviousPage) {
-                          return (
-                            <MessagesSkeleton
-                              scrollerEl={scrollerElRef.current}
-                              onEnter={() => {
-                                debouncedLoadMoreItems();
-                              }}
-                            />
-                          );
-                        }
-                        return null;
-                      },
-                      Footer: () => {
-                        if (messages.isFetchNextPageError) {
-                          return (
-                            <VerticalStack>
-                              <Typography>
-                                Failed to load newer messages
-                              </Typography>
-                              <Button
-                                variant="contained"
-                                color="inherit"
-                                startIcon={<ReplayIcon />}
-                                onClick={() => tryLoadNewer(true)}
-                                size="large"
-                                className="w-fit"
-                              >
-                                Retry
-                              </Button>
-                            </VerticalStack>
-                          );
-                        }
-                        if (
-                          !messages.isFetchNextPageError &&
-                          !messages.isFetchPreviousPageError &&
-                          messages.isError
-                        ) {
-                          return (
-                            <VerticalStack>
-                              <Typography>Failed to load messages</Typography>
-                              <Button
-                                variant="contained"
-                                color="inherit"
-                                startIcon={<ReplayIcon />}
-                                onClick={retryInvalidate}
-                                size="large"
-                                className="w-fit"
-                              >
-                                Retry
-                              </Button>
-                            </VerticalStack>
-                          );
-                        }
-                        if (messages.hasNextPage) {
-                          return (
-                            <MessagesSkeleton
-                              scrollerEl={scrollerElRef.current}
-                              onEnter={() => {
-                                debouncedLoadMoreItems(true);
-                              }}
-                            />
-                          );
-                        }
-
-                        return null;
-                      },
-                    }
-                  : {}
-              }
+              context={virtuosoContext}
+              components={MessagesComponents}
             />
           ) : messages.isFetching ? (
             <MessagesSkeleton fullHeight />
