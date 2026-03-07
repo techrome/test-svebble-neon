@@ -9,7 +9,7 @@ import clsx from "clsx";
 type CommentProps = {
   comment: RouterOutput["messages"]["get"]["items"][number];
   shouldHighlight?: boolean;
-  onHighlightConsumed?: (v: true) => void;
+  onHighlightConsumed?: () => void;
   isPolling: boolean;
 };
 
@@ -46,7 +46,7 @@ export const Comment = ({
       setIsHighlighted(false);
       requestAnimationFrame(() => {
         setIsHighlighted(true);
-        onHighlightConsumed?.(true);
+        onHighlightConsumed?.();
       });
     }
     // eslint-disable-next-line
@@ -88,6 +88,9 @@ export const Comment = ({
         </>
       ) : (
         <>
+          <h6 className="word-break-word text-red-500">
+            {comment.deleted_at ? "(Deleted)" : ""}
+          </h6>
           <h6 className="word-break-word">{comment.id}</h6>
           <h5 className="word-break-word">{comment.content}</h5>
 

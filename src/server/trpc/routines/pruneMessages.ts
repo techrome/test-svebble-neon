@@ -7,34 +7,43 @@ import { before, nowMinus } from "../../db/helpers/time";
 
 type PruneResult = {
   prunedMessagesCount: number;
+  pruneCountsMatch: boolean;
   hasMoreData: boolean;
 };
 
 export const pruneMessages = async (
-  props: {
-    howOldMs?: number;
-  } & (
+  props:
     | {
         criteria: "deleted";
+        howOldMs?: number;
       }
     | {
         criteria: "by channel id";
         channelId: bigint;
       }
-  )
+    | {
+        criteria: "by user id";
+        userId: string;
+      }
 ): Promise<PruneResult> => {
-  const howOldMs = props.howOldMs || 0;
+  const isByDeleted = props.criteria === "deleted";
   const isByChannelId = props.criteria === "by channel id";
+  const isByUserId = props.criteria === "by user id";
   console.log(
-    `[pruneMessages] Started. Pruning ${isByChannelId ? `"${props.criteria} ${props.channelId}"` : props.criteria} messages older than ${humanizeDuration(howOldMs)}`
+    `[pruneMessages] Started. Pruning ${isByChannelId ? `"${props.criteria} ${props.channelId}"` : isByUserId ? `"${props.criteria} ${props.userId}"` : props.criteria} messages ${isByDeleted ? `older than ${humanizeDuration(props.howOldMs || 0)}` : ""}`
   );
 
   const limit = 10000;
 
   const filter = and(
-    isNotNull(messages.deleted_at),
-    before(messages.deleted_at, nowMinus(howOldMs)),
-    isByChannelId ? eq(messages.channel_id, props.channelId) : undefined
+    isByDeleted
+      ? and(
+          before(messages.deleted_at, nowMinus(props.howOldMs || 0)),
+          isNotNull(messages.deleted_at)
+        )
+      : undefined,
+    isByChannelId ? eq(messages.channel_id, props.channelId) : undefined,
+    isByUserId ? eq(messages.user_id, props.userId) : undefined
   );
 
   const { prunedMessageIds, hasMoreData } = await db.transaction(async (tx) => {
@@ -45,11 +54,11 @@ export const pruneMessages = async (
         .where(filter)
         .orderBy(asc(messages.deleted_at), asc(messages.id));
 
-    const messageIdsToDelete = buildBaseQuery().limit(limit);
+    const messagesToPrune = buildBaseQuery().limit(limit);
 
     const prunedMessageIds = await tx
       .delete(messages)
-      .where(inArray(messages.id, messageIdsToDelete))
+      .where(inArray(messages.id, messagesToPrune))
       .returning({ id: messages.id });
 
     const hasMoreData =
@@ -65,6 +74,7 @@ export const pruneMessages = async (
 
   return {
     hasMoreData,
+    pruneCountsMatch: true,
     prunedMessagesCount: prunedMessageIds.length,
   };
 };

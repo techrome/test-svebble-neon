@@ -24,14 +24,11 @@ export const channelsRouter = router({
         items: z.array(z.custom<Channel>()),
       })
     )
-    .query(async ({ ctx }) => {
-      const rate = 0;
-
-      if (Math.random() < rate) throw new Error("idk");
+    .query(async () => {
       const rows = await db
         .select()
         .from(schema.channels)
-        //.where(isNull(schema.channels.deleted_at))
+        .where(isNull(schema.channels.deleted_at))
         .orderBy(desc(schema.channels.id));
 
       return { items: rows.reverse() };
