@@ -259,15 +259,16 @@ const ChannelInner = ({ channel }: Props) => {
     resolver: zodResolver(searchSchemaForm),
   });
 
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const scrollerElRef = useRef<HTMLElement | null>(null);
   const visibleRangeRef = useRef<{
     visibleStartIndex: number;
     visibleEndIndex: number;
   } | null>(null);
-  const virtuosoRef = useRef<VirtuosoHandle>(null);
 
   const [isIdle, setIsIdle] = useState(false);
-  const [isScrollToMessageDone, setIsScrollToMessageDone] =
+  const [isInitialScrollHandled, setIsInitialScrollHandled] =
     useState<boolean>(true);
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
     useState<boolean>(false);
@@ -376,10 +377,17 @@ const ChannelInner = ({ channel }: Props) => {
 
   const foundMessageIndex = useMemo(
     () =>
-      urlMessageId && messages.data?.items && !isMessageHighlightConsumed
+      urlMessageId &&
+      messages.data?.items &&
+      (!isMessageHighlightConsumed || !isInitialScrollHandled)
         ? messages.data.items.findIndex((m) => m.id === BigInt(urlMessageId))
         : -1,
-    [messages.data?.items, urlMessageId, isMessageHighlightConsumed]
+    [
+      messages.data?.items,
+      urlMessageId,
+      isMessageHighlightConsumed,
+      isInitialScrollHandled,
+    ]
   );
 
   const initialTopMostItemIndex = useMemo(() => {
@@ -708,6 +716,7 @@ const ChannelInner = ({ channel }: Props) => {
 
   const hasQueryLoadedInitialData = useRef(false);
   const wasRefetching = useRef(false);
+  const userInteractedRef = useRef(false);
 
   useEffect(() => {
     const data = messages.data;
@@ -1012,13 +1021,39 @@ const ChannelInner = ({ channel }: Props) => {
     // eslint-disable-next-line
   }, [totalItems]);
 
+  useEffect(() => {
+    const el = wrapperRef.current;
+    if (!el) return;
+
+    const markInteracted = () => {
+      userInteractedRef.current = true;
+    };
+
+    el.addEventListener("wheel", markInteracted, { passive: true });
+    el.addEventListener("touchstart", markInteracted, { passive: true });
+    el.addEventListener("pointerdown", markInteracted, { passive: true });
+    el.addEventListener("mousemove", markInteracted, { passive: true });
+    el.addEventListener("touchmove", markInteracted, { passive: true });
+    el.addEventListener("keydown", markInteracted);
+
+    return () => {
+      el.removeEventListener("wheel", markInteracted);
+      el.removeEventListener("touchstart", markInteracted);
+      el.removeEventListener("pointerdown", markInteracted);
+      el.removeEventListener("mousemove", markInteracted);
+      el.removeEventListener("touchmove", markInteracted);
+      el.removeEventListener("keydown", markInteracted);
+    };
+  }, []);
+
   const resetMessagesList = () => {
     refetchIntervalVars.current.wasFetching = false;
     refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
     hasQueryLoadedInitialData.current = false;
     wasRefetching.current = false;
+    userInteractedRef.current = false;
     setQueryInitializing(true);
-    setIsScrollToMessageDone(false);
+    setIsInitialScrollHandled(false);
     setIsMessageHighlightConsumed(false);
   };
 
@@ -1062,29 +1097,48 @@ const ChannelInner = ({ channel }: Props) => {
   useEffect(() => {
     if (
       queryInitializing !== false ||
-      isScrollToMessageDone ||
-      !urlMessageId ||
+      isInitialScrollHandled ||
       !messages.data?.items.length ||
       !isIdle
     ) {
       return;
     }
+    if (urlMessageId) {
+      if (foundMessageIndex < 0) {
+        addAppSnackbar({
+          message: `Message with ID ${urlMessageId} not found.`,
+          variant: "error",
+        });
+      } else {
+        virtuosoRef.current?.scrollToIndex({
+          index: foundMessageIndex,
+          align: "center",
+          behavior: "smooth",
+        });
+      }
+      setIsInitialScrollHandled(true);
+    } else if (!userInteractedRef.current) {
+      if (!messages.hasNextPage) {
+        virtuosoRef.current?.scrollToIndex({
+          index: initialTopMostItemIndex,
+          align: "end",
+          behavior: "auto",
+        });
 
-    if (foundMessageIndex < 0) {
-      addAppSnackbar({
-        message: `Message with ID ${urlMessageId} not found.`,
-        variant: "error",
-      });
+        setIsInitialScrollHandled(true);
+      }
     } else {
-      virtuosoRef.current?.scrollToIndex({
-        index: foundMessageIndex,
-        align: "center",
-        behavior: "smooth",
-      });
+      setIsInitialScrollHandled(true);
     }
-    setIsScrollToMessageDone(true);
+
     // eslint-disable-next-line
-  }, [isScrollToMessageDone, messages.data?.items, queryInitializing, isIdle]);
+  }, [
+    isInitialScrollHandled,
+    messages.hasNextPage,
+    messages.data?.items,
+    queryInitializing,
+    isIdle,
+  ]);
 
   const virtuosoContext = {
     messages,
@@ -1280,6 +1334,7 @@ const ChannelInner = ({ channel }: Props) => {
       className={clsx(
         `min-h-0 flex-1 flex flex-col rounded-none ring ring-[var(--mui-palette-divider)]`
       )}
+      ref={wrapperRef}
     >
       <HorizontalStack addClassName="justify-between items-center">
         <Typography>Some text</Typography>
@@ -1350,7 +1405,7 @@ const ChannelInner = ({ channel }: Props) => {
                     comment={comment}
                     shouldHighlight={
                       !isMessageHighlightConsumed &&
-                      isScrollToMessageDone &&
+                      isInitialScrollHandled &&
                       urlMessageId === String(comment.id)
                     }
                     onHighlightConsumed={() => {
