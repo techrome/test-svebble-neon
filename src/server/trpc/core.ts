@@ -1,10 +1,10 @@
 import { initTRPC } from "@trpc/server";
 import superJSON from "superjson";
 import z, { ZodError } from "zod";
+import { APIError } from "better-auth";
 
 import { isDev } from "@@/scripts/helpers/isDev";
 import { type TRPCContext } from "./context";
-import { APIError } from "better-auth";
 
 export const trpc = initTRPC.context<TRPCContext>().create({
   isDev,

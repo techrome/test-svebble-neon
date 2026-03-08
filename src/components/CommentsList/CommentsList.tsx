@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 
 import { trpc, type RouterOutput } from "@/trpc";
@@ -19,7 +19,7 @@ export const Comment = ({
   onHighlightConsumed,
   isPolling,
 }: CommentProps) => {
-  const [isHighlighted, setIsHighlighted] = useState(shouldHighlight);
+  const ref = useRef<HTMLDivElement | null>(null);
   const [isEdit, setIsEdit] = useState(false);
   const [editInfo, setEditInfo] = useState(comment);
 
@@ -40,26 +40,21 @@ export const Comment = ({
       }
     },
   });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (shouldHighlight && el) {
+      el.classList.remove("hash-flash");
+      void el.offsetWidth;
+      el.classList.add("hash-flash");
 
-  useEffect(() => {
-    if (shouldHighlight) {
-      setIsHighlighted(false);
-      requestAnimationFrame(() => {
-        setIsHighlighted(true);
-        onHighlightConsumed?.();
-      });
+      onHighlightConsumed?.();
     }
+
     // eslint-disable-next-line
   }, [shouldHighlight]);
 
   return (
-    <div
-      key={comment.id}
-      className={clsx(
-        "p-2 flex flex-wrap gap-3",
-        isHighlighted && "hash-flash"
-      )}
-    >
+    <div ref={ref} className={clsx("p-2 flex flex-wrap gap-3")}>
       {isEdit ? (
         <>
           <input

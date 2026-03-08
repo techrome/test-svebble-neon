@@ -377,7 +377,7 @@ const ChannelInner = ({ channel }: Props) => {
   const foundMessageIndex = useMemo(
     () =>
       urlMessageId && messages.data?.items && !isMessageHighlightConsumed
-        ? messages.data?.items.findIndex((m) => m.id === BigInt(urlMessageId))
+        ? messages.data.items.findIndex((m) => m.id === BigInt(urlMessageId))
         : -1,
     [messages.data?.items, urlMessageId, isMessageHighlightConsumed]
   );
@@ -1017,7 +1017,6 @@ const ChannelInner = ({ channel }: Props) => {
     refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
     hasQueryLoadedInitialData.current = false;
     wasRefetching.current = false;
-    setIsIdle(false);
     setQueryInitializing(true);
     setIsScrollToMessageDone(false);
     setIsMessageHighlightConsumed(false);
@@ -1044,13 +1043,7 @@ const ChannelInner = ({ channel }: Props) => {
   useEffect(() => {
     if (!queryInitializing) return;
 
-    if (foundMessageIndex >= 0) {
-      virtuosoRef.current?.scrollToIndex({
-        index: foundMessageIndex,
-        align: "center",
-        behavior: "smooth",
-      });
-    } else {
+    if (foundMessageIndex < 0) {
       qc.removeQueries({
         queryKey: getQueryKey(trpc.messages.get, messagesQueryKey, "infinite"),
         exact: true,
@@ -1071,7 +1064,8 @@ const ChannelInner = ({ channel }: Props) => {
       queryInitializing !== false ||
       isScrollToMessageDone ||
       !urlMessageId ||
-      !messages.data?.items.length
+      !messages.data?.items.length ||
+      !isIdle
     ) {
       return;
     }
@@ -1081,10 +1075,16 @@ const ChannelInner = ({ channel }: Props) => {
         message: `Message with ID ${urlMessageId} not found.`,
         variant: "error",
       });
+    } else {
+      virtuosoRef.current?.scrollToIndex({
+        index: foundMessageIndex,
+        align: "center",
+        behavior: "smooth",
+      });
     }
     setIsScrollToMessageDone(true);
     // eslint-disable-next-line
-  }, [isScrollToMessageDone, messages.data?.items, queryInitializing]);
+  }, [isScrollToMessageDone, messages.data?.items, queryInitializing, isIdle]);
 
   const virtuosoContext = {
     messages,
@@ -1349,9 +1349,9 @@ const ChannelInner = ({ channel }: Props) => {
                   <Comment
                     comment={comment}
                     shouldHighlight={
-                      isMessageHighlightConsumed
-                        ? false
-                        : urlMessageId === String(comment.id)
+                      !isMessageHighlightConsumed &&
+                      isScrollToMessageDone &&
+                      urlMessageId === String(comment.id)
                     }
                     onHighlightConsumed={() => {
                       setIsMessageHighlightConsumed(true);
