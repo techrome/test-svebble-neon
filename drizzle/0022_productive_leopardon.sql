@@ -1,0 +1,1 @@
+ALTER TABLE "audit_log" ALTER COLUMN "ip_address" SET DATA TYPE varchar(4096);

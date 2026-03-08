@@ -18,7 +18,7 @@ export const audit_log = pgTable(
   withDefaultColumns({
     action: text("action", { enum: AUDIT_LOG_ACTION_ENUM }).notNull(),
     actor_user_id: uuid(), // nullable
-    ip_address: varchar({ length: 64 }),
+    ip_address: varchar({ length: 4096 }),
     user_agent: varchar({ length: 512 }),
     session_id: varchar({ length: 128 }),
     metadata: jsonb().$type<Record<string, unknown>>().notNull().default({}),
