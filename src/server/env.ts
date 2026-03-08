@@ -47,10 +47,10 @@ type EnvVar =
   | "EMAIL_SMTP_USER"
   | "EMAIL_SMTP_PASS"
   | "EMAIL_FROM"
-  | "WEBSOCKETS_API_KEY";
+  | "WEBSOCKETS_API_KEY"
+  | "ENCRYPTION_PUBLIC_KEY";
 
 type EnvRecord = Record<EnvVar, z.ZodType>;
-type ClientEnvRecord = Omit<Record<ClientEnvVar, z.ZodType>, "NODE_ENV">;
 
 export const env = createEnv({
   server: {
@@ -94,6 +94,7 @@ export const env = createEnv({
     EMAIL_SMTP_USER: required(),
     EMAIL_SMTP_PASS: required(),
     EMAIL_FROM: required(),
+    ENCRYPTION_PUBLIC_KEY: required(),
   } satisfies EnvRecord,
   experimental__runtimeEnv: {},
   emptyStringAsUndefined: true,

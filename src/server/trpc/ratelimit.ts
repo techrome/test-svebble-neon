@@ -30,8 +30,8 @@ export const hashString = (key: string) => {
     .digest("base64url");
 };
 
-const getHashedIp = (req: NextApiRequest | undefined) => {
-  const ip = req?.headers ? getIp(req.headers) : null;
+const getHashedIp = async (req: NextApiRequest | undefined) => {
+  const ip = req?.headers ? await getIp(req.headers, true) : null;
   return hashString(ip || "unknown");
 };
 
@@ -42,7 +42,8 @@ const makeRatelimitMiddleware = <S extends WindowSpec>(
   const limiter = makeRatelimit(spec, prefix);
 
   const middleware = trpc.middleware(async ({ ctx, next }) => {
-    const requestId = `ip:${getHashedIp(ctx.req)}`;
+    const hashedIp = await getHashedIp(ctx.req);
+    const requestId = `ip:${hashedIp}`;
 
     let rateLimitResponse: Awaited<ReturnType<typeof limiter.limit>> | null =
       null;

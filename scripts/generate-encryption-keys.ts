@@ -1,23 +1,27 @@
-import { generateKeyPairSync } from "node:crypto";
 import fs from "node:fs";
+import sodium from "libsodium-wrappers";
 
-const passphrase = "very-strong-password";
+async function main() {
+  await sodium.ready;
 
-const { publicKey, privateKey } = generateKeyPairSync("rsa", {
-  modulusLength: 4096,
-  publicKeyEncoding: {
-    type: "spki",
-    format: "pem",
-  },
-  privateKeyEncoding: {
-    type: "pkcs8",
-    format: "pem",
-    cipher: "aes-256-cbc",
-    passphrase,
-  },
+  const { publicKey, privateKey } = sodium.crypto_box_keypair();
+
+  fs.writeFileSync(
+    "rsa-keys_example/public.key",
+    Buffer.from(publicKey).toString("base64url"),
+    "utf8"
+  );
+
+  fs.writeFileSync(
+    "rsa-keys_example/private.key",
+    Buffer.from(privateKey).toString("base64url"),
+    "utf8"
+  );
+
+  console.log("Created public.key and private.key");
+}
+
+main().catch((err) => {
+  console.error("Failed to generate keys", err);
+  process.exit(1);
 });
-
-fs.writeFileSync("rsa-keys/public.pem", publicKey, { encoding: "utf8" });
-fs.writeFileSync("rsa-keys/private.pem", privateKey, { encoding: "utf8" });
-
-console.log(`RSA keys generated with passphrase ${passphrase}`);

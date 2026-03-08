@@ -1,5 +1,6 @@
 import { IncomingHttpHeaders } from "node:http";
 import { isIP } from "node:net";
+import { encryptForDb } from "./encrypt";
 
 type HeadersLike = Headers | IncomingHttpHeaders;
 
@@ -24,10 +25,13 @@ const extractFirstIp = (header: string | string[] | undefined | null) =>
       ? header[0].trim()
       : "";
 
-export const getIp = (headers: HeadersLike): string | null => {
+export const getIp = async (
+  headers: HeadersLike,
+  isPlainText?: boolean
+): Promise<string | null> => {
   for (const ipHeader of ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"]) {
     const ip = extractFirstIp(getHeaderValue(headers, ipHeader));
-    if (isIP(ip)) return ip;
+    if (isIP(ip)) return isPlainText ? ip : await encryptForDb(ip);
   }
 
   return null;
@@ -38,8 +42,8 @@ export const getUserAgent = (headers: HeadersLike): string | null => {
   return userAgent ? userAgent.slice(0, 512) : null;
 };
 
-export const getIpAndUserAgent = (headers: HeadersLike) => {
-  const ip = getIp(headers);
+export const getIpAndUserAgent = async (headers: HeadersLike) => {
+  const ip = await getIp(headers);
   const userAgent = getUserAgent(headers);
   return { ip, userAgent };
 };

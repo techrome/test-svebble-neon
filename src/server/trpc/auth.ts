@@ -363,7 +363,7 @@ export const auth = betterAuth({
             });
           }
           const clientInfo = context?.headers
-            ? getIpAndUserAgent(context?.headers)
+            ? await getIpAndUserAgent(context?.headers)
             : null;
           await db.insert(auditLogSchema.audit_log).values({
             action: "signup",
@@ -401,14 +401,13 @@ export const auth = betterAuth({
         // may not be needed but just in case
         async before(session, context) {
           const clientInfo = context?.headers
-            ? getIpAndUserAgent(context?.headers)
+            ? await getIpAndUserAgent(context?.headers)
             : null;
           return {
             data: {
               ...session,
-              ipAddress: session.ipAddress || clientInfo?.ip || undefined,
-              userAgent:
-                session.userAgent || clientInfo?.userAgent || undefined,
+              ipAddress: clientInfo?.ip || undefined,
+              userAgent: clientInfo?.userAgent || undefined,
             },
           };
         },
@@ -425,7 +424,7 @@ export const auth = betterAuth({
       delete: {
         async after(session, context) {
           const clientInfo = context?.headers
-            ? getIpAndUserAgent(context?.headers)
+            ? await getIpAndUserAgent(context?.headers)
             : null;
           await db.insert(auditLogSchema.audit_log).values({
             action: "logout",
