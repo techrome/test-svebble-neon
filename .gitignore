@@ -46,3 +46,8 @@ next-env.d.ts
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# RSA keys
+/rsa-keys
+!/rsa-keys_example
+!/rsa-keys_example/**

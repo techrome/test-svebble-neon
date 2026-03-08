@@ -26,6 +26,7 @@
     "patch-tanstack-query-core": "patch-package @tanstack/query-core",
     "postinstall": "patch-package",
     "test-cron": "npm run call-script:dev -- scripts/trigger-cron.ts",
+    "generate-encryption-keys": "npm run call-script:dev -- scripts/generate-encryption-keys.ts",
     "email-preview": "email dev --dir src/server/email/templates --port 3001",
     "test": "playwright test"
   },
