@@ -30,7 +30,10 @@ export const getIp = async (
   isPlainText?: boolean
 ): Promise<string | null> => {
   for (const ipHeader of ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"]) {
-    const ip = extractFirstIp(getHeaderValue(headers, ipHeader));
+    let ip = extractFirstIp(getHeaderValue(headers, ipHeader));
+    if (ip.startsWith("::ffff:")) {
+      ip = ip.slice(7);
+    }
     if (isIP(ip)) return isPlainText ? ip : await encryptForDb(ip);
   }
 
