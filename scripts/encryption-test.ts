@@ -35,7 +35,10 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("Failed to encrypt", err);
-  process.exit(1);
-});
+main()
+  .catch((err) => {
+    console.error("Failed to encrypt", err);
+  })
+  .finally(() => {
+    process.exit(1);
+  });

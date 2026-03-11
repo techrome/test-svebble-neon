@@ -61,6 +61,7 @@ import { useWebsockets } from "@/trpc/hooks/useWebsockets";
 import {
   getChannelId,
   subscribeWs,
+  type WebsocketPayload,
   type WebsocketItem,
 } from "@/trpc/helpers/websockets";
 import { getQueryKey } from "@trpc/react-query";
@@ -266,6 +267,9 @@ const ChannelInner = ({ channel }: Props) => {
     visibleStartIndex: number;
     visibleEndIndex: number;
   } | null>(null);
+  const hasQueryLoadedInitialData = useRef(false);
+  const wasRefetching = useRef(false);
+  const userInteractedRef = useRef(false);
 
   const [isIdle, setIsIdle] = useState(false);
   const [isInitialScrollHandled, setIsInitialScrollHandled] =
@@ -276,7 +280,9 @@ const ChannelInner = ({ channel }: Props) => {
   const [queryInitializing, setQueryInitializing] = useState<boolean | null>(
     null
   ); // null for initial render before router is ready
-  const [isPolling, setIsPolling] = useState(false);
+  const [isPolling, setIsPolling] = useState(true);
+  const [isWsSyncing, setIsWsSyncing] = useState(false);
+  const [wsSyncFailedCount, setWsSyncFailedCount] = useState<number>(0);
   const [messagesQueryKey, setMessagesQueryKey] = useState<
     RouterInput["messages"]["get"]
   >({ limit: PER_PAGE, channelId: channelIdString });
@@ -308,7 +314,7 @@ const ChannelInner = ({ channel }: Props) => {
       ...messageQuerySelectors,
       refetchInterval(query) {
         const vars = refetchIntervalVars.current;
-        if (query.state.error || !isPolling) {
+        if (query.state.error || !isPolling || isWsSyncing) {
           vars.wasFetching = false;
           vars.currentIntervalMs = baseIntervalMs;
           return false;
@@ -424,7 +430,9 @@ const ChannelInner = ({ channel }: Props) => {
     messages,
     isPolling,
     setIsPolling,
+    isWsSyncing,
     handleNewMessagesVersion,
+    utils,
   });
 
   websocketsDependencies.current = {
@@ -435,232 +443,383 @@ const ChannelInner = ({ channel }: Props) => {
     messages,
     isPolling,
     setIsPolling,
+    isWsSyncing,
     handleNewMessagesVersion,
+    utils,
   };
 
   const websocketsClient = useWebsockets({ channelId: channelIdString });
 
   const websocketsMessageQueue = useRef<WebsocketItem[]>([]);
 
+  const wsMessageCreateHandler = useCallback(
+    (data: WebsocketPayload<"messages:create">) => {
+      const {
+        messagesQueryKey,
+        isPolling,
+        isWsSyncing,
+        messages,
+        handleNewMessagesVersion,
+        utils,
+      } = websocketsDependencies.current;
+      const message = data.message;
+      const newMessagesVersion = BigInt(data.messagesVersion);
+      if (isPolling) return;
+      if (isWsSyncing) {
+        websocketsMessageQueue.current.push({
+          eventName: "messages:create",
+          data,
+        });
+        return;
+      }
+      if (!handleNewMessagesVersion(newMessagesVersion)) {
+        return;
+      }
+
+      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+        if (!queryData || !queryData.pages.length || messages.hasNextPage) {
+          return queryData;
+        }
+        let updatedPages = [...queryData.pages];
+        const newMessage: Message = {
+          ...message,
+          created_at: new Date(message.created_at),
+          updated_at: new Date(message.updated_at),
+          id: BigInt(message.id),
+          channel_id: BigInt(message.channel_id),
+        };
+
+        updatedPages[updatedPages.length - 1] = {
+          ...updatedPages[updatedPages.length - 1],
+          items: [...updatedPages[updatedPages.length - 1].items, newMessage],
+          messages_version: newMessagesVersion,
+        };
+
+        const shouldCreateNewPage =
+          updatedPages[updatedPages.length - 1].items.length >= PER_PAGE;
+
+        if (shouldCreateNewPage) {
+          updatedPages.push({
+            items: [],
+            returnedDirection: "forward",
+            messages_version: newMessagesVersion,
+          });
+          let updatedPageParams = [...queryData.pageParams];
+          updatedPageParams.push({
+            id: newMessage.id,
+            direction: "forward",
+          });
+
+          return {
+            ...queryData,
+            pages: updatedPages,
+            pageParams: updatedPageParams,
+          };
+        }
+
+        return { ...queryData, pages: updatedPages };
+      });
+    },
+    []
+  );
+
+  const wsMessageUpdateHandler = useCallback(
+    (data: WebsocketPayload<"messages:update">) => {
+      const message = data.message;
+      const itemToUpdateId = BigInt(message.id);
+      const {
+        lowestLoadedId,
+        highestLoadedId,
+        messagesQueryKey,
+        isWsSyncing,
+        isPolling,
+        handleNewMessagesVersion,
+        utils,
+      } = websocketsDependencies.current;
+      const newMessagesVersion = BigInt(data.messagesVersion);
+      if (isPolling) return;
+      if (isWsSyncing) {
+        websocketsMessageQueue.current.push({
+          eventName: "messages:update",
+          data,
+        });
+        return;
+      }
+      if (!handleNewMessagesVersion(newMessagesVersion)) {
+        return;
+      }
+
+      if (
+        !lowestLoadedId ||
+        !highestLoadedId ||
+        itemToUpdateId < lowestLoadedId ||
+        itemToUpdateId > highestLoadedId
+      ) {
+        return;
+      }
+      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+        if (!queryData || !queryData.pages.length) return queryData;
+
+        let updatedPages = [...queryData.pages];
+        for (let i = 0; i < updatedPages.length; i++) {
+          const page = updatedPages[i];
+          const foundItemIndex = page.items.findIndex(
+            (m) => m.id === itemToUpdateId
+          );
+          if (foundItemIndex >= 0) {
+            let updatedItems = [...page.items];
+            updatedItems[foundItemIndex] = {
+              ...message,
+              created_at: new Date(message.created_at),
+              updated_at: new Date(message.updated_at),
+              id: itemToUpdateId,
+              channel_id: BigInt(message.channel_id),
+            };
+
+            updatedPages[i] = {
+              ...updatedPages[i],
+              items: updatedItems,
+              messages_version: newMessagesVersion,
+            };
+            return { ...queryData, pages: updatedPages };
+          }
+        }
+        return queryData;
+      });
+    },
+    []
+  );
+
+  const wsMessageDeleteHandler = useCallback(
+    (data: WebsocketPayload<"messages:delete">) => {
+      const message = data.message;
+      const itemToDeleteId = BigInt(message.id);
+      const {
+        lowestLoadedId,
+        highestLoadedId,
+        firstItemIndex,
+        messagesQueryKey,
+        isWsSyncing,
+        isPolling,
+        handleNewMessagesVersion,
+        utils,
+      } = websocketsDependencies.current;
+      const newMessagesVersion = BigInt(data.messagesVersion);
+      if (isPolling) return;
+      if (isWsSyncing) {
+        websocketsMessageQueue.current.push({
+          eventName: "messages:delete",
+          data,
+        });
+        return;
+      }
+      if (!handleNewMessagesVersion(newMessagesVersion)) {
+        return;
+      }
+      if (
+        !lowestLoadedId ||
+        !highestLoadedId ||
+        itemToDeleteId < lowestLoadedId ||
+        itemToDeleteId > highestLoadedId
+      ) {
+        return;
+      }
+      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+        if (!queryData || !queryData.pages.length) return queryData;
+
+        let updatedPages = [...queryData.pages];
+        let updatedPageParams = [...queryData.pageParams];
+
+        let targetMessageGlobalIndex = firstItemIndex || 0;
+        for (let i = 0; i < updatedPages.length; i++) {
+          const page = updatedPages[i];
+          const foundItemIndex = page.items.findIndex(
+            (m) => m.id === itemToDeleteId
+          );
+          if (foundItemIndex < 0) {
+            targetMessageGlobalIndex += page.items.length;
+            continue;
+          }
+
+          targetMessageGlobalIndex += foundItemIndex;
+          const visibleGlobalStartIndex =
+            visibleRangeRef.current?.visibleStartIndex || 0;
+          const isTargetMessageAboveViewport =
+            targetMessageGlobalIndex < visibleGlobalStartIndex;
+
+          let updatedItems = [...page.items];
+          updatedItems.splice(foundItemIndex, 1);
+          if (!updatedItems.length && updatedPages.length > 1) {
+            updatedPages.splice(i, 1);
+            updatedPageParams.splice(i, 1);
+          } else {
+            updatedPages[i] = {
+              ...updatedPages[i],
+              items: updatedItems,
+              messages_version: newMessagesVersion,
+            };
+          }
+          if (isTargetMessageAboveViewport) {
+            setFirstItemIndex((prev) => (prev !== null ? prev + 1 : prev));
+          }
+
+          break;
+        }
+        return {
+          ...queryData,
+          pages: updatedPages,
+          pageParams: updatedPageParams,
+        };
+      });
+    },
+    []
+  );
+
   useEffect(() => {
     if (!websocketsClient) return;
+
+    let isEffectCleanup = false;
 
     const websocketsChannel = websocketsClient.channels.get(
       getChannelId(channelIdString)
     );
 
+    const onConnectionLost = () => {
+      if (isEffectCleanup) return;
+      const { isPolling } = websocketsDependencies.current;
+
+      if (!isPolling) {
+        setIsPolling(true);
+        setIsWsSyncing(false);
+        addAppSnackbar({
+          message:
+            "Realtime connection lost. Falling back to periodic refetch.",
+          variant: "warning",
+        });
+      }
+    };
+
+    const onChannelUpdate = (state: { resumed?: boolean }) => {
+      if (isEffectCleanup) return;
+      if (state.resumed === false) {
+        onConnectionLost();
+      }
+    };
+
+    const tryStartSyncing = () => {
+      if (isEffectCleanup) return;
+
+      const isWsConnected = websocketsClient.connection.state === "connected";
+      const isWsChannelAttached = websocketsChannel.state === "attached";
+      if (isWsConnected && isWsChannelAttached) {
+        setIsWsSyncing(true);
+        setWsSyncFailedCount(0);
+        websocketsMessageQueue.current = [];
+      }
+    };
+
+    websocketsClient.connection.on(
+      ["disconnected", "suspended", "closing", "closed", "failed"],
+      onConnectionLost
+    );
+    websocketsChannel.on(["detached", "suspended", "failed"], onConnectionLost);
+    websocketsChannel.on("update", onChannelUpdate);
+
+    websocketsClient.connection.on("connected", tryStartSyncing);
+    websocketsChannel.on("attached", tryStartSyncing);
     // const invalidate = ((data, msg) => {
     //   console.log({ data, msg });
     //   void utils.messages.get.invalidate();
     // }) satisfies Parameters<typeof subscribeWs>[2];
 
     const unsubs = [
-      subscribeWs(websocketsChannel, "messages:create", (data) => {
-        const { messagesQueryKey, isPolling, handleNewMessagesVersion } =
-          websocketsDependencies.current;
-        const message = data.message;
-        const newMessagesVersion = BigInt(data.messagesVersion);
-        if (isPolling) {
-          websocketsMessageQueue.current.push({
-            eventName: "messages:create",
-            data,
-          });
-          return;
-        }
-        if (!handleNewMessagesVersion(newMessagesVersion)) {
-          return;
-        }
-
-        utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-          if (!queryData || !queryData.pages.length || messages.hasNextPage) {
-            return queryData;
-          }
-          let updatedPages = [...queryData.pages];
-          const newMessage = {
-            ...message,
-            created_at: new Date(message.created_at),
-            updated_at: new Date(message.updated_at),
-            id: BigInt(message.id),
-            channel_id: BigInt(message.channel_id),
-          } satisfies Message;
-
-          updatedPages[updatedPages.length - 1] = {
-            ...updatedPages[updatedPages.length - 1],
-            items: [...updatedPages[updatedPages.length - 1].items, newMessage],
-            messages_version: newMessagesVersion,
-          };
-
-          const shouldCreateNewPage =
-            updatedPages[updatedPages.length - 1].items.length >= PER_PAGE;
-
-          if (shouldCreateNewPage) {
-            updatedPages.push({
-              items: [],
-              returnedDirection: "forward",
-              messages_version: newMessagesVersion,
-            });
-            let updatedPageParams = [...queryData.pageParams];
-            updatedPageParams.push({
-              id: newMessage.id,
-              direction: "forward",
-            });
-
-            return {
-              ...queryData,
-              pages: updatedPages,
-              pageParams: updatedPageParams,
-            };
-          }
-
-          return { ...queryData, pages: updatedPages };
-        });
-      }),
-      subscribeWs(websocketsChannel, "messages:update", (data) => {
-        const message = data.message;
-        const itemToUpdateId = BigInt(message.id);
-        const {
-          lowestLoadedId,
-          highestLoadedId,
-          messagesQueryKey,
-          isPolling,
-          handleNewMessagesVersion,
-        } = websocketsDependencies.current;
-        const newMessagesVersion = BigInt(data.messagesVersion);
-        if (isPolling) {
-          websocketsMessageQueue.current.push({
-            eventName: "messages:update",
-            data,
-          });
-          return;
-        }
-        if (!handleNewMessagesVersion(newMessagesVersion)) {
-          return;
-        }
-
-        if (
-          !lowestLoadedId ||
-          !highestLoadedId ||
-          itemToUpdateId < lowestLoadedId ||
-          itemToUpdateId > highestLoadedId
-        ) {
-          return;
-        }
-        utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-          if (!queryData || !queryData.pages.length) return queryData;
-
-          let updatedPages = [...queryData.pages];
-          for (let i = 0; i < updatedPages.length; i++) {
-            const page = updatedPages[i];
-            const foundItemIndex = page.items.findIndex(
-              (m) => m.id === itemToUpdateId
-            );
-            if (foundItemIndex >= 0) {
-              let updatedItems = [...page.items];
-              updatedItems[foundItemIndex] = {
-                ...message,
-                created_at: new Date(message.created_at),
-                updated_at: new Date(message.updated_at),
-                id: itemToUpdateId,
-                channel_id: BigInt(message.channel_id),
-              };
-
-              updatedPages[i] = {
-                ...updatedPages[i],
-                items: updatedItems,
-                messages_version: newMessagesVersion,
-              };
-              return { ...queryData, pages: updatedPages };
-            }
-          }
-          return queryData;
-        });
-      }),
-      subscribeWs(websocketsChannel, "messages:delete", (data) => {
-        const message = data.message;
-        const itemToDeleteId = BigInt(message.id);
-        const {
-          lowestLoadedId,
-          highestLoadedId,
-          firstItemIndex,
-          messagesQueryKey,
-          isPolling,
-          handleNewMessagesVersion,
-        } = websocketsDependencies.current;
-        const newMessagesVersion = BigInt(data.messagesVersion);
-        if (isPolling) {
-          websocketsMessageQueue.current.push({
-            eventName: "messages:delete",
-            data,
-          });
-          return;
-        }
-        if (!handleNewMessagesVersion(newMessagesVersion)) {
-          return;
-        }
-        if (
-          !lowestLoadedId ||
-          !highestLoadedId ||
-          itemToDeleteId < lowestLoadedId ||
-          itemToDeleteId > highestLoadedId
-        ) {
-          return;
-        }
-        utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-          if (!queryData || !queryData.pages.length) return queryData;
-
-          let updatedPages = [...queryData.pages];
-          let updatedPageParams = [...queryData.pageParams];
-
-          let targetMessageGlobalIndex = firstItemIndex || 0;
-          for (let i = 0; i < updatedPages.length; i++) {
-            const page = updatedPages[i];
-            const foundItemIndex = page.items.findIndex(
-              (m) => m.id === itemToDeleteId
-            );
-            if (foundItemIndex < 0) {
-              targetMessageGlobalIndex += page.items.length;
-              continue;
-            }
-
-            targetMessageGlobalIndex += foundItemIndex;
-            const visibleGlobalStartIndex =
-              visibleRangeRef.current?.visibleStartIndex || 0;
-            const isTargetMessageAboveViewport =
-              targetMessageGlobalIndex < visibleGlobalStartIndex;
-
-            let updatedItems = [...page.items];
-            updatedItems.splice(foundItemIndex, 1);
-            if (!updatedItems.length && updatedPages.length > 1) {
-              updatedPages.splice(i, 1);
-              updatedPageParams.splice(i, 1);
-            } else {
-              updatedPages[i] = {
-                ...updatedPages[i],
-                items: updatedItems,
-                messages_version: newMessagesVersion,
-              };
-            }
-            if (isTargetMessageAboveViewport) {
-              setFirstItemIndex((prev) => (prev !== null ? prev + 1 : prev));
-            }
-
-            break;
-          }
-          return {
-            ...queryData,
-            pages: updatedPages,
-            pageParams: updatedPageParams,
-          };
-        });
-      }),
+      subscribeWs(websocketsChannel, "messages:create", wsMessageCreateHandler),
+      subscribeWs(websocketsChannel, "messages:update", wsMessageUpdateHandler),
+      subscribeWs(websocketsChannel, "messages:delete", wsMessageDeleteHandler),
     ];
 
     return () => {
+      isEffectCleanup = true;
       unsubs.forEach((u) => u());
+
+      websocketsClient.connection.off(onConnectionLost);
+      websocketsClient.connection.off(tryStartSyncing);
+      websocketsChannel.off(onConnectionLost);
+      websocketsChannel.off(onChannelUpdate);
+      websocketsChannel.off(tryStartSyncing);
+
       void websocketsChannel.detach();
     };
     // eslint-disable-next-line
   }, [websocketsClient, channel.id]);
+
+  useEffect(() => {
+    if (isWsSyncing) {
+      messages.refetch();
+    }
+  }, [isWsSyncing]);
+
+  useEffect(() => {
+    const data = messages.data;
+    if (!data?.pages.length) return;
+
+    if (!hasQueryLoadedInitialData.current) {
+      hasQueryLoadedInitialData.current = true;
+      highestAppliedMessagesVersion.current = data.pages[0].messages_version;
+      return;
+    }
+
+    if (
+      wasRefetching.current &&
+      !messages.isRefetching &&
+      !messages.isRefetchError
+    ) {
+      const highestRefetchedMessagesVersion =
+        data.pages[data.pages.length - 1].messages_version;
+      highestAppliedMessagesVersion.current = highestRefetchedMessagesVersion;
+
+      if (!isWsSyncing) return;
+
+      const lowestRefetchedMessagesVersion = data.pages[0].messages_version;
+
+      const relevantEvents = websocketsMessageQueue.current
+        .filter(
+          (e) => BigInt(e.data.messagesVersion) > lowestRefetchedMessagesVersion
+        )
+        .sort((aEvent, bEvent) => {
+          const a = BigInt(aEvent.data.messagesVersion);
+          const b = BigInt(bEvent.data.messagesVersion);
+          return a < b ? -1 : a > b ? 1 : 0;
+        });
+
+      const relevantEventsAreContinuous = relevantEvents.length
+        ? (() => {
+            const minVersion = BigInt(relevantEvents[0].data.messagesVersion);
+            const maxVersion = BigInt(
+              relevantEvents[relevantEvents.length - 1].data.messagesVersion
+            );
+
+            return (
+              minVersion === lowestRefetchedMessagesVersion + BigInt(1) &&
+              maxVersion - minVersion + BigInt(1) ===
+                BigInt(relevantEvents.length)
+            );
+          })()
+        : true;
+
+      if (!relevantEventsAreContinuous) {
+        setWsSyncFailedCount((prev) => prev + 1);
+        addAppSnackbar({
+          message: "Realtime sync failed.",
+          variant: "warning",
+        });
+        return;
+      }
+      // TODO
+    }
+
+    wasRefetching.current = messages.isRefetching;
+  }, [messages.dataUpdatedAt, messages.isRefetching]);
 
   const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
     onSuccess: () => {
@@ -714,31 +873,6 @@ const ChannelInner = ({ channel }: Props) => {
 
   const authDisabled = guestLoginMutation.isPending || user.isFetching;
 
-  const hasQueryLoadedInitialData = useRef(false);
-  const wasRefetching = useRef(false);
-  const userInteractedRef = useRef(false);
-
-  useEffect(() => {
-    const data = messages.data;
-    if (!data?.pages.length) return;
-
-    if (!hasQueryLoadedInitialData.current) {
-      hasQueryLoadedInitialData.current = true;
-      highestAppliedMessagesVersion.current = data.pages[0].messages_version;
-      return;
-    }
-
-    if (
-      wasRefetching.current &&
-      !messages.isRefetching &&
-      !messages.isRefetchError
-    ) {
-      highestAppliedMessagesVersion.current =
-        data.pages[data.pages.length - 1].messages_version;
-    }
-
-    wasRefetching.current = messages.isRefetching;
-  }, [messages.dataUpdatedAt, messages.isRefetching]);
   // console.log({
   //   highestAppliedMessagesVersion: highestAppliedMessagesVersion.current,
   // });
@@ -1147,12 +1281,14 @@ const ChannelInner = ({ channel }: Props) => {
     tryLoadOlder,
     tryLoadNewer,
     isIdle,
+    isWsSyncing,
   };
 
   const MessagesHeader = useMemo(
     () =>
       ({ context }: { context: typeof virtuosoContext }) => {
-        const { messages, tryLoadOlder, scrollerElRef, isIdle } = context;
+        const { messages, tryLoadOlder, scrollerElRef, isIdle, isWsSyncing } =
+          context;
 
         // eslint-disable-next-line
         const [isLoaderVisible, setIsLoaderVisible] = useState(false);
@@ -1167,6 +1303,7 @@ const ChannelInner = ({ channel }: Props) => {
           if (
             isLoaderVisible &&
             isIdle &&
+            !isWsSyncing &&
             messages.hasPreviousPage &&
             !messages.isFetching &&
             !messages.isError
@@ -1184,6 +1321,7 @@ const ChannelInner = ({ channel }: Props) => {
         }, [
           isLoaderVisible,
           isIdle,
+          isWsSyncing,
           messages.isFetching,
           messages.isError,
           messages.hasPreviousPage,
@@ -1229,6 +1367,7 @@ const ChannelInner = ({ channel }: Props) => {
           retryInvalidate,
           tryLoadNewer,
           isIdle,
+          isWsSyncing,
         } = context;
 
         // eslint-disable-next-line
@@ -1244,6 +1383,7 @@ const ChannelInner = ({ channel }: Props) => {
           if (
             isLoaderVisible &&
             isIdle &&
+            !isWsSyncing &&
             messages.hasNextPage &&
             !messages.isFetching &&
             !messages.isError
@@ -1261,6 +1401,7 @@ const ChannelInner = ({ channel }: Props) => {
         }, [
           isLoaderVisible,
           isIdle,
+          isWsSyncing,
           messages.isFetching,
           messages.isError,
           messages.hasNextPage,
