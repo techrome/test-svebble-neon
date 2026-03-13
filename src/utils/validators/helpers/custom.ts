@@ -8,10 +8,10 @@ export const zDayjs = z.custom<Dayjs>((v) => dayjs.isDayjs(v) && v.isValid(), {
 });
 
 export const numericIdSchema = z.bigint().positive();
-export const numericIdQuerySchema = z
-  .string()
-  .regex(/^[1-9]\d*$/)
-  .transform((val) => BigInt(val));
+export const numericIdQuerySchemaRaw = z.string().regex(/^[1-9]\d*$/);
+export const numericIdQuerySchema = numericIdQuerySchemaRaw.transform((val) =>
+  BigInt(val)
+);
 export const versionSchema = z.bigint().min(BigInt(0));
 
 type ZodShape = z.ZodRawShape;
