@@ -71,10 +71,14 @@ export const pruneMessages = async (
       hasMoreData,
     };
   });
+  const prunedMessagesCount = prunedMessageIds.length;
+  console.log(
+    `[pruneMessages] Finished. Pruned messages count: ${prunedMessagesCount}`
+  );
 
   return {
     hasMoreData,
     pruneCountsMatch: true,
-    prunedMessagesCount: prunedMessageIds.length,
+    prunedMessagesCount,
   };
 };
