@@ -16,6 +16,7 @@ import { useUser } from "@/trpc/hooks/useUser";
 import { useRouter } from "next/router";
 import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
 import { useQueryClient } from "@tanstack/react-query";
+import clsx from "clsx";
 
 type WrapperProps = {
   authType: AuthType;
@@ -275,9 +276,16 @@ export const AuthWrapper = (props: WrapperProps) => {
   );
 };
 
-export const TermsLabel = () => {
+type TermsLabelProps = {
+  hideMargin?: boolean;
+};
+
+export const TermsLabel = (props: TermsLabelProps) => {
   return (
-    <Typography variant="subtitle2" className="mt-4">
+    <Typography
+      variant="subtitle2"
+      className={clsx(!props.hideMargin && "mt-4")}
+    >
       <span>
         By continuing, you agree to the{" "}
         <Link target="_blank" href={ROUTES.terms}>
@@ -287,6 +295,7 @@ export const TermsLabel = () => {
         <Link target="_blank" href={ROUTES.privacyPolicy}>
           Privacy Policy
         </Link>
+        .
       </span>
     </Typography>
   );

@@ -84,7 +84,7 @@ const rateLimits = {
   default: { max: 120, window: "60s" },
   defaultWrite: { max: 50, window: "60s" },
 
-  websockets_token: { max: 15, window: "60s" },
+  websockets_token: { max: 5, window: "60s" },
 
   auth_normal: { max: 15, window: "60s" },
   auth_sensitive: { max: 7, window: "60s" },

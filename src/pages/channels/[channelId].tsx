@@ -18,6 +18,9 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import ReplayIcon from "@mui/icons-material/Replay";
 import debounce from "lodash/debounce";
+import { useAbly } from "ably/react";
+import z from "zod";
+import { getQueryKey } from "@trpc/react-query";
 
 import { utils as serverUtils } from "@/server";
 import { type RouterInput, RouterOutput, trpc } from "@/trpc";
@@ -44,7 +47,6 @@ import { SectionWrapper } from "@/pages/app/my-profile";
 import { Divider } from "@/components/Layout/Dividers";
 import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
 import { InfiniteData, useQueryClient } from "@tanstack/react-query";
-import z from "zod";
 import { Text } from "@/utils/validators/helpers/text";
 import { useUser } from "@/trpc/hooks/useUser";
 import { SubmitHandler, useForm } from "react-hook-form";
@@ -58,19 +60,18 @@ import {
 } from "@/utils/validators/shared/messages";
 import { useRouter } from "next/router";
 import { getRouterQueryValue } from "@/utils/query";
-import { useWebsockets } from "@/trpc/hooks/useWebsockets";
 import {
   getChannelId,
   subscribeWs,
   type WebsocketPayload,
   type WebsocketItem,
 } from "@/trpc/helpers/websockets";
-import { getQueryKey } from "@trpc/react-query";
 import ChannelListWrapper from "@/components/Chat/ChannelList";
 import Skeleton from "@/components/Skeleton/Skeleton";
 import { useScreenHeight } from "@/utils/hooks/useScreenHeight";
 import { useEffectAfterMount } from "@/utils/hooks/useEffectAfterMount";
 import { numericIdQuerySchemaRaw } from "@/utils/validators/helpers/custom";
+import { TermsLabel } from "@/components/AuthForm/Helpers";
 
 type Options = {
   root?: Element | null;
@@ -274,7 +275,6 @@ const ChannelInner = ({ channel }: Props) => {
   const userInteractedRef = useRef(false);
 
   const [isIdle, setIsIdle] = useState(false);
-  //const isIdleRef = useRef(false);
   const [isInitialScrollHandled, setIsInitialScrollHandled] =
     useState<boolean>(true);
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
@@ -486,8 +486,6 @@ const ChannelInner = ({ channel }: Props) => {
     handleNewMessagesVersion,
     utils,
   };
-
-  const websocketsClient = useWebsockets({ channelId: channelIdString });
 
   const websocketsMessageQueue = useRef<WebsocketItem[]>([]);
 
@@ -708,6 +706,8 @@ const ChannelInner = ({ channel }: Props) => {
           itemToUpdateId < lowestLoadedId ||
           itemToUpdateId > highestLoadedId
         ) {
+          console.log("HERE DELETED");
+
           return queryData;
         }
 
@@ -759,14 +759,15 @@ const ChannelInner = ({ channel }: Props) => {
     []
   );
 
+  const websocketsClient = useAbly();
+  const websocketsChannel = useMemo(() => {
+    return websocketsClient.channels.get(getChannelId(channelIdString));
+  }, [websocketsClient, channelIdString]);
+
   useEffect(() => {
     if (!websocketsClient) return;
 
     let isEffectCleanup = false;
-
-    const websocketsChannel = websocketsClient.channels.get(
-      getChannelId(channelIdString)
-    );
 
     const onConnectionLost = () => {
       if (isEffectCleanup) return;
@@ -802,10 +803,10 @@ const ChannelInner = ({ channel }: Props) => {
     };
 
     websocketsClient.connection.on(
-      ["disconnected", "suspended", "closing", "closed", "failed"],
+      ["disconnected", "suspended", "failed"],
       onConnectionLost
     );
-    websocketsChannel.on(["detached", "suspended", "failed"], onConnectionLost);
+    websocketsChannel.on(["suspended", "failed"], onConnectionLost);
     websocketsChannel.on("update", onChannelUpdate);
 
     websocketsClient.connection.on("connected", tryStartSyncing);
@@ -836,7 +837,7 @@ const ChannelInner = ({ channel }: Props) => {
       void websocketsChannel.detach();
     };
     // eslint-disable-next-line
-  }, [websocketsClient, channel.id]);
+  }, [websocketsClient, websocketsChannel]);
 
   const startedRefetchingForWsSync = useRef<boolean>(false);
 
@@ -1243,7 +1244,7 @@ const ChannelInner = ({ channel }: Props) => {
       if (!isIdle) {
         setIsIdle(true);
       }
-    }, 100),
+    }, 50),
     []
   );
 
@@ -1814,6 +1815,7 @@ const ChannelInner = ({ channel }: Props) => {
                 Sign up
               </Button>
             </HorizontalStack>
+            <TermsLabel hideMargin />
           </VerticalStack>
         )}
       </div>

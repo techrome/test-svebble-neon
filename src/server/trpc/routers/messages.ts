@@ -66,12 +66,14 @@ type Message = typeof schema.messages.$inferSelect;
 export const messagesRouter = router({
   ablyTokenRequest: publicProcedure
     .use(rateLimitMiddlewares.websockets_token)
-    .input(sharedMessagesValidations.messagesGetWebsocketsToken)
-    .mutation(async ({ ctx, input }) => {
-      const userId = `tmp-${randomUUID()}`;
+    .mutation(async ({ ctx }) => {
+      const user = await ctx.getCachedAuth();
+      const clientId =
+        user && user?.response?.user?.id
+          ? user.response?.user.id
+          : `tmp-${randomUUID()}`;
       return createChannelSubscribeTokenRequest({
-        userId,
-        channelId: String(input.channelId),
+        clientId,
       });
     }),
   get: publicProcedure

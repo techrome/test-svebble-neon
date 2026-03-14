@@ -20,18 +20,17 @@ if (!env.WEBSOCKETS_API_KEY && isDev) {
 export type AblyTokenRequest = ably.TokenRequest;
 
 export const createChannelSubscribeTokenRequest = async (opts: {
-  userId: string;
-  channelId: string;
+  clientId: string;
   ttlMs?: number;
 }): Promise<AblyTokenRequest | null> => {
   if (!ablyRest) return null;
 
   const capability = {
-    [getChannelId(opts.channelId)]: ["subscribe"],
+    ["publicChannels:*"]: ["subscribe"],
   } satisfies Record<string, string[]>;
 
   return ablyRest.auth.createTokenRequest({
-    clientId: opts.userId,
+    clientId: opts.clientId,
     ttl: opts.ttlMs || hours(1),
     capability: JSON.stringify(capability),
   });

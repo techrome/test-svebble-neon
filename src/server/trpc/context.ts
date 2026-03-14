@@ -26,7 +26,8 @@ export const createTRPCContext = async (options?: CreateNextContextOptions) => {
   let authPromise: GetAuthReturn | null = null;
 
   const getAuth = async (opts?: { cached?: boolean }): GetAuthReturn => {
-    if (!options?.req || !options?.res) return null;
+    const hasAnyCookies = Boolean(options?.req?.headers.cookie || "");
+    if (!options?.req || !options?.res || !hasAnyCookies) return null;
     const { req, res } = options;
     const needsCached = Boolean(opts?.cached);
 
