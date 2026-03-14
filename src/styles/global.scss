@@ -234,3 +234,69 @@ html {
     outline-color: transparent;
   }
 }
+
+.glow-pulse-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  @keyframes glowOrbit {
+    from {
+      offset-distance: 0%;
+    }
+    to {
+      offset-distance: 100%;
+    }
+  }
+
+  @keyframes glowPulse {
+    0%,
+    100% {
+      transform: translate(-50%, -50%) scale(0.5);
+    }
+
+    30% {
+      transform: translate(-50%, -50%) scale(0.9);
+    }
+  }
+
+  &::before {
+    content: "";
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 0;
+
+    background: radial-gradient(
+      circle,
+      rgb(var(--mui-palette-primary-mainChannel) / 0.18) 0%,
+      rgb(var(--mui-palette-primary-mainChannel) / 0.1) 35%,
+      rgb(var(--mui-palette-primary-mainChannel) / 0.05) 55%,
+      transparent 75%
+    );
+
+    filter: blur(80px);
+
+    offset-path: ellipse(50px 50px at 100% 100%);
+    offset-anchor: center;
+    offset-rotate: 0deg;
+
+    animation:
+      glowOrbit 15s linear infinite,
+      glowPulse 7s ease-in-out infinite;
+  }
+}
+
+.light .glow-pulse-wrapper::before {
+  background: radial-gradient(
+    circle,
+    rgb(var(--mui-palette-primary-mainChannel) / 0.38) 0%,
+    rgb(var(--mui-palette-primary-mainChannel) / 0.3) 35%,
+    rgb(var(--mui-palette-primary-mainChannel) / 0.25) 55%,
+    transparent 75%
+  );
+}

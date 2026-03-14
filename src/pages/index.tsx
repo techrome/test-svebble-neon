@@ -81,30 +81,30 @@ const HomePage: AppPage = () => {
         <Paper
           elevation={1}
           className={clsx(
-            `flex flex-1 flex-col rounded-none ring ring-[var(--mui-palette-divider)]`
+            `${defaultPadding} flex flex-1 flex-col rounded-none ring ring-[var(--mui-palette-divider)] glow-pulse-wrapper`
           )}
         >
-          <VerticalStack
-            addClassName={`${defaultPadding} justify-center items-center flex-1`}
+          <Paper
+            elevation={5}
+            className="rounded-xl p-14 z-10 shadow-none ring ring-[var(--mui-palette-divider)]"
           >
-            <Typography variant="h1" component="span" color="textSecondary">
-              <WavingHandIcon fontSize="inherit" />
-            </Typography>
-            <Typography variant="h3" component="h1" className="text-center">
-              Welcome to {APP_NAME}!
-            </Typography>
-            <Typography variant="h5" component="h2" className="text-center">
-              Pick a channel from the sidebar to get started.
-            </Typography>
-            {firstChannel ? (
-              <Link href={ROUTES.channels(String(firstChannel.id))}>
-                <Button color="primary" variant="contained" size="large">
-                  Open <span className="underline">#{firstChannel.name}</span>{" "}
-                  channel
-                </Button>
-              </Link>
-            ) : null}
-          </VerticalStack>
+            <VerticalStack addClassName={`${defaultPadding} items-center`}>
+              <Typography variant="h2" component="h1" className="text-center">
+                Welcome to <strong>{APP_NAME}</strong>
+              </Typography>
+              <Typography variant="h4" component="h2" className="text-center">
+                Pick a channel to get started.
+              </Typography>
+              {firstChannel ? (
+                <Link href={ROUTES.channels(String(firstChannel.id))}>
+                  <Button color="primary" variant="contained" size="large">
+                    Open <span className="underline">#{firstChannel.name}</span>{" "}
+                    channel
+                  </Button>
+                </Link>
+              ) : null}
+            </VerticalStack>
+          </Paper>
         </Paper>
       </HorizontalStack>
     </div>
