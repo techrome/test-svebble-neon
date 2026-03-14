@@ -93,7 +93,7 @@ const HomePage: AppPage = () => {
                 Welcome to <strong>{APP_NAME}</strong>
               </Typography>
               <Typography variant="h4" component="h2" className="text-center">
-                Pick a channel to get started.
+                Pick a channel to get started
               </Typography>
               {firstChannel ? (
                 <Link href={ROUTES.channels(String(firstChannel.id))}>

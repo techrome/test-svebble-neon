@@ -254,15 +254,32 @@ html {
   @keyframes glowPulse {
     0%,
     100% {
-      transform: translate(-50%, -50%) scale(0.5);
+      transform: translate(-50%, -50%) scale(0.55);
     }
-
-    30% {
-      transform: translate(-50%, -50%) scale(0.9);
+    5% {
+      transform: translate(-50%, -50%) scale(0.6);
+    }
+    45% {
+      transform: translate(-50%, -50%) scale(0.65);
+    }
+    50% {
+      transform: translate(-50%, -50%) scale(0.55);
+    }
+    55% {
+      transform: translate(-50%, -50%) scale(0.65);
+    }
+    95% {
+      transform: translate(-50%, -50%) scale(0.6);
     }
   }
 
-  &::before {
+  > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  &::before,
+  &::after {
     content: "";
     position: absolute;
     width: 100%;
@@ -271,6 +288,16 @@ html {
     pointer-events: none;
     z-index: 0;
 
+    filter: blur(80px);
+    offset-anchor: center;
+    offset-rotate: 0deg;
+
+    animation:
+      glowOrbit 20s ease-in-out infinite,
+      glowPulse 10s linear infinite;
+  }
+
+  &::before {
     background: radial-gradient(
       circle,
       rgb(var(--mui-palette-primary-mainChannel) / 0.18) 0%,
@@ -279,15 +306,23 @@ html {
       transparent 75%
     );
 
-    filter: blur(80px);
+    offset-path: ellipse(350px 150px at 100% 100%);
+  }
 
-    offset-path: ellipse(50px 50px at 100% 100%);
-    offset-anchor: center;
-    offset-rotate: 0deg;
+  &::after {
+    background: radial-gradient(
+      circle,
+      rgb(var(--mui-palette-secondary-mainChannel) / 0.16) 0%,
+      rgb(var(--mui-palette-secondary-mainChannel) / 0.09) 35%,
+      rgb(var(--mui-palette-secondary-mainChannel) / 0.04) 55%,
+      transparent 75%
+    );
 
-    animation:
-      glowOrbit 15s linear infinite,
-      glowPulse 7s ease-in-out infinite;
+    offset-path: ellipse(200px 100px at 90% 112%);
+
+    animation-delay:
+      -10s,
+      -2.5s;
   }
 }
 
@@ -297,6 +332,16 @@ html {
     rgb(var(--mui-palette-primary-mainChannel) / 0.38) 0%,
     rgb(var(--mui-palette-primary-mainChannel) / 0.3) 35%,
     rgb(var(--mui-palette-primary-mainChannel) / 0.25) 55%,
+    transparent 75%
+  );
+}
+
+.light .glow-pulse-wrapper::after {
+  background: radial-gradient(
+    circle,
+    rgb(var(--mui-palette-secondary-mainChannel) / 0.34) 0%,
+    rgb(var(--mui-palette-secondary-mainChannel) / 0.26) 35%,
+    rgb(var(--mui-palette-secondary-mainChannel) / 0.2) 55%,
     transparent 75%
   );
 }
