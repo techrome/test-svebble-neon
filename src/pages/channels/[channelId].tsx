@@ -280,6 +280,8 @@ const ChannelInner = ({ channel }: Props) => {
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
     useState<boolean>(false);
 
+  // const [canStartDisplayingList, setCanStartDisplayingList] = useState(false);
+  // const initialTimerToDisplayListRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [queryInitializing, setQueryInitializing] = useState<boolean | null>(
     null
   ); // null for initial render before router is ready
@@ -691,12 +693,14 @@ const ChannelInner = ({ channel }: Props) => {
         if (!queryData || !pagesCount) return queryData;
 
         const itemToUpdateId = BigInt(message.id);
-        const firstPage = queryData.pages[0];
+        const firstNonEmptyPage = queryData.pages[0].items.length
+          ? queryData.pages[0]
+          : queryData.pages[1];
         const lastNonEmptyPage = queryData.pages[pagesCount - 1].items.length
           ? queryData.pages[pagesCount - 1]
           : queryData.pages[pagesCount - 2];
 
-        const lowestLoadedId = firstPage.items[0]?.id;
+        const lowestLoadedId = firstNonEmptyPage.items[0]?.id;
         const highestLoadedId =
           lastNonEmptyPage?.items?.[lastNonEmptyPage?.items?.length - 1]?.id;
 
@@ -799,6 +803,7 @@ const ChannelInner = ({ channel }: Props) => {
         websocketsMessageQueue.current = [];
         setWsSyncFailedCount(0);
         setSyncMode("ws-syncing");
+        // setCanStartDisplayingList(true);
       }
     };
 
@@ -851,13 +856,14 @@ const ChannelInner = ({ channel }: Props) => {
     if (
       isWsSyncing &&
       !messages.isFetching &&
-      isIdle &&
+      (!shouldRenderList || isIdle) &&
       !startedRefetchingForWsSync.current
     ) {
       startedRefetchingForWsSync.current = true;
+      // if(canStartDisplayingList){}
       messages.refetch();
     }
-  }, [isWsSyncing, messages.isFetching, isIdle]);
+  }, [isWsSyncing, messages.isFetching, isIdle, shouldRenderList]);
 
   useEffect(() => {
     const data = messages.data;
