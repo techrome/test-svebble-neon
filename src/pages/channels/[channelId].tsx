@@ -18,7 +18,6 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import ReplayIcon from "@mui/icons-material/Replay";
 import debounce from "lodash/debounce";
-import { useAbly } from "ably/react";
 import z from "zod";
 import { getQueryKey } from "@trpc/react-query";
 
@@ -72,6 +71,7 @@ import { useScreenHeight } from "@/utils/hooks/useScreenHeight";
 import { useEffectAfterMount } from "@/utils/hooks/useEffectAfterMount";
 import { numericIdQuerySchemaRaw } from "@/utils/validators/helpers/custom";
 import { TermsLabel } from "@/components/AuthForm/Helpers";
+import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider";
 
 type Options = {
   root?: Element | null;
@@ -763,16 +763,15 @@ const ChannelInner = ({ channel }: Props) => {
     []
   );
 
-  const websocketsClient = useAbly();
-  const websocketsChannel = useMemo(() => {
-    return websocketsClient.channels.get(getChannelId(channelIdString));
-  }, [websocketsClient, channelIdString]);
+  const websocketsClient = useWsClient();
 
   useEffect(() => {
     if (!websocketsClient) return;
 
     let isEffectCleanup = false;
-
+    const websocketsChannel = websocketsClient.channels.get(
+      getChannelId(channelIdString)
+    );
     const onConnectionLost = () => {
       if (isEffectCleanup) return;
       const { isPolling } = websocketsDependencies.current;
@@ -842,7 +841,7 @@ const ChannelInner = ({ channel }: Props) => {
       void websocketsChannel.detach();
     };
     // eslint-disable-next-line
-  }, [websocketsClient, websocketsChannel]);
+  }, [websocketsClient, channelIdString]);
 
   const startedRefetchingForWsSync = useRef<boolean>(false);
 

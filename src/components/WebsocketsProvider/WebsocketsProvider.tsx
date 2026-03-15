@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import { AblyProvider } from "ably/react";
 import type { ClientOptions, ErrorInfo } from "ably";
 import { BaseRealtime, FetchRequest, WebSocketTransport } from "ably/modular";
@@ -21,28 +21,44 @@ const toAblyError = (err?: unknown): string | ErrorInfo => {
   return "Failed to get Ably token";
 };
 
-type Props = {
+const OptionalAblyContext = createContext<BaseRealtime | null>(null);
+
+export const useWsClient = () => useContext(OptionalAblyContext);
+
+type OptionalAblyContextProps = {
+  client: BaseRealtime | null;
   children: React.ReactNode;
 };
 
-export const WebsocketsProvider = (props: Props) => {
+export function OptionalAblyProvider({
+  client,
+  children,
+}: OptionalAblyContextProps) {
+  return (
+    <OptionalAblyContext.Provider value={client}>
+      {client ? (
+        <AblyProvider client={client}>{children}</AblyProvider>
+      ) : (
+        children
+      )}
+    </OptionalAblyContext.Provider>
+  );
+}
+
+type WebsocketsProvider = {
+  children: React.ReactNode;
+};
+
+export const WebsocketsProvider = (props: WebsocketsProvider) => {
   const tokenMutation = trpc.messages.ablyTokenRequest.useMutation();
   const user = useUser();
-  const identityKey = user.data?.user?.id || "guest";
+  const identityKey = user.data?.user?.id || "default";
 
-  const [client, setClient] = useState<BaseRealtime>(() =>
-    createAblyClient({
-      autoConnect: false,
-      authCallback(_data, callback) {
-        callback(toAblyError(), null);
-      },
-    })
-  );
+  const [client, setClient] = useState<BaseRealtime | null>(null);
 
   useEffect(() => {
     if (user.isPending) return;
-
-    const nextClient = createAblyClient({
+    const newClient = createAblyClient({
       authCallback(_data, callback) {
         void (async () => {
           try {
@@ -55,16 +71,17 @@ export const WebsocketsProvider = (props: Props) => {
         })();
       },
     });
-
-    setClient((prev) => {
-      prev.close();
-      return nextClient;
-    });
+    setClient(newClient);
 
     return () => {
-      nextClient.close();
+      newClient.close();
     };
+    // eslint-disable-next-line
   }, [user.isPending, identityKey]);
 
-  return <AblyProvider client={client}>{props.children}</AblyProvider>;
+  return (
+    <OptionalAblyProvider client={client}>
+      {props.children}
+    </OptionalAblyProvider>
+  );
 };
