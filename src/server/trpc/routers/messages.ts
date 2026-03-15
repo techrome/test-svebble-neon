@@ -84,6 +84,7 @@ export const messagesRouter = router({
         returnedDirection:
           sharedMessagesValidations.messagesGetSchemaForm.shape.direction.optional(),
         messages_version: versionSchema,
+        isLatest: z.boolean().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
@@ -242,6 +243,7 @@ export const messagesRouter = router({
         items: items.reverse(),
         messages_version,
         returnedDirection: "backward",
+        isLatest: true,
       };
     }),
   createSpam: privateProcedure([P.messages.create])

@@ -204,6 +204,7 @@ const messageQuerySelectors = {
     }
   },
   getNextPageParam: (lastPage, _, lastPageParam) => {
+    if (lastPage.isLatest) return undefined;
     if (lastPage.returnedDirection === "forward") {
       return lastPage.items.length === PER_PAGE
         ? {
@@ -281,7 +282,9 @@ const ChannelInner = ({ channel }: Props) => {
     useState<boolean>(false);
 
   // const [canStartDisplayingList, setCanStartDisplayingList] = useState(false);
-  // const initialTimerToDisplayListRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialTimerToDisplayListRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const [queryInitializing, setQueryInitializing] = useState<boolean | null>(
     null
   ); // null for initial render before router is ready
