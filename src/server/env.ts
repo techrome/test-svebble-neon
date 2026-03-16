@@ -6,46 +6,6 @@ import { isDev } from "../../scripts/helpers/isDev";
 import { isGithubActions } from "../../scripts/helpers/isGithubActions";
 import { domain, required, requiredForDev, requiredForProd } from "@/utils/env";
 
-type EnvVar =
-  | "POSTGRES_USER"
-  | "POSTGRES_PASSWORD"
-  | "POSTGRES_DB"
-  | "PGADMIN_DEFAULT_EMAIL"
-  | "PGADMIN_DEFAULT_PASSWORD"
-  | "DATABASE_URL_DOMAIN"
-  | "DATABASE_URL_PORT"
-  | "DATABASE_URL"
-  | "APPLICATION_NAME"
-  | "DATABASE_URL_UNPOOLED"
-  | "SENTRY_AUTH_TOKEN"
-  | "BETTER_AUTH_SECRET"
-  | "BASE_URL"
-  | "VERCEL"
-  | "VERCEL_ENV"
-  | "VERCEL_URL"
-  | "VERCEL_PROJECT_PRODUCTION_URL"
-  | "GOOGLE_CLIENT_ID"
-  | "GOOGLE_CLIENT_SECRET"
-  | "UPSTASH_REDIS_REST_TOKEN"
-  | "UPSTASH_REDIS_REST_URL"
-  | "RATELIMIT_IP_SALT"
-  | "BACKBLAZE_APP_KEY"
-  | "BACKBLAZE_APP_KEY_ID"
-  | "BACKBLAZE_BUCKET_NAME"
-  | "BACKBLAZE_REGION"
-  | "BACKBLAZE_ENDPOINT"
-  | "OPENAI_API_TOKEN"
-  | "CRON_SECRET"
-  | "EMAIL_SMTP_HOST"
-  | "EMAIL_SMTP_PORT"
-  | "EMAIL_SMTP_USER"
-  | "EMAIL_SMTP_PASS"
-  | "EMAIL_FROM"
-  | "WEBSOCKETS_API_KEY"
-  | "ENCRYPTION_PUBLIC_KEY";
-
-type EnvRecord = Record<EnvVar, z.ZodType>;
-
 const ignoreForGithubActions = <T extends z.ZodTypeAny>(schema: T): T =>
   (isGithubActions ? schema.optional() : schema) as T; // keeping the original schema type to avoid widening it to optional unnecessarily
 
@@ -92,7 +52,7 @@ export const env = createEnv({
     EMAIL_SMTP_PASS: ignoreForGithubActions(required()),
     EMAIL_FROM: ignoreForGithubActions(required()),
     ENCRYPTION_PUBLIC_KEY: ignoreForGithubActions(required()),
-  } satisfies EnvRecord,
+  },
   experimental__runtimeEnv: {},
   emptyStringAsUndefined: true,
   createFinalSchema: (shape) =>
@@ -106,7 +66,7 @@ export const env = createEnv({
             "POSTGRES_DB",
             "DATABASE_URL_DOMAIN",
             "DATABASE_URL_PORT",
-          ] satisfies EnvVar[]
+          ] satisfies (keyof typeof all)[]
         ).forEach((envVarName) => {
           if (!all[envVarName]) {
             ctx.addIssue({

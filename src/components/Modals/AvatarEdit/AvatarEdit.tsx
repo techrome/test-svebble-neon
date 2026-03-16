@@ -254,9 +254,7 @@ const AvatarChangeModal = ({
     onConfirm(file);
   };
 
-  const smallestImageSide = rawFileDimensions
-    ? Math.min(rawFileDimensions.height, rawFileDimensions.height)
-    : null;
+  const smallestImageSide = rawFileDimensions ? rawFileDimensions.height : null;
 
   return (
     <VerticalStack>

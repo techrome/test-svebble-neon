@@ -208,6 +208,7 @@ const NavbarInner = () => {
     };
 
     const onNavigation = (url: string) => {
+      clearScrollToIdTimer();
       closeDrawer();
       notificationsPopover.closePopover();
       handleScrollToId(url);
@@ -263,7 +264,6 @@ const NavbarInner = () => {
           <IconButton
             size="large"
             color="inherit"
-            className="3xl"
             aria-label="notifications"
             onClick={notificationsPopover.openPopover}
           >

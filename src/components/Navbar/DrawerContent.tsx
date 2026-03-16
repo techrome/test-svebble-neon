@@ -720,7 +720,7 @@ export const NotificationsContent = () => {
             {
               value: notificationTabsMapping.news,
               label: notificationTabsMapping.news,
-              panel: "Imporant panel",
+              panel: "News panel",
             },
             {
               value: notificationTabsMapping.system,

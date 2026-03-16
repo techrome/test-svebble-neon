@@ -4,9 +4,6 @@ import z from "zod";
 // relative paths here because this file is used in some cli and they can't recognize TS path aliases
 import { isDev } from "./isDev";
 
-export type ClientEnvVar = "NODE_ENV" | "NEXT_PUBLIC_CDN_URL";
-type EnvRecord = Record<ClientEnvVar, z.ZodType>;
-
 export const requiredWhen = (isRequired: boolean) => {
   let schema = z.string();
   return isRequired ? schema.min(1) : schema.optional();
@@ -37,7 +34,7 @@ export const env = createEnv({
   shared: {
     NODE_ENV: z.enum(["development", "production"]),
     NEXT_PUBLIC_CDN_URL: url(!isDev),
-  } satisfies EnvRecord,
+  },
   experimental__runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_CDN_URL: process.env.NEXT_PUBLIC_CDN_URL,

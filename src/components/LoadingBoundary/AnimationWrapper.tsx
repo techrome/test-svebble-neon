@@ -109,9 +109,7 @@ const AnimationWrapper = ({
         return;
       }
 
-      const firstChildStyles = firstChild
-        ? window.getComputedStyle(firstChild)
-        : null;
+      const firstChildStyles = window.getComputedStyle(firstChild);
 
       const borderRadius =
         firstChildStyles?.borderRadius ??

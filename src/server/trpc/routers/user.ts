@@ -55,11 +55,7 @@ export const validateUserFileKey = (userId: string, key: string): boolean => {
 
   const [, ownerId, fileId] = match;
 
-  if (
-    ownerId !== userId ||
-    !uuidSchema.safeParse(ownerId).success ||
-    !uuidSchema.safeParse(fileId).success
-  ) {
+  if (ownerId !== userId || !uuidSchema.safeParse(fileId).success) {
     return false;
   }
 
@@ -250,12 +246,6 @@ export const userRouter = router({
     .mutation(async ({ ctx, input }) => {
       const currentUser = ctx.user;
 
-      if (!currentUser) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "User not found.",
-        });
-      }
       const currentRemainingUsernameChanges =
         currentUser.remainingUsernameChanges;
 

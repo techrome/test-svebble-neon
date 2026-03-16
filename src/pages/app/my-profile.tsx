@@ -673,12 +673,7 @@ const EmailForm = () => {
       </HorizontalStack>
       <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
         <VerticalStack>
-          {!anyEmail ? (
-            <Typography variant="subtitle2">
-              Add an email so you can recover your account if you forget your
-              password.
-            </Typography>
-          ) : anyEmail ? (
+          {anyEmail ? (
             <VerticalStack>
               {Boolean(freshUserData.email) &&
                 !isPlaceholderEmail(freshUserData.email) && (
@@ -772,7 +767,12 @@ const EmailForm = () => {
                 </>
               )}
             </VerticalStack>
-          ) : null}
+          ) : (
+            <Typography variant="subtitle2">
+              Add an email so you can recover your account if you forget your
+              password.
+            </Typography>
+          )}
           {!freshUserData.pendingEmail && (
             <>
               <Input
