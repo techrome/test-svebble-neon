@@ -231,6 +231,23 @@ const messageQuerySelectors = {
 
 const baseIntervalMs = Number(seconds(5));
 
+type SyncMode = "polling" | "ws-syncing" | "ws-live";
+
+const syncModeMapping = {
+  polling: {
+    label: "refetching periodically",
+    className: "bg-[var(--mui-palette-warning-main)]",
+  },
+  "ws-syncing": {
+    label: "syncing",
+    className: "bg-[var(--mui-palette-info-main)]",
+  },
+  "ws-live": {
+    label: "live",
+    className: "bg-[var(--mui-palette-success-main)]",
+  },
+} as const satisfies Record<SyncMode, { label: string; className: string }>;
+
 type Props = {
   channel: RouterOutput["channels"]["get"]["items"][number];
 };
@@ -280,17 +297,23 @@ const ChannelInner = ({ channel }: Props) => {
     useState<boolean>(true);
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
     useState<boolean>(false);
+  const hasCompletedFirstInit = useRef<boolean>(false);
+  const hasStartedWsSyncRefetch = useRef<boolean>(false);
 
-  // const [canStartDisplayingList, setCanStartDisplayingList] = useState(false);
-  const initialTimerToDisplayListRef = useRef<ReturnType<
+  // gating initial load to avoid unnecessary refetch when waiting for websockets
+  // in most cases it should be: ws connected -> start fetching initial page
+  const [initialGateOpenedReason, setInitialGateOpenedReason] = useState<
+    "fallback" | "websockets" | null
+  >(null);
+  const isInitialGateOpened = Boolean(initialGateOpenedReason);
+  const initialTimerToOpenGateRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
-  const [queryInitializing, setQueryInitializing] = useState<boolean | null>(
-    null
-  ); // null for initial render before router is ready
-  const [syncMode, setSyncMode] = useState<
-    "polling" | "ws-syncing" | "ws-live"
-  >("polling");
+
+  const [isQueryBootstrapping, setIsQueryBootstrapping] = useState<
+    boolean | null
+  >(null); // null for initial render before router is ready
+  const [syncMode, setSyncMode] = useState<SyncMode>("polling");
   const [wsSyncFailedCount, setWsSyncFailedCount] = useState<number>(0);
   const [messagesQueryKey, setMessagesQueryKey] = useState<
     RouterInput["messages"]["get"]
@@ -299,7 +322,6 @@ const ChannelInner = ({ channel }: Props) => {
   const isPolling = syncMode === "polling";
   const isWsSyncing = syncMode === "ws-syncing";
   const isWsLive = syncMode === "ws-live";
-  console.log({ syncMode });
 
   const isWsConnectedRef = useRef<boolean>(false);
 
@@ -326,7 +348,7 @@ const ChannelInner = ({ channel }: Props) => {
 
   const messages = useAppQuery(
     trpc.messages.get.useInfiniteQuery(messagesQueryKey, {
-      enabled: queryInitializing === false,
+      enabled: isQueryBootstrapping === false && isInitialGateOpened,
       ...messageQuerySelectors,
       refetchInterval(query) {
         const vars = refetchIntervalVars.current;
@@ -373,20 +395,6 @@ const ChannelInner = ({ channel }: Props) => {
     )
   );
 
-  useEffect(() => {
-    if (
-      messagesVersion.isSuccess &&
-      !messagesVersion.isRefetching &&
-      !messagesVersion.isRefetchError &&
-      isWsLive &&
-      messagesVersion.data > appliedMessagesVersion.current
-    ) {
-      websocketsMessageQueue.current = [];
-      setWsSyncFailedCount(0);
-      setSyncMode("ws-syncing");
-    }
-  }, [messagesVersion.isRefetching]);
-
   const appliedMessagesVersion = useRef<bigint>(BigInt(0));
 
   const handleNewMessagesVersion = (
@@ -427,20 +435,11 @@ const ChannelInner = ({ channel }: Props) => {
     }
   }, [router.query.messageId]);
 
-  const foundMessageIndex = useMemo(
-    () =>
-      urlMessageId &&
-      messages.data?.items &&
-      (!isMessageHighlightConsumed || !isInitialScrollHandled)
-        ? messages.data.items.findIndex((m) => m.id === BigInt(urlMessageId))
-        : -1,
-    [
-      messages.data?.items,
-      urlMessageId,
-      isMessageHighlightConsumed,
-      isInitialScrollHandled,
-    ]
-  );
+  const foundMessageIndex = useMemo(() => {
+    if (!urlMessageId || !messages.data?.items) return -1;
+    const targetId = BigInt(urlMessageId);
+    return messages.data.items.findIndex((m) => m.id === targetId);
+  }, [messages.data?.items, urlMessageId]);
 
   const initialTopMostItemIndex = useMemo(() => {
     let result = -1;
@@ -478,6 +477,7 @@ const ChannelInner = ({ channel }: Props) => {
     isWsSyncing,
     handleNewMessagesVersion,
     utils,
+    initialGateOpenedReason,
   });
 
   websocketsDependencies.current = {
@@ -490,6 +490,7 @@ const ChannelInner = ({ channel }: Props) => {
     isWsSyncing,
     handleNewMessagesVersion,
     utils,
+    initialGateOpenedReason,
   };
 
   const websocketsMessageQueue = useRef<WebsocketItem[]>([]);
@@ -713,8 +714,6 @@ const ChannelInner = ({ channel }: Props) => {
           itemToUpdateId < lowestLoadedId ||
           itemToUpdateId > highestLoadedId
         ) {
-          console.log("HERE DELETED");
-
           return queryData;
         }
 
@@ -765,202 +764,6 @@ const ChannelInner = ({ channel }: Props) => {
     },
     []
   );
-
-  const websocketsClient = useWsClient();
-
-  useEffect(() => {
-    if (!websocketsClient) return;
-
-    let isEffectCleanup = false;
-    const websocketsChannel = websocketsClient.channels.get(
-      getChannelId(channelIdString)
-    );
-    const onConnectionLost = () => {
-      if (isEffectCleanup) return;
-      const { isPolling } = websocketsDependencies.current;
-      isWsConnectedRef.current = false;
-      if (!isPolling) {
-        setSyncMode("polling");
-        addAppSnackbar({
-          message:
-            "Realtime connection lost. Falling back to periodic refetch.",
-          variant: "warning",
-        });
-      }
-    };
-
-    const onChannelUpdate = (state: { resumed?: boolean }) => {
-      if (isEffectCleanup) return;
-      if (state.resumed === false) {
-        onConnectionLost();
-      }
-    };
-
-    const tryStartSyncing = () => {
-      if (isEffectCleanup) return;
-      const isWsConnected = websocketsClient.connection.state === "connected";
-      const isWsChannelAttached = websocketsChannel.state === "attached";
-      if (isWsConnected && isWsChannelAttached) {
-        isWsConnectedRef.current = true;
-        websocketsMessageQueue.current = [];
-        setWsSyncFailedCount(0);
-        setSyncMode("ws-syncing");
-        // setCanStartDisplayingList(true);
-      }
-    };
-
-    websocketsClient.connection.on(
-      ["disconnected", "suspended", "failed"],
-      onConnectionLost
-    );
-    websocketsChannel.on(["suspended", "failed"], onConnectionLost);
-    websocketsChannel.on("update", onChannelUpdate);
-
-    websocketsClient.connection.on("connected", tryStartSyncing);
-    websocketsChannel.on("attached", tryStartSyncing);
-
-    const unsubs = [
-      subscribeWs(websocketsChannel, "messages:create", (data) => {
-        wsMessageCreateHandler(data);
-      }),
-      subscribeWs(websocketsChannel, "messages:update", (data) => {
-        wsMessageUpdateHandler(data);
-      }),
-      subscribeWs(websocketsChannel, "messages:delete", (data) => {
-        wsMessageDeleteHandler(data);
-      }),
-    ];
-
-    return () => {
-      isEffectCleanup = true;
-      unsubs.forEach((u) => u());
-
-      websocketsClient.connection.off(onConnectionLost);
-      websocketsClient.connection.off(tryStartSyncing);
-      websocketsChannel.off(onConnectionLost);
-      websocketsChannel.off(onChannelUpdate);
-      websocketsChannel.off(tryStartSyncing);
-
-      void websocketsChannel.detach();
-    };
-    // eslint-disable-next-line
-  }, [websocketsClient, channelIdString]);
-
-  const startedRefetchingForWsSync = useRef<boolean>(false);
-
-  useLayoutEffect(() => {
-    if (isWsSyncing) {
-      startedRefetchingForWsSync.current = false;
-    }
-  }, [isWsSyncing]);
-
-  useEffect(() => {
-    if (
-      isWsSyncing &&
-      !messages.isFetching &&
-      (!shouldRenderList || isIdle) &&
-      !startedRefetchingForWsSync.current
-    ) {
-      startedRefetchingForWsSync.current = true;
-      // if(canStartDisplayingList){}
-      messages.refetch();
-    }
-  }, [isWsSyncing, messages.isFetching, isIdle, shouldRenderList]);
-
-  useEffect(() => {
-    const data = messages.data;
-    if (!data?.pages.length) return;
-
-    if (!hasQueryLoadedInitialData.current) {
-      hasQueryLoadedInitialData.current = true;
-      appliedMessagesVersion.current = data.pages[0].messages_version;
-      return;
-    }
-  }, [messages.dataUpdatedAt]);
-
-  useEffect(() => {
-    const data = messages.data;
-    if (!data?.pages.length) return;
-
-    const prevWasRefetching = wasRefetching.current;
-    wasRefetching.current = messages.isRefetching;
-
-    if (prevWasRefetching && !messages.isRefetching) {
-      if (messages.isRefetchError) {
-        setSyncMode("polling");
-        return;
-      }
-
-      const lowestRefetchedMessagesVersion = data.pages[0].messages_version;
-      const highestRefetchedMessagesVersion =
-        data.pages[data.pages.length - 1].messages_version;
-      appliedMessagesVersion.current = isWsSyncing
-        ? lowestRefetchedMessagesVersion
-        : highestRefetchedMessagesVersion;
-
-      if (!isWsSyncing) return;
-
-      const relevantEvents = websocketsMessageQueue.current
-        .filter(
-          (e) => BigInt(e.data.messagesVersion) > lowestRefetchedMessagesVersion
-        )
-        .sort((aEvent, bEvent) => {
-          const a = BigInt(aEvent.data.messagesVersion);
-          const b = BigInt(bEvent.data.messagesVersion);
-          return a < b ? -1 : a > b ? 1 : 0;
-        });
-
-      const canSafelySwitchToWebsockets = relevantEvents.length
-        ? (() => {
-            const minVersion = BigInt(relevantEvents[0].data.messagesVersion);
-            const maxVersion = BigInt(
-              relevantEvents[relevantEvents.length - 1].data.messagesVersion
-            );
-
-            return (
-              maxVersion >= highestRefetchedMessagesVersion &&
-              minVersion === lowestRefetchedMessagesVersion + BigInt(1) &&
-              maxVersion - minVersion + BigInt(1) ===
-                BigInt(relevantEvents.length)
-            );
-          })()
-        : lowestRefetchedMessagesVersion === highestRefetchedMessagesVersion;
-
-      if (!canSafelySwitchToWebsockets) {
-        setWsSyncFailedCount((prev) => prev + 1);
-        addAppSnackbar({
-          message: "Realtime sync failed.",
-          variant: "warning",
-        });
-        return;
-      }
-
-      relevantEvents.forEach((event) => {
-        switch (event.eventName) {
-          case "messages:create": {
-            wsMessageCreateHandler(event.data, true);
-            break;
-          }
-          case "messages:update": {
-            wsMessageUpdateHandler(event.data, true);
-            break;
-          }
-          case "messages:delete": {
-            wsMessageDeleteHandler(event.data, true);
-            break;
-          }
-          default: {
-            break;
-          }
-        }
-      });
-
-      startedRefetchingForWsSync.current = false;
-      websocketsMessageQueue.current = [];
-      setWsSyncFailedCount(0);
-      setSyncMode("ws-live");
-    }
-  }, [messages.isRefetching]);
 
   const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
     onSuccess: () => {
@@ -1052,7 +855,7 @@ const ChannelInner = ({ channel }: Props) => {
     });
   };
 
-  console.log({ ...messages });
+  console.log({ ...messages }, { syncMode, initialGateOpenedReason });
 
   const tryLoadNewer = async (ignoreError?: boolean) => {
     if (ignoreError ? false : messages.isFetchNextPageError) {
@@ -1263,24 +1066,6 @@ const ChannelInner = ({ channel }: Props) => {
   }, [debouncedMakeIdle]);
 
   useEffect(() => {
-    if (wsSyncFailedCount > 0) {
-      setSyncMode("polling");
-    }
-  }, [wsSyncFailedCount]);
-
-  useEffect(() => {
-    if (isPolling) {
-      repairEmptyPageParams();
-      trimPagesAroundViewport();
-      if (wsSyncFailedCount < 3 && isWsConnectedRef.current) {
-        websocketsMessageQueue.current = [];
-        setSyncMode("ws-syncing");
-      }
-    }
-    // eslint-disable-next-line
-  }, [isPolling]);
-
-  useEffect(() => {
     if (!totalItems) {
       setFirstItemIndex(null);
       return;
@@ -1316,6 +1101,265 @@ const ChannelInner = ({ channel }: Props) => {
     };
   }, []);
 
+  const clearInitialTimerToOpenGate = () => {
+    if (initialTimerToOpenGateRef.current) {
+      clearTimeout(initialTimerToOpenGateRef.current);
+    }
+    initialTimerToOpenGateRef.current = null;
+  };
+
+  const websocketsClient = useWsClient();
+
+  const trySwitchToLiveWebsockets = ({
+    lowestMessagesVersion,
+    highestMessagesVersion,
+  }: {
+    lowestMessagesVersion: bigint;
+    highestMessagesVersion: bigint;
+  }) => {
+    if (!isWsSyncing) return;
+
+    const relevantEvents = websocketsMessageQueue.current
+      .filter((e) => BigInt(e.data.messagesVersion) > lowestMessagesVersion)
+      .sort((aEvent, bEvent) => {
+        const a = BigInt(aEvent.data.messagesVersion);
+        const b = BigInt(bEvent.data.messagesVersion);
+        return a < b ? -1 : a > b ? 1 : 0;
+      });
+
+    const canSafelySwitchToWebsockets = relevantEvents.length
+      ? (() => {
+          const minVersion = BigInt(relevantEvents[0].data.messagesVersion);
+          const maxVersion = BigInt(
+            relevantEvents[relevantEvents.length - 1].data.messagesVersion
+          );
+
+          return (
+            maxVersion >= highestMessagesVersion &&
+            minVersion === lowestMessagesVersion + BigInt(1) &&
+            maxVersion - minVersion + BigInt(1) ===
+              BigInt(relevantEvents.length)
+          );
+        })()
+      : lowestMessagesVersion === highestMessagesVersion;
+
+    if (!canSafelySwitchToWebsockets) {
+      setWsSyncFailedCount((prev) => prev + 1);
+      addAppSnackbar({
+        message: "Realtime sync failed.",
+        variant: "warning",
+      });
+      return;
+    }
+
+    relevantEvents.forEach((event) => {
+      switch (event.eventName) {
+        case "messages:create": {
+          wsMessageCreateHandler(event.data, true);
+          break;
+        }
+        case "messages:update": {
+          wsMessageUpdateHandler(event.data, true);
+          break;
+        }
+        case "messages:delete": {
+          wsMessageDeleteHandler(event.data, true);
+          break;
+        }
+        default: {
+          break;
+        }
+      }
+    });
+
+    hasStartedWsSyncRefetch.current = false;
+    websocketsMessageQueue.current = [];
+    setWsSyncFailedCount(0);
+    setSyncMode("ws-live");
+  };
+
+  useEffect(() => {
+    if (!websocketsClient) return;
+
+    let isEffectCleanup = false;
+    const websocketsChannel = websocketsClient.channels.get(
+      getChannelId(channelIdString)
+    );
+    const onConnectionLost = () => {
+      if (isEffectCleanup) return;
+      const { isPolling } = websocketsDependencies.current;
+      isWsConnectedRef.current = false;
+      if (!isPolling) {
+        setSyncMode("polling");
+        setInitialGateOpenedReason("fallback");
+        addAppSnackbar({
+          message:
+            "Realtime connection lost. Falling back to periodic refetch.",
+          variant: "warning",
+        });
+      }
+    };
+
+    const onChannelUpdate = (state: { resumed?: boolean }) => {
+      if (isEffectCleanup) return;
+      if (state.resumed === false) {
+        onConnectionLost();
+      }
+    };
+
+    const tryStartSyncing = () => {
+      if (isEffectCleanup) return;
+      const isWsConnected = websocketsClient.connection.state === "connected";
+      const isWsChannelAttached = websocketsChannel.state === "attached";
+      const { initialGateOpenedReason } = websocketsDependencies.current;
+      if (isWsConnected && isWsChannelAttached) {
+        isWsConnectedRef.current = true;
+        websocketsMessageQueue.current = [];
+        clearInitialTimerToOpenGate();
+        setWsSyncFailedCount(0);
+        setSyncMode("ws-syncing");
+        if (!initialGateOpenedReason) {
+          setInitialGateOpenedReason("websockets");
+        }
+      }
+    };
+
+    websocketsClient.connection.on(
+      ["disconnected", "suspended", "failed"],
+      onConnectionLost
+    );
+    websocketsChannel.on(["suspended", "failed"], onConnectionLost);
+    websocketsChannel.on("update", onChannelUpdate);
+
+    websocketsClient.connection.on("connected", tryStartSyncing);
+    websocketsChannel.on("attached", tryStartSyncing);
+
+    const unsubs = [
+      subscribeWs(websocketsChannel, "messages:create", (data) => {
+        wsMessageCreateHandler(data);
+      }),
+      subscribeWs(websocketsChannel, "messages:update", (data) => {
+        wsMessageUpdateHandler(data);
+      }),
+      subscribeWs(websocketsChannel, "messages:delete", (data) => {
+        wsMessageDeleteHandler(data);
+      }),
+    ];
+
+    return () => {
+      isEffectCleanup = true;
+      unsubs.forEach((u) => u());
+
+      websocketsClient.connection.off(onConnectionLost);
+      websocketsClient.connection.off(tryStartSyncing);
+      websocketsChannel.off(onConnectionLost);
+      websocketsChannel.off(onChannelUpdate);
+      websocketsChannel.off(tryStartSyncing);
+
+      void websocketsChannel.detach();
+    };
+    // eslint-disable-next-line
+  }, [websocketsClient, channelIdString]);
+
+  useLayoutEffect(() => {
+    if (isWsSyncing) {
+      hasStartedWsSyncRefetch.current = false;
+    }
+  }, [isWsSyncing]);
+
+  const shouldStartWsSyncRefetch =
+    isWsSyncing &&
+    !messages.isFetching &&
+    (!shouldRenderList || isIdle) &&
+    initialGateOpenedReason === "fallback" &&
+    !hasStartedWsSyncRefetch.current;
+
+  useEffect(() => {
+    if (shouldStartWsSyncRefetch) {
+      hasStartedWsSyncRefetch.current = true;
+      messages.refetch();
+    }
+  }, [shouldStartWsSyncRefetch]);
+
+  useEffect(() => {
+    const data = messages.data;
+    if (!data?.pages.length) return;
+
+    if (!hasQueryLoadedInitialData.current) {
+      hasQueryLoadedInitialData.current = true;
+      const messagesVersion = data.pages[0].messages_version;
+      appliedMessagesVersion.current = messagesVersion;
+      if (initialGateOpenedReason === "websockets") {
+        trySwitchToLiveWebsockets({
+          lowestMessagesVersion: messagesVersion,
+          highestMessagesVersion: messagesVersion,
+        });
+      }
+      return;
+    }
+  }, [messages.dataUpdatedAt]);
+
+  useEffect(() => {
+    const data = messages.data;
+    if (!data?.pages.length) return;
+
+    const prevWasRefetching = wasRefetching.current;
+    wasRefetching.current = messages.isRefetching;
+
+    if (prevWasRefetching && !messages.isRefetching) {
+      if (messages.isRefetchError) {
+        setSyncMode("polling");
+        return;
+      }
+
+      const lowestRefetchedMessagesVersion = data.pages[0].messages_version;
+      const highestRefetchedMessagesVersion =
+        data.pages[data.pages.length - 1].messages_version;
+      appliedMessagesVersion.current = isWsSyncing
+        ? lowestRefetchedMessagesVersion
+        : highestRefetchedMessagesVersion;
+
+      trySwitchToLiveWebsockets({
+        lowestMessagesVersion: lowestRefetchedMessagesVersion,
+        highestMessagesVersion: highestRefetchedMessagesVersion,
+      });
+    }
+  }, [messages.isRefetching]);
+
+  useEffect(() => {
+    if (wsSyncFailedCount > 0) {
+      setSyncMode("polling");
+      setInitialGateOpenedReason("fallback");
+    }
+  }, [wsSyncFailedCount]);
+
+  useEffect(() => {
+    if (isPolling) {
+      repairEmptyPageParams();
+      trimPagesAroundViewport();
+      if (wsSyncFailedCount < 3 && isWsConnectedRef.current) {
+        websocketsMessageQueue.current = [];
+        setSyncMode("ws-syncing");
+      }
+    }
+    // eslint-disable-next-line
+  }, [isPolling]);
+
+  useEffect(() => {
+    // periodic check by channel version to ensure latest data
+    if (
+      messagesVersion.isSuccess &&
+      !messagesVersion.isRefetching &&
+      !messagesVersion.isRefetchError &&
+      isWsLive &&
+      messagesVersion.data > appliedMessagesVersion.current
+    ) {
+      websocketsMessageQueue.current = [];
+      setWsSyncFailedCount(0);
+      setSyncMode("ws-syncing");
+    }
+  }, [messagesVersion.isRefetching]);
+
   const resetMessagesList = () => {
     refetchIntervalVars.current.wasFetching = false;
     refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
@@ -1323,12 +1367,34 @@ const ChannelInner = ({ channel }: Props) => {
     wasRefetching.current = false;
     userInteractedRef.current = false;
     websocketsMessageQueue.current = [];
-    startedRefetchingForWsSync.current = false;
+    hasStartedWsSyncRefetch.current = false;
+    clearInitialTimerToOpenGate();
     setWsSyncFailedCount(0);
-    setSyncMode("polling");
-    setQueryInitializing(true);
+    setIsQueryBootstrapping(true);
     setIsInitialScrollHandled(false);
     setIsMessageHighlightConsumed(false);
+
+    if (foundMessageIndex === -1) {
+      if (isWsConnectedRef.current) {
+        setSyncMode("ws-syncing");
+        setInitialGateOpenedReason("websockets");
+      } else {
+        setSyncMode("polling");
+        if (hasCompletedFirstInit.current) {
+          setInitialGateOpenedReason("fallback");
+        } else {
+          setInitialGateOpenedReason(null);
+          initialTimerToOpenGateRef.current = setTimeout(() => {
+            setInitialGateOpenedReason("fallback");
+            initialTimerToOpenGateRef.current = null;
+          }, 1000);
+        }
+      }
+    }
+
+    if (!hasCompletedFirstInit.current) {
+      hasCompletedFirstInit.current = true;
+    }
   };
 
   const retryInvalidate = () => {
@@ -1350,9 +1416,9 @@ const ChannelInner = ({ channel }: Props) => {
   }, [urlMessageId]);
 
   useEffect(() => {
-    if (!queryInitializing) return;
+    if (!isQueryBootstrapping) return;
 
-    if (foundMessageIndex < 0) {
+    if (foundMessageIndex === -1) {
       qc.removeQueries({
         queryKey: getQueryKey(trpc.messages.get, messagesQueryKey, "infinite"),
         exact: true,
@@ -1363,14 +1429,14 @@ const ChannelInner = ({ channel }: Props) => {
       }));
     }
 
-    setQueryInitializing(false);
+    setIsQueryBootstrapping(false);
 
     // eslint-disable-next-line
-  }, [queryInitializing]);
+  }, [isQueryBootstrapping]);
 
   useEffect(() => {
     if (
-      queryInitializing !== false ||
+      isQueryBootstrapping !== false ||
       isInitialScrollHandled ||
       !messages.data?.items.length ||
       !isIdle
@@ -1378,7 +1444,7 @@ const ChannelInner = ({ channel }: Props) => {
       return;
     }
     if (urlMessageId) {
-      if (foundMessageIndex < 0) {
+      if (foundMessageIndex === -1) {
         addAppSnackbar({
           message: `Message with ID ${urlMessageId} not found.`,
           variant: "error",
@@ -1410,7 +1476,7 @@ const ChannelInner = ({ channel }: Props) => {
     isInitialScrollHandled,
     messages.hasNextPage,
     messages.data?.items,
-    queryInitializing,
+    isQueryBootstrapping,
     isIdle,
   ]);
 
@@ -1609,6 +1675,8 @@ const ChannelInner = ({ channel }: Props) => {
     []
   );
 
+  const syncModeInfo = syncModeMapping[syncMode];
+
   return (
     <Paper
       elevation={1}
@@ -1617,7 +1685,20 @@ const ChannelInner = ({ channel }: Props) => {
       )}
       ref={wrapperRef}
     >
-      <HorizontalStack addClassName="justify-between items-center">
+      <HorizontalStack
+        withPadding
+        addClassName="justify-between items-center border-b border-(--mui-palette-divider) relative"
+      >
+        <Tooltip title={`Realtime sync status: ${syncModeInfo.label}`}>
+          <div className="p-2 absolute top-0 left-0">
+            <div
+              className={clsx(
+                "h-1.5 w-1.5 rounded-full animate-pulse",
+                syncModeInfo.className
+              )}
+            ></div>
+          </div>
+        </Tooltip>
         <Typography>Some text</Typography>
         <Button
           variant="outlined"
@@ -1627,6 +1708,7 @@ const ChannelInner = ({ channel }: Props) => {
         >
           Current polling - {isPolling ? "ON" : "OFF"}
         </Button>
+
         <form onSubmit={searchForm.handleSubmit(onSearchSubmit)} noValidate>
           <Input
             control={searchForm.control}
@@ -1699,7 +1781,7 @@ const ChannelInner = ({ channel }: Props) => {
               context={virtuosoContext}
               components={MessagesComponents}
             />
-          ) : messages.isFetching ? (
+          ) : messages.isFetching || !isInitialGateOpened ? (
             <MessagesSkeleton fullHeight />
           ) : messages.isError ? (
             <VerticalStack>
@@ -1850,7 +1932,7 @@ const Channel: AppPage = () => {
     <div className="flex-1 flex flex-col mt-3 min-h-0">
       <HorizontalStack addClassName="flex-1 min-h-0">
         <ChannelListWrapper />
-        {!urlChannelId ? null : !foundChannel ? (
+        {!urlChannelId || channels.isPending ? null : !foundChannel ? (
           <div>Channel not found</div>
         ) : (
           <LoadingBoundary addClassName="min-h-0 h-full flex-1">
