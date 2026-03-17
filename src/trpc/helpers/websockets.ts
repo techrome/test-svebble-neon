@@ -3,7 +3,7 @@ import type { RealtimeChannel, Message } from "ably";
 import { type RouterOutput } from "@/trpc";
 import { ToSerializable } from "@/utils/types";
 
-type MessageSerializable = ToSerializable<
+export type MessageSerializable = ToSerializable<
   RouterOutput["messages"]["get"]["items"][number]
 >;
 
