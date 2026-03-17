@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useSnackbar } from "notistack";
 
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
@@ -27,9 +27,9 @@ export const SnackbarListener = () => {
   const dispatch = useAppDispatch();
   const items = useAppSelector((state) => state.snackbars.items);
   const { enqueueSnackbar, closeSnackbar } = useSnackbar();
-  const displayedItemKeysRef = React.useRef<Set<SnackbarId>>(new Set());
+  const displayedItemKeysRef = useRef<Set<SnackbarId>>(new Set());
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleSnackbarExit = (key: SnackbarId) => {
       dispatch(deleteSnackbar(key));
       displayedItemKeysRef.current.delete(key);

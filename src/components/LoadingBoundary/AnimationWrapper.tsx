@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 
 type ChildObserverCallback = (el: HTMLElement) => void;
@@ -6,6 +6,7 @@ type AnimationWrapperProps = {
   children: React.ReactNode;
   active?: boolean;
   isOuter?: boolean;
+  addClassName?: string;
 };
 
 const DELAY_MS = 200;
@@ -14,7 +15,7 @@ const useChildMutationObserver = (
   containerRef: React.RefObject<HTMLElement | null>,
   onChange: ChildObserverCallback
 ) => {
-  React.useEffect(() => {
+  useEffect(() => {
     const container = containerRef.current;
     if (!container) {
       return;
@@ -89,12 +90,13 @@ const AnimationWrapper = ({
   active = false,
   children,
   isOuter,
+  addClassName,
 }: AnimationWrapperProps) => {
-  const contentWrapperRef = React.useRef<HTMLDivElement | null>(null);
-  const rectRef = React.useRef<SVGRectElement | null>(null);
-  const [delayedActive, setDelayedActive] = React.useState(false);
+  const contentWrapperRef = useRef<HTMLDivElement | null>(null);
+  const rectRef = useRef<SVGRectElement | null>(null);
+  const [delayedActive, setDelayedActive] = useState(false);
 
-  const copyContentBorderRadius = React.useCallback<ChildObserverCallback>(
+  const copyContentBorderRadius = useCallback<ChildObserverCallback>(
     (contentWrapperEl) => {
       if (!rectRef.current) {
         return;
@@ -107,9 +109,7 @@ const AnimationWrapper = ({
         return;
       }
 
-      const firstChildStyles = firstChild
-        ? window.getComputedStyle(firstChild)
-        : null;
+      const firstChildStyles = window.getComputedStyle(firstChild);
 
       const borderRadius =
         firstChildStyles?.borderRadius ??
@@ -123,7 +123,7 @@ const AnimationWrapper = ({
   );
   useChildMutationObserver(contentWrapperRef, copyContentBorderRadius);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (active) {
       const timeout = setTimeout(() => {
         setDelayedActive(true);
@@ -137,8 +137,11 @@ const AnimationWrapper = ({
   }, [active]);
 
   return (
-    <div className="rotating-dash-frame">
-      <div ref={contentWrapperRef} className="dash-frame-content">
+    <div className={clsx("rotating-dash-frame", addClassName)}>
+      <div
+        ref={contentWrapperRef}
+        className={clsx("dash-frame-content", addClassName)}
+      >
         {children}
       </div>
       <svg

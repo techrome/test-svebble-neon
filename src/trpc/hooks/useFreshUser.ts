@@ -2,7 +2,7 @@
 import React from "react";
 import { trpc } from "@/trpc";
 import useAppQuery, { UseAppQueryOptions } from "@/utils/hooks/useAppQuery";
-import { CACHE_TIME } from "@/utils/cacheTime";
+import { CACHE_TIME_MS } from "@/utils/cacheTime";
 import { useEffectAfterMount } from "@/utils/hooks/useEffectAfterMount";
 
 type TRPCQueryOptions = Omit<
@@ -16,7 +16,7 @@ export const useFreshUser = (
 ) => {
   const freshUser = useAppQuery(
     trpc.auth.freshUser.useQuery(undefined, {
-      staleTime: CACHE_TIME.QUICK,
+      staleTime: CACHE_TIME_MS.QUICK,
       ...trpcQueryOptions,
     }),
     appQueryOptions

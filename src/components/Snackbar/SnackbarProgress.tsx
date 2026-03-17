@@ -1,4 +1,4 @@
-import * as React from "react";
+import React, { useCallback, useMemo } from "react";
 import clsx from "clsx";
 
 export interface SnackProgressBarProps {
@@ -20,7 +20,7 @@ export const SnackProgressBar = ({
   style,
   rtl,
 }: SnackProgressBarProps) => {
-  const inlineStyle = React.useMemo<React.CSSProperties>(
+  const inlineStyle = useMemo<React.CSSProperties>(
     () => ({
       ...style,
       animationDuration: `${durationMs}ms`,
@@ -35,7 +35,7 @@ export const SnackProgressBar = ({
 
   const fullClassName = clsx(baseClassName, className);
 
-  const handleDone = React.useCallback(() => {
+  const handleDone = useCallback(() => {
     if (hidden) {
       return;
     }

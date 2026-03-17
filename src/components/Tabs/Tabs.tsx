@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 import {
   Tabs as MuiTabs,
   Tab as MuiTab,
@@ -22,7 +22,7 @@ const getA11yProps = (baseId: string, value: string) => ({
 });
 
 const Tabs = ({ tabs, ...props }: Props) => {
-  const baseId = React.useId();
+  const baseId = useId();
 
   return (
     <div>

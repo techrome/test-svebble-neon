@@ -4,16 +4,34 @@ import {
   Link as MuiLink,
   type LinkProps as MuiLinksProps,
 } from "@mui/material";
-import { AllRoutes } from "@/utils/routes";
+
+import { AllRoutes, ANCHORS } from "@/utils/routes";
+
+type NextLinkHrefUrlObject = Exclude<NextLinkProps["href"], string>;
+type UrlObjectWithAllRoutes = Omit<
+  NextLinkHrefUrlObject,
+  "pathname" | "hash"
+> & {
+  pathname: AllRoutes;
+  hash?: (typeof ANCHORS)[keyof typeof ANCHORS];
+};
 
 type Props = {
   children: React.ReactNode;
+  disabled?: boolean;
 } & Omit<MuiLinksProps, "component" | "href"> &
   Omit<NextLinkProps, "href"> & {
-    href: AllRoutes;
+    href: AllRoutes | UrlObjectWithAllRoutes;
   };
 
-const Link = ({ children, ...props }: Props) => {
+const Link = ({ children, disabled, ...props }: Props) => {
+  if (disabled) {
+    return (
+      <MuiLink component="span" aria-disabled tabIndex={-1} {...props}>
+        {children}
+      </MuiLink>
+    );
+  }
   return (
     <MuiLink component={NextLink} {...props}>
       {children}

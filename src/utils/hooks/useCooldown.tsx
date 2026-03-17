@@ -1,8 +1,8 @@
-import React from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRerenderOnInterval } from "./useRerenderOnInterval";
 
 export const useCooldown = (cooldownMs: number, tickMs = 1000) => {
-  const [endTime, setEndTime] = React.useState<number | null>(null);
+  const [endTime, setEndTime] = useState<number | null>(null);
   useRerenderOnInterval(tickMs, !endTime);
 
   // eslint-disable-next-line
@@ -15,13 +15,13 @@ export const useCooldown = (cooldownMs: number, tickMs = 1000) => {
   const percent = (1 - remainingMs / cooldownMs) * 100;
   const progress = endTime ? Math.max(0, Math.min(100, percent)) : 0;
 
-  const start = React.useCallback(() => {
+  const start = useCallback(() => {
     setEndTime(Date.now() + cooldownMs);
   }, [cooldownMs]);
 
-  const reset = React.useCallback(() => setEndTime(null), []);
+  const reset = useCallback(() => setEndTime(null), []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isCoolingDown) {
       reset();
     }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { CircularProgress, Typography } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
@@ -8,6 +8,7 @@ import Link from "@/components/Link/Link";
 import Button from "@/components/Button/Button";
 import { ROUTES } from "@/utils/routes";
 import { useRouter } from "next/router";
+import { getRouterQueryValue } from "@/utils/query";
 
 export type BroadcastChannels = "auth-events";
 export type BroadcastChannelEvent = "email-verified";
@@ -15,10 +16,9 @@ export type BroadcastChannelEvent = "email-verified";
 const EmailVerified = () => {
   const router = useRouter();
 
-  const error =
-    typeof router.query.error === "string" ? router.query.error : null;
+  const error = getRouterQueryValue(router.query.error);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (router.isReady && !error) {
       const bc = new BroadcastChannel(
         "auth-events" satisfies BroadcastChannels

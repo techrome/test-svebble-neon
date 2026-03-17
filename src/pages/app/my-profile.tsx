@@ -1,7 +1,13 @@
-import React from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Chip, CircularProgress, Paper, Typography } from "@mui/material";
+import {
+  Avatar,
+  Chip,
+  CircularProgress,
+  Paper,
+  Typography,
+} from "@mui/material";
 import NextImage from "next/image";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -23,13 +29,13 @@ import Input from "@/components/Fields/Input";
 import Button from "@/components/Button/Button";
 import { useAppSnackbar } from "@/utils/snackbar";
 import ButtonBase from "@/components/Button/ButtonBase";
-import {
+import Signup, {
   PasswordStrengthMeter,
   UsernameInput,
 } from "@/components/AuthForm/Signup";
 import { useGlobalModal, useLocalModal } from "@/utils/hooks/useOverlay";
 import Confirm from "@/components/Modals/Confirm/Confirm";
-import { CACHE_TIME, minutes, seconds } from "@/utils/cacheTime";
+import { CACHE_TIME_MS, minutes, seconds } from "@/utils/cacheTime";
 import { PROVIDER_IDS } from "@/utils/constants";
 import { isPlaceholderEmail } from "@/trpc/helpers/email";
 import { useFreshUser } from "@/trpc/hooks/useFreshUser";
@@ -55,16 +61,28 @@ import {
   EmailFormValues,
 } from "@/utils/validators/shared/user";
 import AvatarChangeModal from "@/components/Modals/AvatarEdit/AvatarEdit";
+import Skeleton from "@/components/Skeleton/Skeleton";
+import { ANCHORS } from "@/utils/routes";
+import DefaultAvatar from "@/components/DefaultAvatar/DefaultAvatar";
+import clsx from "clsx";
 
 export const defaultAvatars = {
-  first: `default-avatars/1.webp`,
+  first: `default-avatars/2.png`,
 };
 
-const SectionWrapper = (props: { children: React.ReactNode }) => {
+export const SectionWrapper = (props: {
+  children: React.ReactNode;
+  id?: string;
+  addClassName?: string;
+}) => {
   return (
     <Paper
       elevation={3}
-      className={`${defaultPadding} rounded-lg border border-[var(--mui-palette-divider)]`}
+      className={clsx(
+        `${defaultPadding} rounded-lg border border-[var(--mui-palette-divider)]`,
+        props.addClassName
+      )}
+      id={props.id}
     >
       {props.children}
     </Paper>
@@ -95,9 +113,8 @@ const BasicProfileForm = () => {
     resolver: zodResolver(basicProfileSchemaForm),
   });
   const nameIsDirty = form.formState.dirtyFields.name;
-  const [avatarFile, setAvatarFile] = React.useState<File | null>(null);
-  const [avatarWasChanged, setAvatarWasChanged] =
-    React.useState<boolean>(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarWasChanged, setAvatarWasChanged] = useState<boolean>(false);
 
   const { addAppSnackbar } = useAppSnackbar();
   const avatarEditModal = useLocalModal();
@@ -196,36 +213,40 @@ const BasicProfileForm = () => {
     } catch {}
   };
 
-  const avatarFileSrc = React.useMemo(
+  const avatarFileSrc = useMemo(
     () => (avatarFile ? URL.createObjectURL(avatarFile) : ""),
     [avatarFile]
   );
-  React.useEffect(() => {
+  useEffect(() => {
     return () => URL.revokeObjectURL(avatarFileSrc);
   }, [avatarFileSrc]);
 
   const isSubmitting = form.formState.isSubmitting;
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
+    <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
       <Typography variant="h6" component="h2" className="mb-2">
         <PersonIcon className="align-sub" /> Basic information
       </Typography>
       <VerticalStack>
         <div className="mb-2">
           <HorizontalStack addClassName="items-center">
-            <div className="group relative w-full max-w-32 h-32 rounded-full border border-[var(--mui-palette-text-secondary)]">
-              <NextImage
-                className="rounded-full"
-                src={
-                  avatarWasChanged
-                    ? avatarFileSrc ||
-                      `${env.NEXT_PUBLIC_CDN_URL}/${defaultAvatars.first}`
-                    : `${env.NEXT_PUBLIC_CDN_URL}/${userData.image || defaultAvatars.first}`
-                }
-                alt="user-avatar"
-                fill
-                unoptimized
-              />
+            <div className="group relative w-full max-w-32 h-32 rounded-full">
+              {(userData.image && !avatarWasChanged) ||
+              (avatarWasChanged && avatarFileSrc) ? (
+                <NextImage
+                  className="rounded-full"
+                  src={
+                    avatarWasChanged
+                      ? avatarFileSrc
+                      : `${env.NEXT_PUBLIC_CDN_URL}/${userData.image}`
+                  }
+                  alt="user-avatar"
+                  fill
+                  unoptimized
+                />
+              ) : (
+                <DefaultAvatar name={userData.username} seed={userData.id} />
+              )}
               <ButtonBase
                 focusRipple
                 className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 bg-[rgb(var(--mui-palette-background-defaultChannel)/0.6)] text-[var(--mui-palette-text-primary)] transition absolute inset-0 rounded-full flex justify-center items-center"
@@ -299,7 +320,7 @@ const BasicProfileForm = () => {
 
 const UsernameForm = () => {
   const userData = useAuthedUserData();
-  const schema = React.useMemo(
+  const schema = useMemo(
     () => makeUsernameSchemaForm(userData.username),
     [userData.username]
   );
@@ -360,7 +381,7 @@ const UsernameForm = () => {
     typeof remainingChanges === "number" ? remainingChanges < 1 : true;
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
+    <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
       <HorizontalStack addClassName="mb-3">
         <Typography variant="h6" component="h2">
           <AlternateEmailIcon className="align-sub" /> Username
@@ -408,10 +429,9 @@ const emptyPasswordFormValues: PasswordFormValues = {
 };
 
 const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
-  const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
-    React.useState(false);
+  const [passwordFieldWasFocused, setPasswordFieldWasFocused] = useState(false);
 
-  const schema = React.useMemo(
+  const schema = useMemo(
     () => makePasswordSchemaForm(hasOldPassword),
     [hasOldPassword]
   );
@@ -443,7 +463,7 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
   const isSubmitting = passwordUpdateMutation.isPending;
 
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
+    <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
       <Typography variant="h6" component="h2" className="mb-2">
         <LockIcon className="align-sub" /> Password
       </Typography>
@@ -509,14 +529,18 @@ const PasswordFormWrapper = () => {
   const userAccounts = trpc.user.listUserAccounts.useQuery(
     { id: userData.id },
     {
-      staleTime: CACHE_TIME.NORMAL,
+      staleTime: CACHE_TIME_MS.NORMAL,
     }
   );
 
   if (userAccounts.isPending) {
     return (
-      <div className="w-full flex justify-center items-center">
-        <CircularProgress />
+      <div className="w-full">
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
       </div>
     );
   }
@@ -537,7 +561,7 @@ const PasswordFormWrapper = () => {
 };
 
 const EmailForm = () => {
-  const pollingStartedTime = React.useRef<Dayjs | null>(null);
+  const pollingStartedTime = useRef<Dayjs | null>(null);
   useFreshUser(
     {
       refetchInterval: (data) => {
@@ -577,7 +601,7 @@ const EmailForm = () => {
   );
   const freshUserData = useAuthedUserData();
 
-  const schema = React.useMemo(() => {
+  const schema = useMemo(() => {
     return makeEmailChangeSchemaForm(freshUserData.email);
   }, [freshUserData.email]);
   const form = useForm<EmailFormValues>({
@@ -627,7 +651,7 @@ const EmailForm = () => {
     ? freshUserData.email
     : freshUserData.pendingEmail;
 
-  React.useEffect(() => {
+  useEffect(() => {
     const bc = new BroadcastChannel("auth-events" satisfies BroadcastChannels);
     bc.onmessage = (event: MessageEvent<BroadcastChannelEvent>) => {
       if (event.data === "email-verified") {
@@ -647,14 +671,9 @@ const EmailForm = () => {
           <MailIcon className="align-sub" /> Email
         </Typography>
       </HorizontalStack>
-      <form onSubmit={form.handleSubmit(onSubmit)}>
+      <form noValidate onSubmit={form.handleSubmit(onSubmit)}>
         <VerticalStack>
-          {!anyEmail ? (
-            <Typography variant="subtitle2">
-              Add an email so you can recover your account if you forget your
-              password.
-            </Typography>
-          ) : anyEmail ? (
+          {anyEmail ? (
             <VerticalStack>
               {Boolean(freshUserData.email) &&
                 !isPlaceholderEmail(freshUserData.email) && (
@@ -748,7 +767,12 @@ const EmailForm = () => {
                 </>
               )}
             </VerticalStack>
-          ) : null}
+          ) : (
+            <Typography variant="subtitle2">
+              Add an email so you can recover your account if you forget your
+              password.
+            </Typography>
+          )}
           {!freshUserData.pendingEmail && (
             <>
               <Input
@@ -810,8 +834,10 @@ const EmailFormWrapper = () => {
 
   if (freshUser.isPending) {
     return (
-      <div className="w-full flex justify-center items-center">
-        <CircularProgress />
+      <div className="w-full">
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
       </div>
     );
   }
@@ -827,7 +853,61 @@ const EmailFormWrapper = () => {
   return <EmailForm />;
 };
 
+const LinkAccount = () => {
+  const userData = useAuthedUserData();
+  return (
+    <>
+      <SectionWrapper>
+        <Typography color="textSecondary">
+          Display name:{" "}
+          <Typography color="textPrimary" component="span">
+            {userData.name}
+          </Typography>
+        </Typography>
+        <Typography color="textSecondary">
+          Username:{" "}
+          <Typography color="textPrimary" component="span">
+            {userData.displayUsername}
+          </Typography>
+        </Typography>
+      </SectionWrapper>
+      <SectionWrapper id={ANCHORS.linkAccount}>
+        <Typography variant="h6" component="h2" className="px-2">
+          You are currently logged in as Guest. Please link an account to gain
+          access to all features.
+        </Typography>
+        <Typography className="px-2">
+          {`Your chats and data will stay - we'll attach them to your new account.`}
+        </Typography>
+        <Signup guestHidden />
+      </SectionWrapper>
+    </>
+  );
+};
+
+const Sections = () => {
+  return (
+    <>
+      <SectionWrapper>
+        <BasicProfileForm />
+      </SectionWrapper>
+      <SectionWrapper id={ANCHORS.username}>
+        <UsernameForm />
+      </SectionWrapper>
+      <SectionWrapper>
+        <PasswordFormWrapper />
+      </SectionWrapper>
+      <LoadingBoundary>
+        <SectionWrapper id={ANCHORS.email}>
+          <EmailFormWrapper />
+        </SectionWrapper>
+      </LoadingBoundary>
+    </>
+  );
+};
+
 const MyProfile = () => {
+  const userData = useAuthedUserData();
   return (
     <Section addClassName="flex justify-center">
       <div className="max-w-2xl w-full">
@@ -835,20 +915,7 @@ const MyProfile = () => {
           <Typography variant="h4" component="h1">
             My Profile
           </Typography>
-          <SectionWrapper>
-            <BasicProfileForm />
-          </SectionWrapper>
-          <SectionWrapper>
-            <UsernameForm />
-          </SectionWrapper>
-          <SectionWrapper>
-            <PasswordFormWrapper />
-          </SectionWrapper>
-          <LoadingBoundary>
-            <SectionWrapper>
-              <EmailFormWrapper />
-            </SectionWrapper>
-          </LoadingBoundary>
+          {userData.isAnonymous ? <LinkAccount /> : <Sections />}
         </VerticalStack>
       </div>
     </Section>

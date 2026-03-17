@@ -1,10 +1,10 @@
 import { initTRPC } from "@trpc/server";
 import superJSON from "superjson";
 import z, { ZodError } from "zod";
+import { APIError } from "better-auth";
 
 import { isDev } from "@@/scripts/helpers/isDev";
 import { type TRPCContext } from "./context";
-import { APIError } from "better-auth";
 
 export const trpc = initTRPC.context<TRPCContext>().create({
   isDev,
@@ -20,6 +20,7 @@ export const trpc = initTRPC.context<TRPCContext>().create({
           error.cause.status === "INTERNAL_SERVER_ERROR"
         : shape.data.httpStatus === 500 ||
           error.code === "INTERNAL_SERVER_ERROR");
+    console.error("TRPC Error:", shape.message, "Path:", shape.data.path);
 
     if (isProd500Error) {
       return {

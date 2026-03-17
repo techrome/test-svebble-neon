@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Path,
@@ -33,7 +33,7 @@ import {
 } from "@/utils/validators/shared/auth";
 import { trpc } from "@/trpc";
 import { AuthWrapper } from "@/components/AuthForm/Helpers";
-import { CACHE_TIME } from "@/utils/cacheTime";
+import { CACHE_TIME_MS } from "@/utils/cacheTime";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import { normalizeText } from "@/utils/stringUtils";
 import Tooltip from "@/components/Tooltip/Tooltip";
@@ -45,6 +45,7 @@ import { useQueryClient } from "@tanstack/react-query";
 
 type Props = {
   onSuccess?: () => void;
+  guestHidden?: boolean;
 };
 
 type PasswordRule = {
@@ -192,7 +193,7 @@ export const PasswordStrengthMeter = <TFV extends Password>({
   const PASSWORD = "password" satisfies keyof Password as Path<TFV>;
   const password = useWatch({ control: form.control, name: PASSWORD });
 
-  const passwordStrengthInfo = React.useMemo(() => {
+  const passwordStrengthInfo = useMemo(() => {
     let anyRequiredRuleFailed = false;
 
     let result: {
@@ -316,7 +317,7 @@ export const UsernameInput = <TFV extends Username>({
   const usernameAvailabilityQuery = useAppQuery(
     trpc.user.checkUsernameAvailability.useQuery(
       { username: debouncedUsername },
-      { staleTime: CACHE_TIME.NORMAL, retry: false, enabled: !queryDisabled }
+      { staleTime: CACHE_TIME_MS.NORMAL, retry: false, enabled: !queryDisabled }
     ),
     { disableLoadingBoundary: true }
   );
@@ -371,8 +372,7 @@ export const UsernameInput = <TFV extends Username>({
 };
 
 const Signup = (props: Props) => {
-  const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
-    React.useState(false);
+  const [passwordFieldWasFocused, setPasswordFieldWasFocused] = useState(false);
 
   const isDesktop = useIsDesktop();
 
@@ -381,6 +381,7 @@ const Signup = (props: Props) => {
     resolver: zodResolver(signupSchemaForm),
   });
 
+  const user = useUser();
   const { addAppSnackbar } = useAppSnackbar();
   const qc = useQueryClient();
 
@@ -425,7 +426,9 @@ const Signup = (props: Props) => {
   };
 
   const isSubmitting =
-    signUpMutation.isPending || changeEmailMutation.isPending;
+    signUpMutation.isPending ||
+    changeEmailMutation.isPending ||
+    user.isFetching;
 
   return (
     <Section addClassName="mt-5">
@@ -433,6 +436,7 @@ const Signup = (props: Props) => {
         authType="signup"
         disabled={isSubmitting}
         onSuccess={props.onSuccess}
+        guestHidden={props.guestHidden}
       >
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <VerticalStack>

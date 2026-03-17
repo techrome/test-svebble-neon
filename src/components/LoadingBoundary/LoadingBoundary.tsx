@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 import {
   LoadingBoundaryContext,
@@ -10,10 +10,16 @@ type Props = {
   children: React.ReactNode;
   alwaysActive?: boolean;
   isOuter?: boolean;
+  addClassName?: string;
 };
 
-const LoadingBoundary = ({ children, alwaysActive, isOuter }: Props) => {
-  const [queryKeys, setQueryKeys] = React.useState<QueryKeys>({});
+const LoadingBoundary = ({
+  children,
+  alwaysActive,
+  isOuter,
+  addClassName,
+}: Props) => {
+  const [queryKeys, setQueryKeys] = useState<QueryKeys>({});
   const hasActiveQueries = Object.keys(queryKeys).length > 0;
 
   return (
@@ -21,6 +27,7 @@ const LoadingBoundary = ({ children, alwaysActive, isOuter }: Props) => {
       <AnimationWrapper
         active={alwaysActive || hasActiveQueries}
         isOuter={isOuter}
+        addClassName={addClassName}
       >
         {children}
       </AnimationWrapper>

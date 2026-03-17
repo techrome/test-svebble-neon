@@ -1,9 +1,9 @@
-import React from "react";
+import { useEffect, useRef } from "react";
 
 const usePrevious = <T,>(value: T) => {
-  const ref = React.useRef(value);
+  const ref = useRef(value);
 
-  React.useEffect(() => {
+  useEffect(() => {
     ref.current = value;
   }, [value]);
 

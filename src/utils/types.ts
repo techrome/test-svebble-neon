@@ -30,3 +30,11 @@ export type GetObjectPaths<T> =
 //           : K;
 //       }[StringKeys<T>]
 //     : never;
+
+export type ToSerializable<T> = T extends bigint
+  ? string
+  : IsPlainObject<T> extends true
+    ? { [K in keyof T]: ToSerializable<T[K]> }
+    : T;
+
+export type NullableFields<T> = { [K in keyof T]: T[K] | null };

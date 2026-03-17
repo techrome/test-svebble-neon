@@ -3,12 +3,14 @@ import superJSON from "superjson";
 
 import { trpc } from "@/server";
 
-export const prepareDefaultData = async () => {
+export const getPrefetcher = async (withDefaultData: boolean = true) => {
   const helpers = createServerSideHelpers({
     router: trpc.appRouter,
     ctx: await trpc.createTRPCContext(),
     transformer: superJSON,
   });
-  await helpers.globalData.prefetch();
+  if (withDefaultData) {
+    await helpers.globalData.prefetch();
+  }
   return helpers;
 };

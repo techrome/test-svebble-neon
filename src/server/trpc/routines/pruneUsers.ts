@@ -5,6 +5,7 @@ import { db } from "../../db";
 import { session, user } from "../../db/schema/auth";
 import { after, before, nowMinus } from "../../db/helpers/time";
 import { pruneFiles } from "./pruneFiles";
+import { pruneMessages } from "./pruneMessages";
 import { formatBigArray } from "../../../utils/formatBigArray";
 import { runConcurrently } from "@/utils/concurrency";
 
@@ -77,9 +78,15 @@ export const pruneUsers = async ({
 
   await runConcurrently(usersToPrune, 10, async (userRow) => {
     const userFilesPruneResult = await pruneFiles({ userId: userRow.id });
+    const userMessagesPruneResult = await pruneMessages({
+      criteria: "by user id",
+      userId: userRow.id,
+    });
     if (
       !userFilesPruneResult.hasMoreData &&
-      userFilesPruneResult.pruneCountsMatch
+      userFilesPruneResult.pruneCountsMatch &&
+      !userMessagesPruneResult.hasMoreData &&
+      userMessagesPruneResult.pruneCountsMatch
     ) {
       userIdsToPrune.push(userRow.id);
     }

@@ -55,6 +55,26 @@ const withAuth = trpc.middleware(async ({ ctx, next }) => {
   });
 });
 
+const withAdminAuth = trpc.middleware(async ({ ctx, next }) => {
+  assertHasReqRes(ctx);
+
+  const authResponse = await ctx.getAuth();
+  if (
+    !authResponse?.response?.user.role ||
+    authResponse?.response?.user.role !== "admin"
+  ) {
+    throw new TRPCError({ code: "FORBIDDEN" });
+  }
+
+  return next({
+    ctx: {
+      ...ctx,
+      user: authResponse.response.user,
+      session: authResponse.response.session,
+    },
+  });
+});
+
 const withPermissionCheck = (neededPerms: RolePermissions) =>
   trpc.middleware(async ({ ctx, next }) => {
     const authResponse = await ctx.getAuth();
@@ -63,7 +83,7 @@ const withPermissionCheck = (neededPerms: RolePermissions) =>
       throw new TRPCError({ code: "UNAUTHORIZED" });
     }
 
-    if (!hasPermissions(authResponse?.response?.user, neededPerms)) {
+    if (!hasPermissions(authResponse.response.user, neededPerms)) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: "Action not allowed",
@@ -83,14 +103,27 @@ export const publicProcedureDefaultRateLimit = publicProcedure.use(
   rateLimitMiddlewares.default
 );
 
-export const privateCachedProcedure = (neededPerms: RolePermissions) =>
-  publicProcedure.use(withCachedAuth).use(withPermissionCheck(neededPerms));
-export const privateProcedure = (neededPerms: RolePermissions) =>
-  publicProcedure.use(withAuth).use(withPermissionCheck(neededPerms));
+export const privateCachedProcedure = (
+  neededPerms: RolePermissions,
+  ratelimiter?: (typeof rateLimitMiddlewares)[keyof typeof rateLimitMiddlewares]
+) =>
+  publicProcedure
+    .use(ratelimiter || rateLimitMiddlewares.default)
+    .use(withCachedAuth)
+    .use(withPermissionCheck(neededPerms));
+export const privateProcedure = (
+  neededPerms: RolePermissions,
+  ratelimiter?: (typeof rateLimitMiddlewares)[keyof typeof rateLimitMiddlewares]
+) =>
+  publicProcedure
+    .use(ratelimiter || rateLimitMiddlewares.default)
+    .use(withAuth)
+    .use(withPermissionCheck(neededPerms));
 
-export const privateCachedProcedureDefaultRateLimit = (
-  neededPerms: RolePermissions
-) => privateCachedProcedure(neededPerms).use(rateLimitMiddlewares.default);
-export const privateProcedureDefaultRateLimit = (
-  neededPerms: RolePermissions
-) => privateProcedure(neededPerms).use(rateLimitMiddlewares.default);
+export const adminProcedure = (
+  ratelimiter?: (typeof rateLimitMiddlewares)[keyof typeof rateLimitMiddlewares]
+) =>
+  publicProcedure
+    .use(ratelimiter || rateLimitMiddlewares.default)
+    .use(withAuth)
+    .use(withAdminAuth);

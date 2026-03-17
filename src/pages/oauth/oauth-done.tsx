@@ -1,19 +1,19 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/router";
 import {
   OAUTH_DONE,
   type OauthPopupMessage,
 } from "@/components/AuthForm/Helpers";
+import { getRouterQueryValue } from "@/utils/query";
 
 const OauthDone = () => {
   const router = useRouter();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!router.isReady) return;
-    const status =
-      typeof router.query.status === "string"
-        ? (router.query.status as OauthPopupMessage["status"])
-        : "";
+    const status = (getRouterQueryValue(router.query.status) || "") as
+      | OauthPopupMessage["status"]
+      | "";
 
     const message: OauthPopupMessage = {
       type: OAUTH_DONE,

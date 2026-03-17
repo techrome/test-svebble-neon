@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import z from "zod";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
@@ -16,6 +16,7 @@ import { ROUTES } from "@/utils/routes";
 import { PasswordStrengthMeter } from "@/components/AuthForm/Signup";
 import { useRouter } from "next/router";
 import { basePasswordSchemaForm } from "@/utils/validators/shared/user";
+import { getRouterQueryValue } from "@/utils/query";
 
 export const resetPasswordSchemaForm = basePasswordSchemaForm.safeExtend({
   token: z.string().min(1),
@@ -30,8 +31,7 @@ const emptyFormValues: FormValues = {
 };
 
 const ResetPassword = () => {
-  const [passwordFieldWasFocused, setPasswordFieldWasFocused] =
-    React.useState(false);
+  const [passwordFieldWasFocused, setPasswordFieldWasFocused] = useState(false);
 
   const router = useRouter();
 
@@ -46,14 +46,12 @@ const ResetPassword = () => {
     resetPasswordMutation.mutate(values);
   };
 
-  const token =
-    typeof router.query.token === "string" ? router.query.token : null;
-  const error =
-    typeof router.query.error === "string" ? router.query.error : null;
+  const token = getRouterQueryValue(router.query.token);
+  const error = getRouterQueryValue(router.query.error);
 
   const isSubmitting = resetPasswordMutation.isPending;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (token) {
       form.setValue("token", token);
     }
@@ -106,7 +104,7 @@ const ResetPassword = () => {
         </VerticalStack>
       ) : (
         <>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
             <VerticalStack>
               <Typography variant="h6" component="h1">
                 Password reset

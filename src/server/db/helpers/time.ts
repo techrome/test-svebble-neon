@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 
-// aliases for time comparisons only
+// aliases for chronological comparisons only
 export {
   lt as before,
   gt as after,

@@ -2,7 +2,7 @@ import "dotenv/config";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 
-// relative paths because this file is used in some cli and they don't support TS path aliases
+// relative paths because this file is used in better-auth cli and it doesn't support TS path aliases
 import { getDBURL } from "../../../scripts/helpers/getDBURL";
 import * as schema from "./schema";
 

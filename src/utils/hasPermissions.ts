@@ -24,6 +24,8 @@ const notVerifiedUserPermissions = [
 
 const userPermissions = [
   ...notVerifiedUserPermissions,
+  P.messageAttachments.create,
+  P.messageAttachments.delete,
 ] as const satisfies RolePermissions;
 
 const toSet = <T extends string>(xs: readonly T[]) => new Set<T>(xs);

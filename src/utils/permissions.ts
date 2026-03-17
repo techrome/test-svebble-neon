@@ -51,6 +51,15 @@ const basePermissions = {
     update: true,
     delete: true,
   },
+  messageAttachments: {
+    create: true,
+    delete: true,
+  },
+  channels: {
+    create: true,
+    update: true,
+    delete: true,
+  },
 } as const satisfies PermissionTree;
 
 const buildPermissions = <TObj extends PermissionTree>(

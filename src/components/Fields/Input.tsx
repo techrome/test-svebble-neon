@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { TextField, type TextFieldProps } from "@mui/material";
 import {
   type FieldPath,
@@ -100,9 +100,7 @@ type FullProps<TFV extends FieldValues, TName extends FieldPath<TFV>> = Props<
 const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
   props: FullProps<TFV, TName>
 ) => {
-  const [additionalProps, setAdditionalProps] = React.useState<TextFieldProps>(
-    {}
-  );
+  const [additionalProps, setAdditionalProps] = useState<TextFieldProps>({});
 
   const {
     name,
@@ -126,7 +124,7 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
   const disabled = autoDisableOnSubmit
     ? isSubmitting || disabledProp
     : disabledProp;
-  const hasError = Boolean(error);
+  const hasError = props.hideError ? false : Boolean(error);
 
   let endAdornment: React.ReactNode = null;
   let accessoryContext: AccessoryContext<TFV, TName> = {
@@ -157,12 +155,12 @@ const Input = <TFV extends FieldValues, TName extends FieldPath<TFV>>(
 
   return (
     <TextField
+      slotProps={{ input: { endAdornment } }}
       {...textFieldProps}
       {...fieldProps}
       disabled={disabled}
       {...additionalProps}
       inputRef={ref}
-      slotProps={{ input: { endAdornment } }}
       error={hasError}
       helperText={
         <HelperText

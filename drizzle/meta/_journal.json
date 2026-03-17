@@ -106,6 +106,62 @@
       "when": 1769803824558,
       "tag": "0014_careful_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1769995819724,
+      "tag": "0015_equal_strong_guy",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1770209048571,
+      "tag": "0016_tranquil_guardsmen",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1771595778539,
+      "tag": "0017_bizarre_human_torch",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1771613584056,
+      "tag": "0018_little_menace",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1771754961854,
+      "tag": "0019_clean_kree",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1772026783974,
+      "tag": "0020_puzzling_tombstone",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1772604560658,
+      "tag": "0021_round_arclight",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1772985796857,
+      "tag": "0022_productive_leopardon",
+      "breakpoints": true
     }
   ]
 }

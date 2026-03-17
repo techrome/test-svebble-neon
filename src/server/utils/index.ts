@@ -1,1 +1,1 @@
-export * from "./prepareDefaultData";
+export * from "./getPrefetcher";

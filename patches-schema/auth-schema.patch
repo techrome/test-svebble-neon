@@ -1,5 +1,5 @@
 diff --git a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts b/src/server/db/schema/auth.ts
-index b35de62..ae2444e 100644
+index b35de62..43ab432 100644
 --- a/src/server/db/schema/__generated_do_not_use__/auth_DO_NOT_USE.ts
 +++ b/src/server/db/schema/auth.ts
 @@ -7,45 +7,52 @@ import {
@@ -63,7 +63,7 @@ index b35de62..ae2444e 100644
 +    index("deleted_at_index").on(table.deletedAt),
 +    check(
 +      "user_role_check",
-+      sql`${table.role} in ${USER_ROLE_ENUM.map((v) => literal(v))}`
++      sql`${table.role} in ${USER_ROLE_ENUM.map(literal)}`
 +    ),
 +  ]
 +);

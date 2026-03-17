@@ -1,20 +1,17 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { TRPCError } from "@trpc/server";
-import { type IncomingMessage } from "node:http";
-import { isIP } from "node:net";
+import { type NextApiRequest } from "next";
 import { createHmac } from "node:crypto";
 
 import { redis } from "../redis";
 import { trpc } from "./core";
 import { env } from "../env";
 import { isDev } from "@@/scripts/helpers/isDev";
+import { getIp } from "./helpers/getClientInfo";
 
 type Duration = Parameters<typeof Ratelimit.slidingWindow>[1];
-
 type WindowSpec = { max: number; window: Duration };
-
 type TrpcMiddleware = ReturnType<typeof trpc.middleware>;
-
 type MiddlewareWithSpec<S extends WindowSpec> = TrpcMiddleware & {
   readonly spec: S;
 };
@@ -27,36 +24,15 @@ const makeRatelimit = (spec: WindowSpec, prefix: string) => {
   });
 };
 
-const extractFirstIp = (header: string | string[] | undefined) =>
-  typeof header === "string"
-    ? header.split(",")[0].trim()
-    : Array.isArray(header)
-      ? header[0].trim()
-      : "";
-
-const getIp = (req: IncomingMessage | undefined) => {
-  if (req) {
-    const xff = extractFirstIp(req.headers["x-forwarded-for"]);
-    if (isIP(xff)) return xff;
-
-    const xri = extractFirstIp(req.headers["x-real-ip"]);
-    if (isIP(xri)) return xri;
-
-    return "unknown-client-ip";
-  }
-
-  return "server-side-ip";
-};
-
 export const hashString = (key: string) => {
   return createHmac("sha256", env.RATELIMIT_IP_SALT!)
     .update(key)
     .digest("base64url");
 };
 
-const getHashedIp = (req: IncomingMessage | undefined) => {
-  const ip = getIp(req);
-  return hashString(ip);
+const getHashedIp = async (req: NextApiRequest | undefined) => {
+  const ip = req?.headers ? await getIp(req.headers, true) : null;
+  return hashString(ip || "unknown");
 };
 
 const makeRatelimitMiddleware = <S extends WindowSpec>(
@@ -66,10 +42,8 @@ const makeRatelimitMiddleware = <S extends WindowSpec>(
   const limiter = makeRatelimit(spec, prefix);
 
   const middleware = trpc.middleware(async ({ ctx, next }) => {
-    const cachedAuth = await ctx.getCachedAuth();
-    const requestId = cachedAuth?.response?.user.id
-      ? `u:${cachedAuth.response.user.id}`
-      : `ip:${getHashedIp(ctx.req)}`;
+    const hashedIp = await getHashedIp(ctx.req);
+    const requestId = `ip:${hashedIp}`;
 
     let rateLimitResponse: Awaited<ReturnType<typeof limiter.limit>> | null =
       null;
@@ -110,6 +84,8 @@ const rateLimits = {
   default: { max: 120, window: "60s" },
   defaultWrite: { max: 50, window: "60s" },
 
+  websockets_token: { max: 5, window: "60s" },
+
   auth_normal: { max: 15, window: "60s" },
   auth_sensitive: { max: 7, window: "60s" },
   auth_signUp: { max: 3, window: "60s" },
@@ -119,6 +95,7 @@ const rateLimits = {
   auth_login: { max: 5, window: "60s" },
   auth_usernameCheck: { max: 15, window: "60s" },
   auth_avatarUpload: { max: 7, window: "120s" },
+  auth_messagesWrite: { max: 30, window: "60s" },
 } as const satisfies Record<string, WindowSpec>;
 
 type RateLimitMiddlewares = {

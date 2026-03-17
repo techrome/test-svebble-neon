@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 
 import ForgotPassword from "@/components/AuthForm/ForgotPassword";
 import Login from "@/components/AuthForm/Login";
@@ -27,7 +27,7 @@ export const authTypeRoutesMapping = {
 } satisfies Record<AuthType, string>;
 
 const AuthForm = (props: Props) => {
-  const [authType, setAuthType] = React.useState<AuthType>(
+  const [authType, setAuthType] = useState<AuthType>(
     props.initialAuthType || "login"
   );
 

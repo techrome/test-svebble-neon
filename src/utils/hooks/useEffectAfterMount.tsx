@@ -1,12 +1,12 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 
 export const useEffectAfterMount = (
   effect: React.EffectCallback,
   dependencies: React.DependencyList
 ) => {
-  const isFirstRender = React.useRef(true);
+  const isFirstRender = useRef(true);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
