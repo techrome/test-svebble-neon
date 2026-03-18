@@ -22,7 +22,10 @@ import { getQueryKey } from "@trpc/react-query";
 
 import { type RouterInput, RouterOutput, trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
-import { Comment } from "@/components/CommentsList/CommentsList";
+import {
+  Comment,
+  type RenderedMessage,
+} from "@/components/CommentsList/CommentsList";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import {
   useGlobalDrawer,
@@ -63,7 +66,7 @@ import { TermsLabel } from "@/components/AuthForm/Helpers";
 import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider";
 import { MessagesSkeleton } from "@/components/Chat/MessagesSkeleton";
 
-const deserealizeMessage = (
+const deserializeMessage = (
   serializedMessage: MessageSerializable
 ): Message => ({
   ...serializedMessage,
@@ -153,7 +156,7 @@ type Props = {
   channel: RouterOutput["channels"]["get"]["items"][number];
 };
 
-const ChannelInner = ({ channel }: Props) => {
+const MessageListOrchestrator = ({ channel }: Props) => {
   const localModal = useLocalModal();
   const { closeModal, openModal } = useGlobalModal();
   const localDrawer = useLocalDrawer();
@@ -200,7 +203,7 @@ const ChannelInner = ({ channel }: Props) => {
     useState<boolean>(false);
   const hasCompletedFirstInit = useRef<boolean>(false);
   const hasStartedWsSyncRefetch = useRef<boolean>(false);
-
+  const nextOptimisticIdRef = useRef<bigint>(BigInt(-1));
   // gating initial load to avoid unnecessary refetch when waiting for websockets
   // in most cases it should be: ws connected -> start fetching initial page
   const [initialGateOpenedReason, setInitialGateOpenedReason] = useState<
@@ -211,20 +214,22 @@ const ChannelInner = ({ channel }: Props) => {
     typeof setTimeout
   > | null>(null);
 
-  const [isQueryBootstrapping, setIsQueryBootstrapping] = useState<
-    boolean | null
-  >(null); // null for initial render before router is ready
+  const [isPreparingQuery, setIsPreparingQuery] = useState<boolean | null>(
+    null
+  ); // null for initial render before router is ready
   const [syncMode, setSyncMode] = useState<SyncMode>("polling");
   const [wsSyncFailedCount, setWsSyncFailedCount] = useState<number>(0);
   const [messagesQueryKey, setMessagesQueryKey] = useState<
     RouterInput["messages"]["get"]
   >({ limit: PER_PAGE, channelId: channelIdString });
-
+  const isWsConnectedRef = useRef<boolean>(false);
   const isPolling = syncMode === "polling";
   const isWsSyncing = syncMode === "ws-syncing";
   const isWsLive = syncMode === "ws-live";
 
-  const isWsConnectedRef = useRef<boolean>(false);
+  const [optimisticMessages, setOptimisticMessages] = useState<
+    RenderedMessage[]
+  >([]);
 
   const refetchIntervalVars = useRef<{
     dataBefore:
@@ -249,7 +254,7 @@ const ChannelInner = ({ channel }: Props) => {
 
   const messages = useAppQuery(
     trpc.messages.get.useInfiniteQuery(messagesQueryKey, {
-      enabled: isQueryBootstrapping === false && isInitialGateOpened,
+      enabled: isPreparingQuery === false && isInitialGateOpened,
       ...messageQuerySelectors,
       refetchInterval(query) {
         const vars = refetchIntervalVars.current;
@@ -354,19 +359,6 @@ const ChannelInner = ({ channel }: Props) => {
     Boolean(totalItems) &&
     firstItemIndex !== null &&
     initialTopMostItemIndex !== -1;
-
-  const { highestLoadedId, lowestLoadedId } = useMemo(() => {
-    if (!messages.data?.items.length) {
-      return {
-        highestLoadedId: null,
-        lowestLoadedId: null,
-      };
-    }
-    return {
-      highestLoadedId: messages.data.items[messages.data.items.length - 1].id,
-      lowestLoadedId: messages.data.items[0].id,
-    };
-  }, [messages.data?.items]);
 
   const websocketsMessageQueue = useRef<WebsocketItem[]>([]);
 
@@ -534,8 +526,6 @@ const ChannelInner = ({ channel }: Props) => {
 
   const dependencies = useRef({
     messagesQueryKey,
-    highestLoadedId,
-    lowestLoadedId,
     firstItemIndex,
     messages,
     isPolling,
@@ -551,8 +541,6 @@ const ChannelInner = ({ channel }: Props) => {
 
   dependencies.current = {
     messagesQueryKey,
-    highestLoadedId,
-    lowestLoadedId,
     firstItemIndex,
     messages,
     isPolling,
@@ -603,7 +591,7 @@ const ChannelInner = ({ channel }: Props) => {
         }
       }
 
-      appendMessage(deserealizeMessage(message), newMessagesVersion);
+      appendMessage(deserializeMessage(message), newMessagesVersion);
     },
     []
   );
@@ -632,7 +620,7 @@ const ChannelInner = ({ channel }: Props) => {
         return;
       }
 
-      editMessage(deserealizeMessage(message), newMessagesVersion);
+      editMessage(deserializeMessage(message), newMessagesVersion);
     },
     []
   );
@@ -670,6 +658,10 @@ const ChannelInner = ({ channel }: Props) => {
     []
   );
 
+  const deleteOptimisticMessage = (id: bigint) => {
+    setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
+  };
+
   const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
     onSuccess: () => {
       utils.messages.get.invalidate();
@@ -677,8 +669,32 @@ const ChannelInner = ({ channel }: Props) => {
   });
 
   const messageCreateMutation = trpc.messages.create.useMutation({
-    onSuccess(data) {
-      form.reset();
+    onMutate(variables) {
+      const userId = user.data?.user?.id;
+      if (!userId) return;
+      const tempId = nextOptimisticIdRef.current;
+      nextOptimisticIdRef.current -= BigInt(1);
+      setOptimisticMessages((prev) => [
+        ...prev,
+        {
+          channel_id: variables.channelId,
+          content: variables.content,
+          created_at: new Date(),
+          updated_at: new Date(),
+          deleted_at: null,
+          id: tempId,
+          user_id: userId,
+          isOptimistic: true,
+        },
+      ]);
+      return {
+        tempId,
+      };
+    },
+    onSuccess(data, _vars, onMutateResult) {
+      if (onMutateResult?.tempId) {
+        deleteOptimisticMessage(onMutateResult.tempId);
+      }
       if (handleNewMessagesVersion(data.channel.messages_version)) {
         appendMessage(data.message, appliedMessagesVersion.current);
       }
@@ -686,6 +702,16 @@ const ChannelInner = ({ channel }: Props) => {
         utils.messages.get.invalidate();
       }
     },
+    onError(_error, _variables, onMutateResult) {
+      if (onMutateResult?.tempId) {
+        setOptimisticMessages((prev) =>
+          prev.map((m) =>
+            m.id === onMutateResult.tempId ? { ...m, isFailed: true } : m
+          )
+        );
+      }
+    },
+    meta: { keepDefaultErrorHandling: true },
   });
 
   const commentDeleteAllMutation = trpc.messages.deleteAll.useMutation({
@@ -717,6 +743,7 @@ const ChannelInner = ({ channel }: Props) => {
   };
 
   const onSubmit: SubmitHandler<MessageCreateFormValues> = (values) => {
+    form.reset();
     messageCreateMutation.mutate(values);
   };
   const onSearchSubmit: SubmitHandler<SearchFormValues> = (values) => {
@@ -729,8 +756,8 @@ const ChannelInner = ({ channel }: Props) => {
   //   appliedMessagesVersion: appliedMessagesVersion.current,
   // });
 
-  const tryLoadOlder = async (ignoreError?: boolean) => {
-    if (ignoreError ? false : messages.isFetchPreviousPageError) {
+  const tryLoadOlder = async (bypassExistingError?: boolean) => {
+    if (!bypassExistingError && messages.isFetchPreviousPageError) {
       return;
     }
 
@@ -772,8 +799,8 @@ const ChannelInner = ({ channel }: Props) => {
     }
   );
 
-  const tryLoadNewer = async (ignoreError?: boolean) => {
-    if (ignoreError ? false : messages.isFetchNextPageError) {
+  const tryLoadNewer = async (bypassExistingError?: boolean) => {
+    if (!bypassExistingError && messages.isFetchNextPageError) {
       return;
     }
 
@@ -1278,7 +1305,7 @@ const ChannelInner = ({ channel }: Props) => {
     hasStartedWsSyncRefetch.current = false;
     clearInitialTimerToOpenGate();
     setWsSyncFailedCount(0);
-    setIsQueryBootstrapping(true);
+    setIsPreparingQuery(true);
     setIsInitialScrollHandled(false);
     setIsMessageHighlightConsumed(false);
 
@@ -1324,7 +1351,7 @@ const ChannelInner = ({ channel }: Props) => {
   }, [urlMessageId]);
 
   useEffect(() => {
-    if (!isQueryBootstrapping) return;
+    if (!isPreparingQuery) return;
 
     if (foundMessageIndex === -1) {
       qc.removeQueries({
@@ -1337,14 +1364,14 @@ const ChannelInner = ({ channel }: Props) => {
       }));
     }
 
-    setIsQueryBootstrapping(false);
+    setIsPreparingQuery(false);
 
     // eslint-disable-next-line
-  }, [isQueryBootstrapping]);
+  }, [isPreparingQuery]);
 
   useEffect(() => {
     if (
-      isQueryBootstrapping !== false ||
+      isPreparingQuery !== false ||
       isInitialScrollHandled ||
       !messages.data?.items.length ||
       !isIdle
@@ -1384,7 +1411,7 @@ const ChannelInner = ({ channel }: Props) => {
     isInitialScrollHandled,
     messages.hasNextPage,
     messages.data?.items,
-    isQueryBootstrapping,
+    isPreparingQuery,
     isIdle,
   ]);
 
@@ -1583,6 +1610,14 @@ const ChannelInner = ({ channel }: Props) => {
     []
   );
 
+  const renderedMessages = useMemo<
+    typeof optimisticMessages | undefined
+  >(() => {
+    if (optimisticMessages.length && messages.data?.items) {
+      return [...messages.data.items, ...optimisticMessages];
+    } else return messages.data?.items;
+  }, [messages.data?.items, optimisticMessages]);
+
   const syncModeInfo = syncModeMapping[syncMode];
 
   return (
@@ -1669,7 +1704,7 @@ const ChannelInner = ({ channel }: Props) => {
                 }
               }}
               atBottomThreshold={50}
-              data={messages.data?.items}
+              data={renderedMessages}
               computeItemKey={(_, item) => String(item.id)}
               itemContent={(_, comment) => {
                 return (
@@ -1708,6 +1743,16 @@ const ChannelInner = ({ channel }: Props) => {
                       if (isPolling) {
                         utils.messages.get.invalidate();
                       }
+                    }}
+                    onOptimisticRetry={(optimisticMessage) => {
+                      deleteOptimisticMessage(optimisticMessage.id);
+                      messageCreateMutation.mutate({
+                        channelId: optimisticMessage.channel_id,
+                        content: optimisticMessage.content,
+                      });
+                    }}
+                    onOptimisticDelete={(optimisticMessage) => {
+                      deleteOptimisticMessage(optimisticMessage.id);
                     }}
                   />
                 );
@@ -1762,7 +1807,6 @@ const ChannelInner = ({ channel }: Props) => {
                 hideError
                 multiline
                 maxRows={10}
-                disabled={messageCreateMutation.isPending}
                 slotProps={{
                   input: {
                     endAdornment: (
@@ -1783,25 +1827,14 @@ const ChannelInner = ({ channel }: Props) => {
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Send message">
-                          <IconButton
-                            type="submit"
-                            disabled={messageCreateMutation.isPending}
-                          >
-                            {messageCreateMutation.isPending ? (
-                              <CircularProgress size={24} />
-                            ) : (
-                              <SendIcon />
-                            )}
+                          <IconButton type="submit">
+                            <SendIcon />
                           </IconButton>
                         </Tooltip>
                       </HorizontalStack>
                     ),
                     onKeyDown: (e) => {
-                      if (
-                        e.nativeEvent.isComposing ||
-                        messageCreateMutation.isPending
-                      )
-                        return;
+                      if (e.nativeEvent.isComposing) return;
 
                       if (e.key === "Enter" && !e.shiftKey) {
                         e.preventDefault();
@@ -1885,7 +1918,10 @@ const Channel: AppPage = () => {
           <div>Channel not found</div>
         ) : (
           <LoadingBoundary addClassName="min-h-0 h-full flex-1">
-            <ChannelInner key={foundChannel.id} channel={foundChannel} />
+            <MessageListOrchestrator
+              key={foundChannel.id}
+              channel={foundChannel}
+            />
           </LoadingBoundary>
         )}
       </HorizontalStack>

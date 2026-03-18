@@ -13,12 +13,20 @@ type MessageDeleteMutationOptions = NonNullable<
   Parameters<typeof trpc.messages.delete.useMutation>[0]
 >;
 
+export type RenderedMessage =
+  RouterOutput["messages"]["get"]["items"][number] & {
+    isOptimistic?: true;
+    isFailed?: true;
+  };
+
 type CommentProps = {
-  comment: RouterOutput["messages"]["get"]["items"][number];
+  comment: RenderedMessage;
   shouldHighlight?: boolean;
   onHighlightConsumed?: () => void;
   onUpdateSuccess: MessageUpdateMutationOptions["onSuccess"];
   onDeleteSuccess: MessageDeleteMutationOptions["onSuccess"];
+  onOptimisticRetry?: (m: RenderedMessage) => void;
+  onOptimisticDelete?: (m: RenderedMessage) => void;
 };
 
 export const Comment = ({
@@ -27,6 +35,8 @@ export const Comment = ({
   onHighlightConsumed,
   onUpdateSuccess,
   onDeleteSuccess,
+  onOptimisticRetry,
+  onOptimisticDelete,
 }: CommentProps) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const [isEdit, setIsEdit] = useState(false);
@@ -86,11 +96,35 @@ export const Comment = ({
       ) : (
         <>
           <h6 className="word-break-word text-red-500">
-            {comment.deleted_at ? "(Deleted)" : ""}
+            {comment.deleted_at
+              ? "(Deleted)"
+              : comment.isOptimistic
+                ? "PENDING"
+                : ""}
           </h6>
           <h6 className="word-break-word">{comment.id}</h6>
           <h5 className="word-break-word">{comment.content}</h5>
-
+          {comment.isFailed ? (
+            <>
+              <h6 className="word-break-word text-red-500">Failed. Retry?</h6>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  onOptimisticRetry?.(comment);
+                }}
+              >
+                Retry optimistic
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  onOptimisticDelete?.(comment);
+                }}
+              >
+                Delete optimistic
+              </Button>
+            </>
+          ) : null}
           <Button
             variant="outlined"
             onClick={() => {

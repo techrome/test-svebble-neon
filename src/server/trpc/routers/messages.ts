@@ -289,7 +289,7 @@ export const messagesRouter = router({
           .makeMessageCreateSchemaForm(ctx.user.emailVerified)
           .safeParse(input)
       );
-
+      //if (Math.random() < 0.5) throw new Error("Test error");
       const channelUpdate = db.$with("channel").as(
         db
           .update(schema.channels)
