@@ -6,38 +6,40 @@ import useAppQuery from "@/utils/hooks/useAppQuery";
 import Button from "@/components/Button/Button";
 import clsx from "clsx";
 
+type MessageUpdateMutationOptions = NonNullable<
+  Parameters<typeof trpc.messages.update.useMutation>[0]
+>;
+type MessageDeleteMutationOptions = NonNullable<
+  Parameters<typeof trpc.messages.delete.useMutation>[0]
+>;
+
 type CommentProps = {
   comment: RouterOutput["messages"]["get"]["items"][number];
   shouldHighlight?: boolean;
   onHighlightConsumed?: () => void;
-  isPolling: boolean;
+  onUpdateSuccess: MessageUpdateMutationOptions["onSuccess"];
+  onDeleteSuccess: MessageDeleteMutationOptions["onSuccess"];
 };
 
 export const Comment = ({
   comment,
   shouldHighlight,
   onHighlightConsumed,
-  isPolling,
+  onUpdateSuccess,
+  onDeleteSuccess,
 }: CommentProps) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const [isEdit, setIsEdit] = useState(false);
   const [editInfo, setEditInfo] = useState(comment);
 
-  const utils = trpc.useUtils();
   const commentsDeleteMutation = trpc.messages.delete.useMutation({
-    onSuccess: () => {
-      if (isPolling) {
-        utils.messages.get.invalidate();
-      }
-    },
+    onSuccess: onDeleteSuccess,
   });
 
   const commentUpdateMutation = trpc.messages.update.useMutation({
-    onSuccess: () => {
+    onSuccess: (...args) => {
       setIsEdit(false);
-      if (isPolling) {
-        utils.messages.get.invalidate();
-      }
+      onUpdateSuccess?.(...args);
     },
   });
   useLayoutEffect(() => {
