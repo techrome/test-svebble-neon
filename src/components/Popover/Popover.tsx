@@ -1,7 +1,7 @@
 import React from "react";
 import { Popover as MuiPopover, PopoverProps, useTheme } from "@mui/material";
 
-type Props = PopoverProps;
+export type Props = PopoverProps;
 
 const Popover = ({ children, ...props }: Props) => {
   const theme = useTheme();
