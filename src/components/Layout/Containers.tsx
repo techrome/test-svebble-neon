@@ -3,7 +3,7 @@ import {
   type ContainerProps as MuiContainerProps,
 } from "@mui/material";
 import clsx from "clsx";
-import React from "react";
+import React, { forwardRef } from "react";
 
 import { Breakpoints } from "@/utils/theme";
 
@@ -24,6 +24,7 @@ const switchingStackBreakpoints = {
 } as const satisfies LayoutBreakpoints;
 
 export const defaultPadding = "p-2 sm:p-3";
+export const defaultPaddingXs = "p-1 sm:p-2";
 
 export const Section = ({
   children,
@@ -42,10 +43,10 @@ export const Section = ({
 };
 
 export const spacingMapping = {
+  xs: "gap-1 sm:gap-2",
   sm: "gap-2 sm:gap-3",
   md: "gap-4 sm:gap-6",
   lg: "gap-8 sm:gap-12",
-  xs: "gap-1 sm:gap-2",
   none: "",
 } as const satisfies LayoutBreakpoints;
 
@@ -63,6 +64,7 @@ export const VerticalStack = React.forwardRef<HTMLDivElement, StackProps>(
       addClassName,
       spacing = "sm",
       withPadding,
+      fullWidth = true,
       ...props
     }: StackProps,
     ref
@@ -71,7 +73,8 @@ export const VerticalStack = React.forwardRef<HTMLDivElement, StackProps>(
       <div
         ref={ref}
         className={clsx(
-          `w-full flex flex-col ${spacingMapping[spacing]}`,
+          `flex flex-col ${spacingMapping[spacing]}`,
+          fullWidth && "w-full",
           withPadding && defaultPadding,
           addClassName
         )}
@@ -83,30 +86,36 @@ export const VerticalStack = React.forwardRef<HTMLDivElement, StackProps>(
   }
 );
 
-export const HorizontalStack = ({
-  children,
-  addClassName,
-  spacing = "sm",
-  withPadding,
-  fullWidth,
-  wrap = true,
-  ...props
-}: StackProps) => {
-  return (
-    <div
-      className={clsx(
-        wrap && "flex-wrap",
-        `max-w-full flex ${spacingMapping[spacing]}`,
-        withPadding && defaultPadding,
-        fullWidth && "w-full",
-        addClassName
-      )}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-};
+export const HorizontalStack = forwardRef<HTMLDivElement, StackProps>(
+  (
+    {
+      children,
+      addClassName,
+      spacing = "sm",
+      withPadding,
+      fullWidth,
+      wrap = true,
+      ...props
+    },
+    ref
+  ) => {
+    return (
+      <div
+        ref={ref}
+        className={clsx(
+          wrap && "flex-wrap",
+          `max-w-full flex ${spacingMapping[spacing]}`,
+          withPadding && defaultPadding,
+          fullWidth && "w-full",
+          addClassName
+        )}
+        {...props}
+      >
+        {children}
+      </div>
+    );
+  }
+);
 
 type SwitchingStackProps = BaseSectionProps & {
   breakpoint?: keyof typeof switchingStackBreakpoints;

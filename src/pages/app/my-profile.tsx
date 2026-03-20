@@ -63,7 +63,7 @@ import {
 import AvatarChangeModal from "@/components/Modals/AvatarEdit/AvatarEdit";
 import Skeleton from "@/components/Skeleton/Skeleton";
 import { ANCHORS } from "@/utils/routes";
-import DefaultAvatar from "@/components/DefaultAvatar/DefaultAvatar";
+import DefaultAvatar from "@/components/Avatar/DefaultAvatar";
 import clsx from "clsx";
 
 export const defaultAvatars = {
