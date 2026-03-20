@@ -35,7 +35,7 @@ import {
 } from "@/utils/hooks/useOverlay";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
 import { useAppSnackbar } from "@/utils/snackbar";
-import { CACHE_TIME_MS, seconds } from "@/utils/cacheTime";
+import { CACHE_TIME_MS, minutes, seconds } from "@/utils/cacheTime";
 import IconButton from "@/components/Button/IconButton";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
@@ -65,6 +65,7 @@ import { numericIdQuerySchemaRaw } from "@/utils/validators/helpers/custom";
 import { TermsLabel } from "@/components/AuthForm/Helpers";
 import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider";
 import { MessagesSkeleton } from "@/components/Chat/MessagesSkeleton";
+import { isWithinMs } from "@/utils/timeUtils";
 
 const deserializeMessage = (
   serializedMessage: MessageSerializable
@@ -85,6 +86,21 @@ const searchSchemaForm = z.object({
 
 type SearchFormValues = z.infer<typeof searchSchemaForm>;
 
+const checkShouldCollapseMessage = (
+  prevMessage: Message | RenderedMessage | undefined,
+  message: Message | RenderedMessage
+) => {
+  return Boolean(
+    prevMessage &&
+      prevMessage.user_id === message.user_id &&
+      isWithinMs(message.created_at, prevMessage.created_at, minutes(5))
+  );
+};
+
+const COMPACT_GAP_MS = minutes(5);
+const MAX_GROUP_AGE_MS = minutes(20);
+const MAX_GROUP_MESSAGES = 15;
+
 type MessageQueryOptions = Parameters<
   typeof trpc.messages.get.useInfiniteQuery
 >[1];
@@ -94,7 +110,7 @@ type Message = RouterOutput["messages"]["get"]["items"][number];
 const messageQuerySelectors = {
   getPreviousPageParam: (firstPage, _, firstPageParam) => {
     if (firstPage.returnedDirection === "backward") {
-      return firstPage.items.length === PER_PAGE
+      return firstPage.items.length >= PER_PAGE
         ? { id: firstPage.items[0].id, direction: "backward" }
         : undefined;
     } else {
@@ -110,7 +126,7 @@ const messageQuerySelectors = {
   getNextPageParam: (lastPage, _, lastPageParam) => {
     if (lastPage.isLatest) return undefined;
     if (lastPage.returnedDirection === "forward") {
-      return lastPage.items.length === PER_PAGE
+      return lastPage.items.length >= PER_PAGE
         ? {
             id: lastPage.items[lastPage.items.length - 1].id,
             direction: "forward",
@@ -127,10 +143,58 @@ const messageQuerySelectors = {
         : undefined;
     }
   },
-  select: (data) => ({
-    ...data,
-    items: data.pages.flatMap((p) => p.items),
-  }),
+  select: (data) => {
+    let items: (Message & Pick<RenderedMessage, "isCompact">)[] = [];
+
+    // collapsing messages by the same user within a short period of time
+    // while having sane limits on how many messages can be collapsed consecutively
+    let groupUserId: Message["user_id"] | undefined;
+    let groupStartCreatedAt: Date | undefined;
+    let groupMessageCount = 0;
+    for (let pageIndex = 0; pageIndex < data.pages.length; pageIndex++) {
+      const page = data.pages[pageIndex];
+      for (let itemIndex = 0; itemIndex < page.items.length; itemIndex++) {
+        const prevPage = data.pages[pageIndex - 1];
+        const prevMessage =
+          itemIndex === 0 && prevPage
+            ? prevPage.items[prevPage.items.length - 1]
+            : page.items[itemIndex - 1];
+        const message = page.items[itemIndex];
+
+        const continuesPreviousGroup =
+          !!prevMessage &&
+          prevMessage.user_id === message.user_id &&
+          isWithinMs(
+            message.created_at,
+            prevMessage.created_at,
+            COMPACT_GAP_MS
+          ) &&
+          groupUserId === message.user_id &&
+          !!groupStartCreatedAt &&
+          isWithinMs(
+            message.created_at,
+            groupStartCreatedAt,
+            MAX_GROUP_AGE_MS
+          ) &&
+          groupMessageCount < MAX_GROUP_MESSAGES;
+
+        if (continuesPreviousGroup) {
+          groupMessageCount += 1;
+          items.push({ ...message, isCompact: true });
+        } else {
+          groupUserId = message.user_id;
+          groupStartCreatedAt = message.created_at;
+          groupMessageCount = 1;
+          items.push(message);
+        }
+      }
+    }
+
+    return {
+      ...data,
+      items,
+    };
+  },
 } satisfies NonNullable<MessageQueryOptions>;
 
 const baseIntervalMs = Number(seconds(5));
@@ -795,6 +859,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     {
       syncMode,
       initialGateOpenedReason,
+      wsSyncFailedCount,
+      hasQueryLoadedInitialData: hasQueryLoadedInitialData.current,
+      isWsConnectedRef: isWsConnectedRef.current,
+      websocketsMessageQueue: websocketsMessageQueue.current,
       appliedMessagesVersion: appliedMessagesVersion.current,
     }
   );
@@ -985,12 +1053,12 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   // eslint-disable-next-line
   const debouncedMakeIdle = useCallback(
     // eslint-disable-next-line
-    debounce(async () => {
+    debounce(() => {
       const { isIdle } = dependencies.current;
       if (!isIdle) {
         setIsIdle(true);
       }
-    }, 50),
+    }, 100),
     []
   );
 
@@ -1153,9 +1221,9 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         clearInitialTimerToOpenGate();
         setWsSyncFailedCount(0);
         setSyncMode("ws-syncing");
-        if (!initialGateOpenedReason) {
-          setInitialGateOpenedReason("websockets");
-        }
+        setInitialGateOpenedReason(
+          initialGateOpenedReason ? "fallback" : "websockets"
+        );
       }
     };
 
@@ -1614,7 +1682,19 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     typeof optimisticMessages | undefined
   >(() => {
     if (optimisticMessages.length && messages.data?.items) {
-      return [...messages.data.items, ...optimisticMessages];
+      let resultOptimisticMessages: typeof optimisticMessages = [];
+      for (let i = 0; i < optimisticMessages.length; i++) {
+        const prevMessage =
+          i === 0
+            ? messages.data.items[messages.data.items.length - 1]
+            : optimisticMessages[i - 1];
+        const message = optimisticMessages[i];
+        const isCompact = checkShouldCollapseMessage(prevMessage, message);
+        resultOptimisticMessages.push(
+          isCompact ? { ...message, isCompact } : message
+        );
+      }
+      return messages.data.items.concat(resultOptimisticMessages);
     } else return messages.data?.items;
   }, [messages.data?.items, optimisticMessages]);
 

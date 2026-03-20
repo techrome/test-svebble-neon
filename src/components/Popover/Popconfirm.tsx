@@ -43,7 +43,7 @@ export const Popconfirm = ({
   children,
   title,
   description,
-  confirmText = "OK",
+  confirmText = "Confirm",
   cancelText = "Cancel",
   onConfirm,
   onCancel,
@@ -64,6 +64,7 @@ export const Popconfirm = ({
   const handleCancel = () => {
     closePopover();
     onCancel?.();
+    setIsConfirming(false);
   };
 
   const handleConfirm = async () => {
@@ -84,8 +85,8 @@ export const Popconfirm = ({
       {React.cloneElement(child, {
         onClick: composeMouseHandlers(child.props.onClick, handleTriggerClick),
       })}
-      <ReadyComponent onClose={closePopover} {...popoverProps}>
-        <Section addClassName="min-w-xs">
+      <ReadyComponent {...popoverProps}>
+        <Section addClassName="min-w-xs max-w-sm">
           <VerticalStack>
             <Typography variant="subtitle2">{title}</Typography>
             {Boolean(description) && (
