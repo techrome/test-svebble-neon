@@ -20,9 +20,11 @@ const useAppQuery = <
 
   const removeQueryKey = () => {
     setQueryKeys((prev) => {
-      let updatedQueryKeys = { ...prev };
-      delete updatedQueryKeys[uniqueKey];
-      return updatedQueryKeys;
+      if (uniqueKey in prev) {
+        let updatedQueryKeys = { ...prev };
+        delete updatedQueryKeys[uniqueKey];
+        return updatedQueryKeys;
+      } else return prev;
     });
   };
 

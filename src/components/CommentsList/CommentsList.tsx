@@ -1,6 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import {
+  CircularProgress,
   ListItemButton,
   ListItemIcon,
   ListItemText,
@@ -14,6 +15,7 @@ import AddReactionIcon from "@mui/icons-material/AddReaction";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import FlagIcon from "@mui/icons-material/Flag";
+import ReplyIcon from "@mui/icons-material/Reply";
 
 import { trpc, type RouterOutput } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
@@ -60,8 +62,9 @@ type CommentProps = {
   onHighlightConsumed?: () => void;
   onUpdateSuccess: MessageUpdateMutationOptions["onSuccess"];
   onDeleteSuccess: MessageDeleteMutationOptions["onSuccess"];
-  onOptimisticRetry?: (m: RenderedMessage) => void;
-  onOptimisticDelete?: (m: RenderedMessage) => void;
+  onOptimisticRetry: React.MouseEventHandler<HTMLButtonElement>;
+  onOptimisticDelete: React.MouseEventHandler<HTMLButtonElement>;
+  onReportClick: React.MouseEventHandler<HTMLElement>;
 };
 
 export const Comment = ({
@@ -72,6 +75,7 @@ export const Comment = ({
   onDeleteSuccess,
   onOptimisticRetry,
   onOptimisticDelete,
+  onReportClick,
 }: CommentProps) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const [isEdit, setIsEdit] = useState(false);
@@ -136,7 +140,7 @@ export const Comment = ({
           ) : (
             <div className="min-w-8" />
           )}
-          <VerticalStack spacing="xs" fullWidth={false}>
+          <VerticalStack spacing="none" fullWidth={false}>
             {!comment.isCompact && (
               <HorizontalStack addClassName="items-center">
                 <Typography>
@@ -153,10 +157,14 @@ export const Comment = ({
                 </Tooltip>
               </HorizontalStack>
             )}
-            ID: {comment.id} | Content: {comment.content}
+            <Typography
+              color={comment.isOptimistic ? "textDisabled" : "textPrimary"}
+            >
+              ID: {comment.id} | Content: {comment.content}
+            </Typography>
           </VerticalStack>
         </HorizontalStack>
-        {isDesktop ? (
+        {comment.isOptimistic ? null : isDesktop ? (
           <Paper
             elevation={4}
             className={clsx(
@@ -166,9 +174,16 @@ export const Comment = ({
             )}
           >
             <HorizontalStack addClassName="p-1" spacing="none">
-              <IconButton size="small">
-                <AddReactionIcon />
-              </IconButton>
+              <Tooltip title="Add Reaction">
+                <IconButton size="small">
+                  <AddReactionIcon />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Reply">
+                <IconButton size="small">
+                  <ReplyIcon />
+                </IconButton>
+              </Tooltip>
               {MoreButton}
             </HorizontalStack>
           </Paper>
@@ -185,6 +200,12 @@ export const Comment = ({
               </ListItemIcon>
               <ListItemText>Add Reaction</ListItemText>
             </MenuItem>
+            <MenuItem>
+              <ListItemIcon>
+                <ReplyIcon />
+              </ListItemIcon>
+              <ListItemText>Reply</ListItemText>
+            </MenuItem>
             <Divider />
             {isOwnMessage ? (
               <>
@@ -194,19 +215,32 @@ export const Comment = ({
                   </ListItemIcon>
                   <ListItemText>Edit Message</ListItemText>
                 </MenuItem>
-                <Popconfirm title="Are you sure you want to delete this message?">
+                <Popconfirm
+                  title="Are you sure you want to delete this message?"
+                  onConfirm={() => {
+                    commentsDeleteMutation.mutate({ id: comment.id });
+                  }}
+                >
                   <MenuItem
                     sx={(theme) => ({ color: theme.palette.error.main })}
+                    disabled={commentsDeleteMutation.isPending}
                   >
                     <ListItemIcon>
-                      <DeleteIcon color="error" />
+                      {commentsDeleteMutation.isPending ? (
+                        <CircularProgress size={24} color="error" />
+                      ) : (
+                        <DeleteIcon color="error" />
+                      )}
                     </ListItemIcon>
                     <ListItemText>Delete Message</ListItemText>
                   </MenuItem>
                 </Popconfirm>
               </>
             ) : (
-              <MenuItem sx={(theme) => ({ color: theme.palette.warning.main })}>
+              <MenuItem
+                sx={(theme) => ({ color: theme.palette.warning.main })}
+                onClick={onReportClick}
+              >
                 <ListItemIcon>
                   <FlagIcon color="warning" />
                 </ListItemIcon>
@@ -264,7 +298,7 @@ export const Comment = ({
               <Button
                 variant="outlined"
                 onClick={() => {
-                  onOptimisticRetry?.(comment);
+                  //onOptimisticRetry?.(comment);
                 }}
               >
                 Retry optimistic
@@ -272,7 +306,7 @@ export const Comment = ({
               <Button
                 variant="outlined"
                 onClick={() => {
-                  onOptimisticDelete?.(comment);
+                  //  onOptimisticDelete?.(comment);
                 }}
               >
                 Delete optimistic
