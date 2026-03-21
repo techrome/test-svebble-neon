@@ -10,7 +10,7 @@ import {
   messageReportSchema,
 } from "@/utils/validators/shared/contentReport";
 import { type SubmitHandler, useForm, useWatch } from "react-hook-form";
-import { type RenderedMessage } from "@/components/CommentsList/CommentsList";
+import { type RenderedMessage } from "@/components/Chat/Message";
 import { zodResolver } from "@hookform/resolvers/zod";
 import RadioGroup from "@/components/Fields/Radio";
 import Input from "@/components/Fields/Input";

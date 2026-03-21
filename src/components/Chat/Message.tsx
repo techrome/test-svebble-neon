@@ -56,7 +56,7 @@ export type RenderedMessage =
     isCompact?: true;
   };
 
-type CommentProps = {
+type Props = {
   comment: RenderedMessage;
   shouldHighlight?: boolean;
   onHighlightConsumed?: () => void;
@@ -67,7 +67,7 @@ type CommentProps = {
   onReportClick: React.MouseEventHandler<HTMLElement>;
 };
 
-export const Comment = ({
+const Message = ({
   comment,
   shouldHighlight,
   onHighlightConsumed,
@@ -76,7 +76,7 @@ export const Comment = ({
   onOptimisticRetry,
   onOptimisticDelete,
   onReportClick,
-}: CommentProps) => {
+}: Props) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const [isEdit, setIsEdit] = useState(false);
   const [editInfo, setEditInfo] = useState(comment);
@@ -350,26 +350,4 @@ export const Comment = ({
   );
 };
 
-// const CommentsList = () => {
-//   const comments = useAppQuery(
-//     trpc.messages.get.useQuery(undefined, { staleTime: 15000 })
-//   );
-//   return (
-//     <div className="mt-5 w-full">
-//       {comments.status !== "success" ? (
-//         <h5>Loading comments...</h5>
-//       ) : (
-//         <Virtuoso
-//           useWindowScroll
-//           //style={{ height: "500px" }}
-//           data={comments.data}
-//           itemContent={(_, comment) => {
-//             return <Comment comment={comment} />;
-//           }}
-//         />
-//       )}
-//     </div>
-//   );
-// };
-
-// export default CommentsList;
+export default Message;

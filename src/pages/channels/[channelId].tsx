@@ -22,10 +22,7 @@ import { getQueryKey } from "@trpc/react-query";
 
 import { type RouterInput, RouterOutput, trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
-import {
-  Comment,
-  type RenderedMessage,
-} from "@/components/CommentsList/CommentsList";
+import Message, { type RenderedMessage } from "@/components/Chat/Message";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import {
   useGlobalDrawer,
@@ -1789,7 +1786,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
               computeItemKey={(_, item) => String(item.id)}
               itemContent={(_, message) => {
                 return (
-                  <Comment
+                  <Message
                     comment={message}
                     shouldHighlight={
                       !isMessageHighlightConsumed &&
