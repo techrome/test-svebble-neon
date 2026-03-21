@@ -345,3 +345,15 @@ html {
     transparent 75%
   );
 }
+
+.custom-radio-control {
+  .MuiFormControlLabel-root {
+    @apply ml-0 mr-0 pr-2;
+    &:hover {
+      @apply bg-[var(--mui-palette-action-hover)];
+    }
+    &:has(.MuiRadio-root.Mui-checked) {
+      @apply bg-[var(--mui-palette-action-selected)];
+    }
+  }
+}
