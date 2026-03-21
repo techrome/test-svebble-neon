@@ -17,7 +17,7 @@ import AttachFileIcon from "@mui/icons-material/AttachFile";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import ReplayIcon from "@mui/icons-material/Replay";
 import debounce from "lodash/debounce";
-import z from "zod";
+import z from "@/utils/zod";
 import { getQueryKey } from "@trpc/react-query";
 
 import { type RouterInput, RouterOutput, trpc } from "@/trpc";
@@ -66,6 +66,7 @@ import { TermsLabel } from "@/components/AuthForm/Helpers";
 import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider";
 import { MessagesSkeleton } from "@/components/Chat/MessagesSkeleton";
 import { isWithinMs } from "@/utils/timeUtils";
+import ReportMessageForm from "@/components/Chat/ReportMessageForm";
 
 const deserializeMessage = (
   serializedMessage: MessageSerializable
@@ -222,7 +223,7 @@ type Props = {
 
 const MessageListOrchestrator = ({ channel }: Props) => {
   const localModal = useLocalModal();
-  const { closeModal, openModal } = useGlobalModal();
+  const globalModal = useGlobalModal();
   const localDrawer = useLocalDrawer();
   const { openDrawer, closeDrawer } = useGlobalDrawer();
   const { addAppSnackbar, dismissAllAppSnackbars } = useAppSnackbar();
@@ -1786,14 +1787,14 @@ const MessageListOrchestrator = ({ channel }: Props) => {
               atBottomThreshold={50}
               data={renderedMessages}
               computeItemKey={(_, item) => String(item.id)}
-              itemContent={(_, comment) => {
+              itemContent={(_, message) => {
                 return (
                   <Comment
-                    comment={comment}
+                    comment={message}
                     shouldHighlight={
                       !isMessageHighlightConsumed &&
                       isInitialScrollHandled &&
-                      urlMessageId === String(comment.id)
+                      urlMessageId === String(message.id)
                     }
                     onHighlightConsumed={() => {
                       setIsMessageHighlightConsumed(true);
@@ -1824,15 +1825,27 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                         utils.messages.get.invalidate();
                       }
                     }}
-                    onOptimisticRetry={(optimisticMessage) => {
-                      deleteOptimisticMessage(optimisticMessage.id);
+                    onOptimisticRetry={() => {
+                      deleteOptimisticMessage(message.id);
                       messageCreateMutation.mutate({
-                        channelId: optimisticMessage.channel_id,
-                        content: optimisticMessage.content,
+                        channelId: message.channel_id,
+                        content: message.content,
                       });
                     }}
-                    onOptimisticDelete={(optimisticMessage) => {
-                      deleteOptimisticMessage(optimisticMessage.id);
+                    onOptimisticDelete={() => {
+                      deleteOptimisticMessage(message.id);
+                    }}
+                    onReportClick={() => {
+                      globalModal.openModal({
+                        props: { title: "Report Message" },
+                        content: (
+                          <ReportMessageForm
+                            message={message}
+                            onCancel={() => {}}
+                            onConfirm={() => {}}
+                          />
+                        ),
+                      });
                     }}
                   />
                 );
