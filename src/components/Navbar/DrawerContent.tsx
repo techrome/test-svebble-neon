@@ -30,17 +30,11 @@ import {
 } from "react-hook-form";
 import Fuse from "fuse.js";
 import { type Dayjs } from "dayjs";
-import z from "zod";
+import z from "@/utils/zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import clsx from "clsx";
-import NextImage from "next/image";
 
-import {
-  useGlobalDrawer,
-  useGlobalModal,
-  useLocalModal,
-  useLocalPopover,
-} from "@/utils/hooks/useOverlay";
+import { useGlobalDrawer, useLocalPopover } from "@/utils/hooks/useOverlay";
 import {
   HorizontalStack,
   Section,
@@ -369,7 +363,7 @@ const filterSchemaForm = z
     if (v.startDate && v.endDate && v.endDate.isBefore(v.startDate)) {
       ctx.addIssue({
         code: "custom",
-        path: ["endDate"],
+        path: ["endDate"] satisfies (keyof typeof v)[],
         message: "To (time) must be after From (time)",
       });
     }

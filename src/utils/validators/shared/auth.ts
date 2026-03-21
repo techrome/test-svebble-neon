@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "@/utils/zod";
 
 import { requiredPasswordRules } from "@/components/AuthForm/Signup";
 import { Text } from "@/utils/validators/helpers/text";

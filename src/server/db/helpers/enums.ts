@@ -1,9 +1,6 @@
 import { sql } from "drizzle-orm";
 
-const toObject = <T extends readonly string[]>(arr: T) =>
-  Object.fromEntries(arr.map((val) => [val, val])) as {
-    readonly [K in T[number]]: K;
-  };
+import { toObject } from "@/utils/validators/helpers/custom";
 
 export const USER_ROLE_ENUM = ["user", "admin"] as const;
 export const USER_ROLE = toObject(USER_ROLE_ENUM);

@@ -7,7 +7,7 @@ import {
   UseFormReturn,
   useWatch,
 } from "react-hook-form";
-import z from "zod";
+import z from "@/utils/zod";
 import ErrorIcon from "@mui/icons-material/Cancel";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import RemoveCircleIcon from "@mui/icons-material/RemoveCircleOutline";

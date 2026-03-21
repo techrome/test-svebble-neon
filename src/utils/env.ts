@@ -1,5 +1,5 @@
 import { createEnv } from "@t3-oss/env-nextjs";
-import z from "zod";
+import z from "@/utils/zod";
 
 // relative paths here because this file is used in some cli and they can't recognize TS path aliases
 import { isDev } from "./isDev";

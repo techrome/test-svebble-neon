@@ -14,7 +14,7 @@ import {
   loginSchemaForm,
   signupSchemaForm,
 } from "@/utils/validators/shared/auth";
-import z from "zod";
+import z from "@/utils/zod";
 import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
 import { mergeSetCookiesToNextRes } from "../helpers/cookies";
