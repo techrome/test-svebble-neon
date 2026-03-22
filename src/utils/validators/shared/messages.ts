@@ -36,19 +36,21 @@ export const makeMessageCreateSchemaForm = (isVerifiedUser?: boolean) =>
     content: Text[isVerifiedUser ? "Long" : "Short"]({ required: true }),
   });
 
-export const messageUpdateSchemaForm = messageCreateSchemaForm.extend({
-  id: numericIdSchema,
-});
+export const messageUpdateSchemaForm = messageCreateSchemaForm
+  .omit({ channelId: true })
+  .extend({
+    id: numericIdSchema,
+  });
 export const makeMessageUpdateSchemaForm = (isVerifiedUser?: boolean) =>
-  makeMessageCreateSchemaForm(isVerifiedUser).extend({
-    id: messageUpdateSchemaForm.shape.id,
+  messageUpdateSchemaForm.safeExtend({
+    content: Text[isVerifiedUser ? "Long" : "Short"]({ required: true }),
   });
 
 export const messageDeleteSchemaForm = messageUpdateSchemaForm.pick({
   id: true,
 });
 
-export const messageBulkDeleteSchemaForm = messageUpdateSchemaForm.pick({
+export const messageBulkDeleteSchemaForm = messageCreateSchemaForm.pick({
   channelId: true,
 });
 
