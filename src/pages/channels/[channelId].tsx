@@ -64,6 +64,7 @@ import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider"
 import { MessagesSkeleton } from "@/components/Chat/MessagesSkeleton";
 import { isWithinMs } from "@/utils/timeUtils";
 import ReportMessageForm from "@/components/Chat/ReportMessageForm";
+import { submitTextareaOnEnter } from "@/utils/formSubmission";
 
 const deserializeMessage = (
   serializedMessage: MessageSerializable
@@ -1663,7 +1664,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           );
         }
 
-        return null;
+        return <div className="p-2"></div>;
       },
     []
   );
@@ -1787,7 +1788,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
               itemContent={(_, message) => {
                 return (
                   <Message
-                    comment={message}
+                    message={message}
                     shouldHighlight={
                       !isMessageHighlightConsumed &&
                       isInitialScrollHandled &&
@@ -1923,16 +1924,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                         </Tooltip>
                       </HorizontalStack>
                     ),
-                    onKeyDown: (e) => {
-                      if (e.nativeEvent.isComposing) return;
-
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-
-                        const form = e.currentTarget.form;
-                        form?.requestSubmit();
-                      }
-                    },
+                    onKeyDown: submitTextareaOnEnter,
                   },
                 }}
               />

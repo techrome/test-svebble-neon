@@ -87,8 +87,8 @@ export const Popconfirm = ({
       })}
       <ReadyComponent {...popoverProps}>
         <Section addClassName="min-w-xs max-w-sm">
-          <VerticalStack>
-            <Typography variant="subtitle2">{title}</Typography>
+          <VerticalStack spacing="xs">
+            <Typography>{title}</Typography>
             {Boolean(description) && (
               <Typography variant="body2" color="textSecondary">
                 {description}
@@ -96,7 +96,6 @@ export const Popconfirm = ({
             )}
             <HorizontalStack>
               <Button
-                size="small"
                 variant="contained"
                 color="primary"
                 onClick={handleConfirm}
@@ -105,7 +104,6 @@ export const Popconfirm = ({
                 {confirmText}
               </Button>
               <Button
-                size="small"
                 variant="contained"
                 color="inherit"
                 onClick={handleCancel}

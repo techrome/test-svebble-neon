@@ -1,11 +1,11 @@
 import { hours } from "@/utils/cacheTime";
 import { env } from "../env";
-import ably from "ably";
+import * as ably from "ably";
 
 import {
   getChannelId,
-  WebsocketEventName,
-  WebsocketPayload,
+  type WebsocketEventName,
+  type WebsocketPayload,
 } from "@/trpc/helpers/websockets";
 import { isDev } from "@/utils/isDev";
 

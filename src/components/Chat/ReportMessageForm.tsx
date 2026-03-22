@@ -14,6 +14,7 @@ import { type RenderedMessage } from "@/components/Chat/Message";
 import { zodResolver } from "@hookform/resolvers/zod";
 import RadioGroup from "@/components/Fields/Radio";
 import Input from "@/components/Fields/Input";
+import { submitTextareaOnEnter } from "@/utils/formSubmission";
 
 type Props = {
   message: RenderedMessage;
@@ -59,6 +60,13 @@ const ReportMessageForm = (props: Props) => {
           type="text"
           autoComplete="additionalInfo"
           fullWidth
+          multiline
+          maxRows={5}
+          slotProps={{
+            input: {
+              onKeyDown: submitTextareaOnEnter,
+            },
+          }}
         />
         <HorizontalStack addClassName="justify-between items-center">
           <Button

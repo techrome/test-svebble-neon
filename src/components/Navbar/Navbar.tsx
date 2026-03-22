@@ -269,10 +269,7 @@ const NavbarInner = () => {
             </Badge>
           </IconButton>
         </LoadingBoundary>
-        <notificationsPopover.ReadyComponent
-          transitionDuration={0}
-          disableRestoreFocus
-        >
+        <notificationsPopover.ReadyComponent>
           <NotificationsContent />
         </notificationsPopover.ReadyComponent>
         <IconButton
