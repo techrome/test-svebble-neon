@@ -1,22 +1,92 @@
-import React from "react";
-import { Popover as MuiPopover, PopoverProps, useTheme } from "@mui/material";
+import React, { useEffect, useRef } from "react";
+import {
+  ClickAwayListener,
+  Grow,
+  Paper,
+  Popper as MuiPopper,
+  type PopperProps as MuiPopperProps,
+  useTheme,
+  type GrowProps,
+} from "@mui/material";
 
-export type Props = PopoverProps;
+export type PopperCloseReason = "clickAway" | "escapeKeyDown";
 
-const Popover = ({ children, ...props }: Props) => {
+export type Props = Omit<MuiPopperProps, "children"> & {
+  children: React.ReactNode;
+  onClose?: (
+    event: MouseEvent | TouchEvent | KeyboardEvent,
+    reason: PopperCloseReason
+  ) => void;
+  autoFocusSurface?: boolean;
+  timeout?: GrowProps["timeout"];
+};
+
+const Popover = ({
+  children,
+  open,
+  onClose,
+  placement = "bottom-start",
+  autoFocusSurface = true,
+  timeout,
+  ...props
+}: Props) => {
   const theme = useTheme();
 
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open || !autoFocusSurface) return;
+
+    const raf = requestAnimationFrame(() => {
+      const surface = surfaceRef.current;
+      if (!surface) return;
+
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && surface.contains(active)) {
+        return;
+      }
+
+      surface.focus();
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [open, autoFocusSurface]);
+
   return (
-    <MuiPopover
-      anchorOrigin={{
-        vertical: "bottom",
-        horizontal: "left",
-      }}
-      transitionDuration={theme.transitions.duration.shortest}
+    <MuiPopper
+      open={open}
+      placement={placement}
+      transition
       {...props}
+      className="z-10"
     >
-      {children}
-    </MuiPopover>
+      {({ TransitionProps }) => (
+        <Grow
+          {...TransitionProps}
+          timeout={timeout ?? theme.transitions.duration.shortest}
+        >
+          <div>
+            <ClickAwayListener
+              onClickAway={(event) => onClose?.(event, "clickAway")}
+              mouseEvent="onMouseDown"
+              touchEvent="onTouchStart"
+            >
+              <Paper
+                elevation={8}
+                ref={surfaceRef}
+                tabIndex={-1}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return;
+                  onClose?.(event.nativeEvent, "escapeKeyDown");
+                }}
+              >
+                {children}
+              </Paper>
+            </ClickAwayListener>
+          </div>
+        </Grow>
+      )}
+    </MuiPopper>
   );
 };
 

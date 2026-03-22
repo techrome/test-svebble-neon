@@ -10,7 +10,7 @@ import {
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { RootState } from "@/redux";
 import Drawer, { type DrawerProps } from "@/components/Overlays/Drawer";
-import Popover from "@/components/Popover/Popover";
+import Popover, { Props as PopoverProps } from "@/components/Popover/Popover";
 import { PartialFor } from "@/utils/types";
 
 const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
@@ -186,23 +186,38 @@ export const useLocalDrawer = () => {
   };
 };
 
-type PopoverInitialProps = PartialFor<
-  React.ComponentPropsWithoutRef<typeof Popover>,
-  "open"
->;
+type PopoverInitialProps = Omit<
+  PopoverProps,
+  "open" | "anchorEl" | "id" | "onClose"
+> & {
+  children?: React.ReactNode;
+  onClose?: PopoverProps["onClose"];
+};
 
 export const useLocalPopover = () => {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const id = useId();
   const isOpen = Boolean(anchorEl);
+
   // using refs for performance. just keep this in mind whenever you use the hook
-  // (e.g. don't wrap the ReadyComponent in React.memo unless you know what you're doing)
-  const initialPropsRef = useRef<PopoverInitialProps>({});
+  const initialPropsRef = useRef<{
+    open: boolean;
+    id: string;
+    anchorEl: HTMLElement | null;
+    onClose: PopoverProps["onClose"];
+  }>({
+    open: false,
+    id,
+    anchorEl: null,
+    onClose: undefined,
+  });
+
   const readyComponentRef = useRef<React.FC<PopoverInitialProps> | null>(null);
 
   const openPopover = (e: React.SyntheticEvent<HTMLElement>) => {
     setAnchorEl(e.currentTarget);
   };
+
   const closePopover = () => {
     setAnchorEl(null);
   };
@@ -210,26 +225,24 @@ export const useLocalPopover = () => {
   // eslint-disable-next-line
   initialPropsRef.current = {
     open: isOpen,
-    id: id,
-    anchorEl: anchorEl,
-    onClose: closePopover,
+    id,
+    anchorEl,
+    onClose: () => {
+      closePopover();
+    },
   };
 
   // eslint-disable-next-line
   if (!readyComponentRef.current) {
-    readyComponentRef.current = ({
-      children,
-      onClose,
-      ...props
-    }: PopoverInitialProps) => {
+    readyComponentRef.current = ({ children, onClose, ...props }) => {
       return (
         <Popover
-          open={initialPropsRef.current.open!}
+          open={initialPropsRef.current.open}
           id={initialPropsRef.current.id}
           anchorEl={initialPropsRef.current.anchorEl}
-          onClose={(...args) => {
-            initialPropsRef.current?.onClose?.(...args);
-            onClose?.(...args);
+          onClose={(event, reason) => {
+            initialPropsRef.current.onClose?.(event, reason);
+            onClose?.(event, reason);
           }}
           {...props}
         >
