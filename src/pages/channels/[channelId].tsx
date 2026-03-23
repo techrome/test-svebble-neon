@@ -1823,14 +1823,14 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                         utils.messages.get.invalidate();
                       }
                     }}
-                    onOptimisticRetry={() => {
+                    onOptimisticFailedRetry={() => {
                       deleteOptimisticMessage(message.id);
                       messageCreateMutation.mutate({
                         channelId: message.channel_id,
                         content: message.content,
                       });
                     }}
-                    onOptimisticDelete={() => {
+                    onOptimisticFailedDelete={() => {
                       deleteOptimisticMessage(message.id);
                     }}
                     onReportClick={() => {

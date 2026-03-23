@@ -5,10 +5,8 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Virtuoso } from "react-virtuoso";
 import {
   CircularProgress,
-  ListItemButton,
   ListItemIcon,
   ListItemText,
   MenuItem,
@@ -23,18 +21,14 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import FlagIcon from "@mui/icons-material/Flag";
 import ReplyIcon from "@mui/icons-material/Reply";
 import EmojiEmotionsIcon from "@mui/icons-material/EmojiEmotions";
+import LinkIcon from "@mui/icons-material/Link";
+import ReplayIcon from "@mui/icons-material/Replay";
 
 import { trpc, type RouterOutput } from "@/trpc";
-import useAppQuery from "@/utils/hooks/useAppQuery";
 import Button from "@/components/Button/Button";
 import clsx from "clsx";
-import {
-  defaultPaddingXs,
-  HorizontalStack,
-  Section,
-  VerticalStack,
-} from "@/components/Layout/Containers";
-import UserAvatar, { sizesMap } from "@/components/Avatar/UserAvatar";
+import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
+import UserAvatar from "@/components/Avatar/UserAvatar";
 import { useUser } from "@/trpc/hooks/useUser";
 import { useLocalPopover } from "@/utils/hooks/useOverlay";
 import IconButton from "@/components/Button/IconButton";
@@ -58,6 +52,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Input from "@/components/Fields/Input";
 import { submitTextareaOnEnter } from "@/utils/formSubmission";
 import { useAppSnackbar } from "@/utils/snackbar";
+import { copyToClipboard } from "@/utils/stringUtils";
+
+const hoverChildHiddenClass = "opacity-0 pointer-events-none";
+const hoverChildHoveredClass =
+  "group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto";
 
 type MessageUpdateMutationOptions = NonNullable<
   Parameters<typeof trpc.messages.update.useMutation>[0]
@@ -79,8 +78,8 @@ type Props = {
   onHighlightConsumed?: () => void;
   onUpdateSuccess: MessageUpdateMutationOptions["onSuccess"];
   onDeleteSuccess: MessageDeleteMutationOptions["onSuccess"];
-  onOptimisticRetry: React.MouseEventHandler<HTMLButtonElement>;
-  onOptimisticDelete: React.MouseEventHandler<HTMLButtonElement>;
+  onOptimisticFailedRetry: React.MouseEventHandler<HTMLButtonElement>;
+  onOptimisticFailedDelete: React.MouseEventHandler<HTMLButtonElement>;
   onReportClick: React.MouseEventHandler<HTMLElement>;
 };
 
@@ -92,8 +91,8 @@ const Message = ({
   onHighlightConsumed,
   onUpdateSuccess,
   onDeleteSuccess,
-  onOptimisticRetry,
-  onOptimisticDelete,
+  onOptimisticFailedRetry,
+  onOptimisticFailedDelete,
   onReportClick,
 }: Props) => {
   const user = useUser();
@@ -145,7 +144,11 @@ const Message = ({
 
   const MoreButton = (
     <Tooltip title="More">
-      <IconButton size="small" onClick={menuPopover.openPopover}>
+      <IconButton
+        size="small"
+        className="self-start"
+        onClick={menuPopover.openPopover}
+      >
         <MoreVertIcon />
       </IconButton>
     </Tooltip>
@@ -167,6 +170,27 @@ const Message = ({
     setIsEdit(false);
     form.reset();
   };
+
+  const { createdAtShort, createdAtFull, updatedAtFull } = useMemo(() => {
+    const createdAt = dayjs(message.created_at);
+    const isToday = createdAt.isSame(dayjs(), "day");
+    const createdAtShort =
+      message.isCompact || isToday
+        ? createdAt.format(timeFormat)
+        : createdAt.format(dateTimeFormat);
+    const createdAtFull = createdAt.format(dateTimeFormatFullDisplay);
+    const hasEdited =
+      message.created_at.getTime() !== message.updated_at.getTime();
+    const updatedAtFull = hasEdited
+      ? dayjs(message.updated_at).format(dateTimeFormatFullDisplay)
+      : null;
+    return {
+      createdAtShort,
+      createdAtFull,
+      updatedAtFull,
+    };
+  }, [message.created_at, message.isCompact, message.updated_at]);
+  const shouldDisplayAvatar = Boolean(user.data?.user && !message.isCompact);
 
   if (isEdit) {
     return (
@@ -234,43 +258,60 @@ const Message = ({
 
   return (
     <div className={message.isCompact ? "" : "pt-2"}>
-      <HorizontalStack
-        ref={ref}
-        addClassName={clsx(
-          "px-3 py-1",
-          "relative justify-between group hover:bg-[var(--mui-palette-action-focus)]"
-        )}
-        wrap={false}
+      <VerticalStack
+        spacing="none"
+        addClassName="px-1 relative group hover:bg-[var(--mui-palette-action-focus)]"
       >
-        <VerticalStack>
-          <HorizontalStack wrap={false}>
-            {user.data?.user && !message.isCompact ? (
-              <UserAvatar
-                user={
-                  isOwnMessage
-                    ? user.data.user
-                    : {
-                        username: user.data.user.username,
-                        id: user.data.user.id,
-                      }
-                }
-              />
-            ) : (
-              <div className="min-w-8" />
-            )}
+        <HorizontalStack
+          ref={ref}
+          addClassName="px-1 py-1 justify-between items-center"
+          fullWidth
+          wrap={false}
+        >
+          <HorizontalStack wrap={false} spacing="xs">
+            <div
+              className={clsx(
+                "min-w-12 max-w-12 flex",
+                shouldDisplayAvatar
+                  ? `justify-center`
+                  : `justify-end ${hoverChildHiddenClass} ${hoverChildHoveredClass}`
+              )}
+            >
+              {shouldDisplayAvatar && user.data?.user ? (
+                <div className="pt-1">
+                  <UserAvatar
+                    user={
+                      isOwnMessage
+                        ? user.data.user
+                        : {
+                            username: user.data.user.username,
+                            id: user.data.user.id,
+                          }
+                    }
+                    size="md"
+                  />
+                </div>
+              ) : !message.isOptimistic ? (
+                <Tooltip title={createdAtFull}>
+                  <Typography
+                    variant="caption"
+                    className="mt-1"
+                    color="textSecondary"
+                  >
+                    {createdAtShort}
+                  </Typography>
+                </Tooltip>
+              ) : null}
+            </div>
             <VerticalStack spacing="none" fullWidth={false}>
               {!message.isCompact && (
                 <HorizontalStack addClassName="items-center">
                   <Typography>
                     <strong>{user.data?.user?.name}</strong>
                   </Typography>
-                  <Tooltip
-                    title={dayjs(message.created_at).format(
-                      dateTimeFormatFullDisplay
-                    )}
-                  >
-                    <Typography variant="subtitle2" color="textSecondary">
-                      {dayjs(message.created_at).format(timeFormat)}
+                  <Tooltip title={createdAtFull}>
+                    <Typography variant="caption" color="textSecondary">
+                      {createdAtShort}
                     </Typography>
                   </Tooltip>
                 </HorizontalStack>
@@ -279,6 +320,18 @@ const Message = ({
                 color={message.isOptimistic ? "textDisabled" : "textPrimary"}
               >
                 {message.content}
+                {updatedAtFull ? (
+                  <Tooltip title={updatedAtFull}>
+                    <Typography
+                      component="span"
+                      color="textDisabled"
+                      variant="caption"
+                    >
+                      {" "}
+                      (edited)
+                    </Typography>
+                  </Tooltip>
+                ) : null}
               </Typography>
             </VerticalStack>
           </HorizontalStack>
@@ -287,8 +340,8 @@ const Message = ({
               elevation={4}
               className={clsx(
                 "absolute -top-6 right-2 flex",
-                !menuPopover.isOpen && "opacity-0 pointer-events-none",
-                "group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto"
+                !menuPopover.isOpen && hoverChildHiddenClass,
+                hoverChildHoveredClass
               )}
             >
               <HorizontalStack addClassName="p-1" spacing="none">
@@ -320,8 +373,35 @@ const Message = ({
           ) : (
             MoreButton
           )}
-        </VerticalStack>
-      </HorizontalStack>
+        </HorizontalStack>
+        {message.isOptimistic && message.isFailed && (
+          <VerticalStack spacing="xs" addClassName="pl-[3.75rem] pr-2 pb-2">
+            <Typography color="warning" variant="body2">
+              Failed to send message. Retry?
+            </Typography>
+            <HorizontalStack>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<ReplayIcon />}
+                onClick={onOptimisticFailedRetry}
+                className="w-fit"
+              >
+                Retry
+              </Button>
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteIcon />}
+                onClick={onOptimisticFailedDelete}
+                className="w-fit"
+              >
+                Delete
+              </Button>
+            </HorizontalStack>
+          </VerticalStack>
+        )}
+      </VerticalStack>
       <menuPopover.ReadyComponent>
         <Paper>
           <MenuList>
@@ -336,6 +416,27 @@ const Message = ({
                 <ReplyIcon />
               </ListItemIcon>
               <ListItemText>Reply</ListItemText>
+            </MenuItem>
+            <MenuItem
+              onClick={async () => {
+                const copySuccess = await copyToClipboard(
+                  window.location.origin +
+                    window.location.pathname +
+                    `?messageId=${String(message.id)}`
+                );
+                addAppSnackbar({
+                  message: copySuccess
+                    ? "Link copied"
+                    : "Failed to copy the link",
+                  variant: copySuccess ? "success" : "error",
+                });
+                menuPopover.closePopover();
+              }}
+            >
+              <ListItemIcon>
+                <LinkIcon />
+              </ListItemIcon>
+              <ListItemText>Copy Message Link</ListItemText>
             </MenuItem>
             <Divider />
             {isOwnMessage ? (
@@ -393,102 +494,6 @@ const Message = ({
       </menuPopover.ReadyComponent>
     </div>
   );
-
-  // return (
-  //   <div ref={ref} className={clsx("p-2 flex flex-wrap gap-3")}>
-  //     {isEdit ? (
-  //       <>
-  //         <input
-  //           className="border block p-3 w-52"
-  //           value={editInfo.content}
-  //           onChange={(e) => {
-  //             setEditInfo((prev) => ({
-  //               ...prev,
-  //               content: e.target.value,
-  //             }));
-  //           }}
-  //         />
-  //         <Button
-  //           variant="outlined"
-  //           onClick={() => {
-  //             messagesUpdateMutation.mutate({
-  //               content: editInfo.content,
-  //               id: editInfo.id,
-  //               channelId: editInfo.channel_id,
-  //             });
-  //           }}
-  //           disabled={messagesUpdateMutation.isPending}
-  //         >
-  //           Save
-  //         </Button>
-  //       </>
-  //     ) : (
-  //       <>
-  //         <h6 className="word-break-word text-red-500">
-  //           {message.deleted_at
-  //             ? "(Deleted)"
-  //             : message.isOptimistic
-  //               ? "PENDING"
-  //               : ""}
-  //         </h6>
-  //         <h6 className="word-break-word">{message.id}</h6>
-  //         <h5 className="word-break-word">{message.content}</h5>
-  //         {message.isFailed ? (
-  //           <>
-  //             <h6 className="word-break-word text-red-500">Failed. Retry?</h6>
-  //             <Button
-  //               variant="outlined"
-  //               onClick={() => {
-  //                 //onOptimisticRetry?.(message);
-  //               }}
-  //             >
-  //               Retry optimistic
-  //             </Button>
-  //             <Button
-  //               variant="outlined"
-  //               onClick={() => {
-  //                 //  onOptimisticDelete?.(message);
-  //               }}
-  //             >
-  //               Delete optimistic
-  //             </Button>
-  //           </>
-  //         ) : null}
-  //         <Button
-  //           variant="outlined"
-  //           onClick={() => {
-  //             setEditInfo(message);
-  //             setIsEdit(true);
-  //           }}
-  //         >
-  //           Edit
-  //         </Button>
-  //       </>
-  //     )}
-
-  //     {isEdit ? (
-  //       <Button
-  //         variant="outlined"
-  //         onClick={() => {
-  //           setEditInfo(message);
-  //           setIsEdit(false);
-  //         }}
-  //       >
-  //         Cancel
-  //       </Button>
-  //     ) : (
-  //       <Button
-  //         variant="outlined"
-  //         onClick={() => {
-  //           messagesDeleteMutation.mutate({ id: message.id });
-  //         }}
-  //         disabled={messagesDeleteMutation.isPending}
-  //       >
-  //         Delete
-  //       </Button>
-  //     )}
-  //   </div>
-  // );
 };
 
 export default Message;

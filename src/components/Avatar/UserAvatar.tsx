@@ -16,7 +16,7 @@ type Props = {
 
 export const sizesMap = {
   sm: "min-w-8 size-8",
-  md: "min-w-12 size-12",
+  md: "min-w-10 size-10",
   lg: "min-w-16 size-16",
 } as const satisfies Record<NonNullable<Props["size"]>, string>;
 

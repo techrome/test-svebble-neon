@@ -2,6 +2,21 @@ import { Roboto } from "next/font/google";
 import { createTheme, responsiveFontSizes } from "@mui/material/styles";
 import type {} from "@mui/x-date-pickers/themeAugmentation";
 import { colorSchemes } from "@/utils/colors";
+declare module "@mui/material/styles" {
+  interface TypographyVariants {
+    tiny: React.CSSProperties;
+  }
+
+  interface TypographyVariantsOptions {
+    tiny?: React.CSSProperties;
+  }
+}
+
+declare module "@mui/material/Typography" {
+  interface TypographyPropsVariantOverrides {
+    tiny: true;
+  }
+}
 
 export const roboto = Roboto({
   weight: ["300", "400", "500", "700"],
@@ -14,6 +29,10 @@ let _theme = createTheme({
   typography: {
     fontFamily: "var(--font-roboto)",
     allVariants: { wordBreak: "break-word" },
+    tiny: {
+      fontSize: "0.625rem",
+      lineHeight: 1.3,
+    },
   },
   cssVariables: { colorSchemeSelector: "class" },
   colorSchemes,
