@@ -20,7 +20,6 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";
 import FlagIcon from "@mui/icons-material/Flag";
 import ReplyIcon from "@mui/icons-material/Reply";
-import EmojiEmotionsIcon from "@mui/icons-material/EmojiEmotions";
 import LinkIcon from "@mui/icons-material/Link";
 import ReplayIcon from "@mui/icons-material/Replay";
 
@@ -34,6 +33,7 @@ import { useLocalPopover } from "@/utils/hooks/useOverlay";
 import IconButton from "@/components/Button/IconButton";
 import dayjs from "@/utils/dayjs";
 import {
+  dateFormatDisplay,
   dateTimeFormat,
   dateTimeFormatFullDisplay,
   timeFormat,
@@ -53,6 +53,7 @@ import Input from "@/components/Fields/Input";
 import { submitTextareaOnEnter } from "@/utils/formSubmission";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { copyToClipboard } from "@/utils/stringUtils";
+import EmojiButton from "@/components/Emoji/EmojiButton";
 
 const hoverChildHiddenClass = "opacity-0 pointer-events-none";
 const hoverChildHoveredClass =
@@ -70,10 +71,12 @@ export type RenderedMessage =
     isOptimistic?: true;
     isFailed?: true;
     isCompact?: true;
+    isFirstMessageOfTheDay?: true;
   };
 
 type Props = {
   message: RenderedMessage;
+  totalItems: number;
   shouldHighlight?: boolean;
   onHighlightConsumed?: () => void;
   onUpdateSuccess: MessageUpdateMutationOptions["onSuccess"];
@@ -87,6 +90,7 @@ type FormValues = z.infer<typeof messageUpdateSchemaForm>;
 
 const Message = ({
   message,
+  totalItems,
   shouldHighlight,
   onHighlightConsumed,
   onUpdateSuccess,
@@ -171,25 +175,37 @@ const Message = ({
     form.reset();
   };
 
-  const { createdAtShort, createdAtFull, updatedAtFull } = useMemo(() => {
-    const createdAt = dayjs(message.created_at);
-    const isToday = createdAt.isSame(dayjs(), "day");
-    const createdAtShort =
-      message.isCompact || isToday
-        ? createdAt.format(timeFormat)
-        : createdAt.format(dateTimeFormat);
-    const createdAtFull = createdAt.format(dateTimeFormatFullDisplay);
-    const hasEdited =
-      message.created_at.getTime() !== message.updated_at.getTime();
-    const updatedAtFull = hasEdited
-      ? dayjs(message.updated_at).format(dateTimeFormatFullDisplay)
-      : null;
-    return {
-      createdAtShort,
-      createdAtFull,
-      updatedAtFull,
-    };
-  }, [message.created_at, message.isCompact, message.updated_at]);
+  const { createdAtShort, createdAtFull, updatedAtFull, dayDisplay } =
+    useMemo(() => {
+      const createdAt = dayjs(message.created_at);
+      const isToday = createdAt.isSame(dayjs(), "day");
+      const createdAtShort =
+        message.isCompact || isToday
+          ? createdAt.format(timeFormat)
+          : createdAt.format(dateTimeFormat);
+      const createdAtFull = createdAt.format(dateTimeFormatFullDisplay);
+      const hasEdited =
+        message.created_at.getTime() !== message.updated_at.getTime();
+      const updatedAtFull = hasEdited
+        ? dayjs(message.updated_at).format(dateTimeFormatFullDisplay)
+        : null;
+      const dayDisplay = message.isFirstMessageOfTheDay
+        ? createdAt.format(dateFormatDisplay)
+        : null;
+      return {
+        createdAtShort,
+        createdAtFull,
+        updatedAtFull,
+        dayDisplay,
+      };
+      // eslint-disable-next-line
+    }, [
+      message.created_at,
+      message.isCompact,
+      message.updated_at,
+      message.isFirstMessageOfTheDay,
+      totalItems,
+    ]);
   const shouldDisplayAvatar = Boolean(user.data?.user && !message.isCompact);
 
   if (isEdit) {
@@ -220,11 +236,11 @@ const Message = ({
                 input: {
                   endAdornment: (
                     <HorizontalStack wrap={false} addClassName="self-start">
-                      <Tooltip title="Add emoji">
-                        <IconButton type="button" onClick={() => {}}>
-                          <EmojiEmotionsIcon />
-                        </IconButton>
-                      </Tooltip>
+                      <EmojiButton
+                        onSelect={(e) => {
+                          console.log("e", e);
+                        }}
+                      />
                     </HorizontalStack>
                   ),
                   onKeyDown: submitTextareaOnEnter,
@@ -257,7 +273,14 @@ const Message = ({
   }
 
   return (
-    <div className={message.isCompact ? "" : "pt-2"}>
+    <div className={message.isCompact || dayDisplay ? "" : "pt-2"}>
+      {Boolean(dayDisplay) && (
+        <Divider className="py-2 px-3">
+          <Typography variant="caption" color="textDisabled">
+            {dayDisplay}
+          </Typography>
+        </Divider>
+      )}
       <VerticalStack
         spacing="none"
         addClassName="px-1 relative group hover:bg-[var(--mui-palette-action-focus)]"
@@ -295,8 +318,8 @@ const Message = ({
                 <Tooltip title={createdAtFull}>
                   <Typography
                     variant="caption"
-                    className="mt-1"
-                    color="textSecondary"
+                    className="text-xs/6"
+                    color="textDisabled"
                   >
                     {createdAtShort}
                   </Typography>
@@ -305,12 +328,12 @@ const Message = ({
             </div>
             <VerticalStack spacing="none" fullWidth={false}>
               {!message.isCompact && (
-                <HorizontalStack addClassName="items-center">
+                <HorizontalStack addClassName="items-center" spacing="xs">
                   <Typography>
                     <strong>{user.data?.user?.name}</strong>
                   </Typography>
                   <Tooltip title={createdAtFull}>
-                    <Typography variant="caption" color="textSecondary">
+                    <Typography variant="caption" color="textDisabled">
                       {createdAtShort}
                     </Typography>
                   </Tooltip>
@@ -461,7 +484,7 @@ const Message = ({
                   }}
                 >
                   <MenuItem
-                    sx={(theme) => ({ color: theme.palette.error.main })}
+                    sx={(theme) => ({ color: theme.vars?.palette.error.main })}
                     disabled={messagesDeleteMutation.isPending}
                   >
                     <ListItemIcon>
@@ -477,7 +500,7 @@ const Message = ({
               ]
             ) : (
               <MenuItem
-                sx={(theme) => ({ color: theme.palette.warning.main })}
+                sx={(theme) => ({ color: theme.vars?.palette.warning.main })}
                 onClick={(e) => {
                   onReportClick(e);
                   menuPopover.closePopover();

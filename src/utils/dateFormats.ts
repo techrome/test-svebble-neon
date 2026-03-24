@@ -1,4 +1,5 @@
 export const dateFormat = "DD/MM/YYYY";
+export const dateFormatDisplay = "DD MMMM, YYYY";
 export const timeFormat = "HH:mm";
 export const timeFormatFull = "HH:mm:ss";
 export const dateTimeFormat = "DD/MM/YY, HH:mm";

@@ -1,6 +1,7 @@
 import { Roboto } from "next/font/google";
 import { createTheme, responsiveFontSizes } from "@mui/material/styles";
 import type {} from "@mui/x-date-pickers/themeAugmentation";
+
 import { colorSchemes } from "@/utils/colors";
 declare module "@mui/material/styles" {
   interface TypographyVariants {

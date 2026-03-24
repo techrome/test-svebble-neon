@@ -62,9 +62,10 @@ import { numericIdQuerySchemaRaw } from "@/utils/validators/helpers/custom";
 import { TermsLabel } from "@/components/AuthForm/Helpers";
 import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider";
 import { MessagesSkeleton } from "@/components/Chat/MessagesSkeleton";
-import { isWithinMs } from "@/utils/timeUtils";
+import { isSameDay, isWithinMs } from "@/utils/timeUtils";
 import ReportMessageForm from "@/components/Chat/ReportMessageForm";
 import { submitTextareaOnEnter } from "@/utils/formSubmission";
+import EmojiButton from "@/components/Emoji/EmojiButton";
 
 const deserializeMessage = (
   serializedMessage: MessageSerializable
@@ -143,7 +144,8 @@ const messageQuerySelectors = {
     }
   },
   select: (data) => {
-    let items: (Message & Pick<RenderedMessage, "isCompact">)[] = [];
+    let items: (Message &
+      Pick<RenderedMessage, "isCompact" | "isFirstMessageOfTheDay">)[] = [];
 
     // collapsing messages by the same user within a short period of time
     // while having sane limits on how many messages can be collapsed consecutively
@@ -159,6 +161,10 @@ const messageQuerySelectors = {
             ? prevPage.items[prevPage.items.length - 1]
             : page.items[itemIndex - 1];
         const message = page.items[itemIndex];
+
+        const isFirstMessageOfTheDay =
+          !prevMessage ||
+          !isSameDay(message.created_at, prevMessage.created_at);
 
         const continuesPreviousGroup =
           !!prevMessage &&
@@ -177,9 +183,17 @@ const messageQuerySelectors = {
           ) &&
           groupMessageCount < MAX_GROUP_MESSAGES;
 
-        if (continuesPreviousGroup) {
+        if (continuesPreviousGroup || isFirstMessageOfTheDay) {
           groupMessageCount += 1;
-          items.push({ ...message, isCompact: true });
+          let newItem: (typeof items)[number] = { ...message };
+
+          // first message of the day shouldn't be compact
+          if (isFirstMessageOfTheDay) {
+            newItem.isFirstMessageOfTheDay = true;
+          } else {
+            newItem.isCompact = true;
+          }
+          items.push(newItem);
         } else {
           groupUserId = message.user_id;
           groupStartCreatedAt = message.created_at;
@@ -1789,6 +1803,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 return (
                   <Message
                     message={message}
+                    totalItems={totalItems}
                     shouldHighlight={
                       !isMessageHighlightConsumed &&
                       isInitialScrollHandled &&
@@ -1902,21 +1917,11 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                   input: {
                     endAdornment: (
                       <HorizontalStack wrap={false} addClassName="self-start">
-                        <Tooltip title="Add emoji">
-                          <IconButton
-                            type="button"
-                            onClick={() => {
-                              // TODO
-                              messagesCreateSpamMutation.mutate({
-                                isBulk: false,
-                                count: 10,
-                                channelId: channel.id,
-                              });
-                            }}
-                          >
-                            <EmojiEmotionsIcon />
-                          </IconButton>
-                        </Tooltip>
+                        <EmojiButton
+                          onSelect={(e) => {
+                            console.log("e", e);
+                          }}
+                        />
                         <Tooltip title="Send message">
                           <IconButton type="submit">
                             <SendIcon />

@@ -94,6 +94,7 @@
     "dotenv": "^16.4.7",
     "drizzle-orm": "0.41.0",
     "drizzle-zod": "0.8.3",
+    "emoji-picker-element": "^1.29.1",
     "fuse.js": "^7.1.0",
     "humanize-duration": "^3.33.2",
     "image-size": "^2.0.2",
