@@ -8,11 +8,9 @@ import React, {
 } from "react";
 import Button from "@/components/Button/Button";
 import clsx from "clsx";
-import ViewListIcon from "@mui/icons-material/ViewList";
 import PersonIcon from "@mui/icons-material/Person";
-import { CircularProgress, Paper, Typography } from "@mui/material";
+import { Paper, Typography } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
-import EmojiEmotionsIcon from "@mui/icons-material/EmojiEmotions";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import ReplayIcon from "@mui/icons-material/Replay";
@@ -22,7 +20,10 @@ import { getQueryKey } from "@trpc/react-query";
 
 import { type RouterInput, RouterOutput, trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
-import Message, { type RenderedMessage } from "@/components/Chat/Message";
+import MessageComponent, {
+  type RenderedMessage,
+  type Message,
+} from "@/components/Chat/Message";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import {
   useGlobalDrawer,
@@ -80,6 +81,11 @@ const deserializeMessage = (
 const BASE_INDEX = 1_000_000_000;
 const PER_PAGE = 50;
 const MAX_PAGES = 5;
+const COMPACT_GAP_MS = minutes(5);
+const MAX_GROUP_AGE_MS = minutes(20);
+const MAX_GROUP_MESSAGES = 15;
+const FETCH_MORE_THRESHOLD = 5;
+
 const searchSchemaForm = z.object({
   text: Text.Long(),
 });
@@ -97,15 +103,9 @@ const checkShouldCollapseMessage = (
   );
 };
 
-const COMPACT_GAP_MS = minutes(5);
-const MAX_GROUP_AGE_MS = minutes(20);
-const MAX_GROUP_MESSAGES = 15;
-
 type MessageQueryOptions = Parameters<
   typeof trpc.messages.get.useInfiniteQuery
 >[1];
-
-type Message = RouterOutput["messages"]["get"]["items"][number];
 
 const messageQuerySelectors = {
   getPreviousPageParam: (firstPage, _, firstPageParam) => {
@@ -149,7 +149,6 @@ const messageQuerySelectors = {
 
     // collapsing messages by the same user within a short period of time
     // while having sane limits on how many messages can be collapsed consecutively
-    let groupUserId: Message["user_id"] | undefined;
     let groupStartCreatedAt: Date | undefined;
     let groupMessageCount = 0;
     for (let pageIndex = 0; pageIndex < data.pages.length; pageIndex++) {
@@ -167,6 +166,7 @@ const messageQuerySelectors = {
           !isSameDay(message.created_at, prevMessage.created_at);
 
         const continuesPreviousGroup =
+          !isFirstMessageOfTheDay &&
           !!prevMessage &&
           prevMessage.user_id === message.user_id &&
           isWithinMs(
@@ -174,7 +174,6 @@ const messageQuerySelectors = {
             prevMessage.created_at,
             COMPACT_GAP_MS
           ) &&
-          groupUserId === message.user_id &&
           !!groupStartCreatedAt &&
           isWithinMs(
             message.created_at,
@@ -183,22 +182,17 @@ const messageQuerySelectors = {
           ) &&
           groupMessageCount < MAX_GROUP_MESSAGES;
 
-        if (continuesPreviousGroup || isFirstMessageOfTheDay) {
+        if (continuesPreviousGroup) {
           groupMessageCount += 1;
-          let newItem: (typeof items)[number] = { ...message };
-
-          // first message of the day shouldn't be compact
-          if (isFirstMessageOfTheDay) {
-            newItem.isFirstMessageOfTheDay = true;
-          } else {
-            newItem.isCompact = true;
-          }
-          items.push(newItem);
+          items.push({ ...message, isCompact: true });
         } else {
-          groupUserId = message.user_id;
           groupStartCreatedAt = message.created_at;
           groupMessageCount = 1;
-          items.push(message);
+          if (isFirstMessageOfTheDay) {
+            items.push({ ...message, isFirstMessageOfTheDay: true });
+          } else {
+            items.push(message);
+          }
         }
       }
     }
@@ -273,7 +267,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const wasRefetching = useRef<boolean>(false);
   const userInteractedRef = useRef(false);
 
-  const [isIdle, setIsIdle] = useState(false);
+  const [isIdleTrigger, setIsIdleTrigger] = useState(0);
   const [isInitialScrollHandled, setIsInitialScrollHandled] =
     useState<boolean>(true);
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
@@ -284,12 +278,14 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   // gating initial load to avoid unnecessary refetch when waiting for websockets
   // in most cases it should be: ws connected -> start fetching initial page
   const [initialGateOpenedReason, setInitialGateOpenedReason] = useState<
-    "fallback" | "websockets" | null
+    "default" | "websockets" | null
   >(null);
   const isInitialGateOpened = Boolean(initialGateOpenedReason);
   const initialTimerToOpenGateRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const isIdleRef = useRef<boolean>(false);
+  const fetchMoreTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [isPreparingQuery, setIsPreparingQuery] = useState<boolean | null>(
     null
@@ -610,7 +606,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     handleNewMessagesVersion,
     utils,
     initialGateOpenedReason,
-    isIdle,
+    isIdleTrigger,
     appendMessage,
     editMessage,
     deleteMessage,
@@ -625,7 +621,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     handleNewMessagesVersion,
     utils,
     initialGateOpenedReason,
-    isIdle,
+    isIdleTrigger,
     appendMessage,
     editMessage,
     deleteMessage,
@@ -1067,11 +1063,9 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const debouncedMakeIdle = useCallback(
     // eslint-disable-next-line
     debounce(() => {
-      const { isIdle } = dependencies.current;
-      if (!isIdle) {
-        setIsIdle(true);
-      }
-    }, 100),
+      setIsIdleTrigger((prev) => (prev % 10) + 1);
+      isIdleRef.current = true;
+    }, 50),
     []
   );
 
@@ -1207,7 +1201,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       isWsConnectedRef.current = false;
       if (!isPolling) {
         setSyncMode("polling");
-        setInitialGateOpenedReason("fallback");
+        setInitialGateOpenedReason("default");
         addAppSnackbar({
           message:
             "Realtime connection lost. Falling back to periodic refetch.",
@@ -1235,7 +1229,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         setWsSyncFailedCount(0);
         setSyncMode("ws-syncing");
         setInitialGateOpenedReason(
-          initialGateOpenedReason ? "fallback" : "websockets"
+          initialGateOpenedReason ? "default" : "websockets"
         );
       }
     };
@@ -1286,8 +1280,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const shouldStartWsSyncRefetch =
     isWsSyncing &&
     !messages.isFetching &&
-    (!shouldRenderList || isIdle) &&
-    initialGateOpenedReason === "fallback" &&
+    (!shouldRenderList || isIdleRef.current) &&
+    initialGateOpenedReason === "default" &&
     !hasStartedWsSyncRefetch.current;
 
   useEffect(() => {
@@ -1325,6 +1319,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     if (prevWasRefetching && !messages.isRefetching) {
       if (messages.isRefetchError) {
         setSyncMode("polling");
+        setInitialGateOpenedReason("default");
         return;
       }
 
@@ -1345,7 +1340,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   useEffect(() => {
     if (wsSyncFailedCount > 0) {
       setSyncMode("polling");
-      setInitialGateOpenedReason("fallback");
+      setInitialGateOpenedReason("default");
     }
   }, [wsSyncFailedCount]);
 
@@ -1397,11 +1392,11 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       } else {
         setSyncMode("polling");
         if (hasCompletedFirstInit.current) {
-          setInitialGateOpenedReason("fallback");
+          setInitialGateOpenedReason("default");
         } else {
           setInitialGateOpenedReason(null);
           initialTimerToOpenGateRef.current = setTimeout(() => {
-            setInitialGateOpenedReason("fallback");
+            setInitialGateOpenedReason("default");
             initialTimerToOpenGateRef.current = null;
           }, 1000);
         }
@@ -1455,7 +1450,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       isPreparingQuery !== false ||
       isInitialScrollHandled ||
       !messages.data?.items.length ||
-      !isIdle
+      !isIdleRef.current
     ) {
       return;
     }
@@ -1493,7 +1488,89 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     messages.hasNextPage,
     messages.data?.items,
     isPreparingQuery,
-    isIdle,
+    isIdleTrigger,
+  ]);
+
+  const clearFetchMoreTimeout = () => {
+    if (fetchMoreTimeout.current) {
+      clearTimeout(fetchMoreTimeout.current);
+    }
+  };
+
+  useEffect(() => {
+    if (
+      !messages.hasPreviousPage ||
+      firstItemIndex === null ||
+      !visibleRangeRef.current
+    ) {
+      return;
+    }
+
+    const localVisibleStartIndex = Math.max(
+      0,
+      visibleRangeRef.current?.visibleStartIndex - firstItemIndex
+    );
+
+    if (
+      isIdleRef.current &&
+      localVisibleStartIndex <= FETCH_MORE_THRESHOLD &&
+      !isWsSyncing &&
+      messages.hasPreviousPage &&
+      !messages.isFetching &&
+      !messages.isError
+    ) {
+      clearFetchMoreTimeout();
+      fetchMoreTimeout.current = setTimeout(() => {
+        tryLoadOlder();
+      }, 50);
+    }
+    return clearFetchMoreTimeout;
+    // eslint-disable-next-line
+  }, [
+    isIdleTrigger,
+    isWsSyncing,
+    totalItems,
+    messages.isFetching,
+    messages.isError,
+    messages.hasPreviousPage,
+  ]);
+
+  useEffect(() => {
+    if (
+      !messages.hasNextPage ||
+      firstItemIndex === null ||
+      !visibleRangeRef.current
+    ) {
+      return;
+    }
+
+    const localVisibleEndIndex = Math.max(
+      0,
+      visibleRangeRef.current?.visibleEndIndex - firstItemIndex
+    );
+
+    if (
+      isIdleRef.current &&
+      localVisibleEndIndex >= totalItems - 1 - FETCH_MORE_THRESHOLD &&
+      !isWsSyncing &&
+      messages.hasNextPage &&
+      !messages.isFetching &&
+      !messages.isError
+    ) {
+      clearFetchMoreTimeout();
+      fetchMoreTimeout.current = setTimeout(() => {
+        tryLoadNewer();
+      }, 50);
+    }
+    return clearFetchMoreTimeout;
+    // eslint-disable-next-line
+  }, [
+    isIdleTrigger,
+    isWsSyncing,
+    totalItems,
+    messages.isFetching,
+    messages.isError,
+    messages.hasNextPage,
   ]);
 
   const virtuosoContext = {
@@ -1502,52 +1579,14 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     retryInvalidate,
     tryLoadOlder,
     tryLoadNewer,
-    isIdle,
+    isIdleTrigger,
     isWsSyncing,
   };
 
   const MessagesHeader = useMemo(
     () =>
       ({ context }: { context: typeof virtuosoContext }) => {
-        const { messages, tryLoadOlder, scrollerElRef, isIdle, isWsSyncing } =
-          context;
-
-        // eslint-disable-next-line
-        const [isLoaderVisible, setIsLoaderVisible] = useState(false);
-
-        // eslint-disable-next-line
-        useEffect(() => {
-          let timeout: null | ReturnType<typeof setTimeout> = null;
-          if (!messages.hasPreviousPage) {
-            setIsLoaderVisible(false);
-            return;
-          }
-          if (
-            isLoaderVisible &&
-            isIdle &&
-            !isWsSyncing &&
-            messages.hasPreviousPage &&
-            !messages.isFetching &&
-            !messages.isError
-          ) {
-            timeout = setTimeout(() => {
-              tryLoadOlder();
-            }, 50);
-          }
-          return () => {
-            if (timeout) {
-              clearTimeout(timeout);
-            }
-          };
-          // eslint-disable-next-line
-        }, [
-          isLoaderVisible,
-          isIdle,
-          isWsSyncing,
-          messages.isFetching,
-          messages.isError,
-          messages.hasPreviousPage,
-        ]);
+        const { messages, tryLoadOlder } = context;
 
         if (messages.isFetchPreviousPageError) {
           return (
@@ -1567,14 +1606,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           );
         }
         if (messages.hasPreviousPage) {
-          return (
-            <MessagesSkeleton
-              scrollerEl={scrollerElRef.current}
-              onIntersectionChange={(isVisible) => {
-                setIsLoaderVisible(isVisible);
-              }}
-            />
-          );
+          return <MessagesSkeleton />;
         }
         return null;
       },
@@ -1583,52 +1615,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const MessagesFooter = useMemo(
     () =>
       ({ context }: { context: typeof virtuosoContext }) => {
-        const {
-          messages,
-          scrollerElRef,
-          retryInvalidate,
-          tryLoadNewer,
-          isIdle,
-          isWsSyncing,
-        } = context;
-
-        // eslint-disable-next-line
-        const [isLoaderVisible, setIsLoaderVisible] = useState(false);
-
-        // eslint-disable-next-line
-        useEffect(() => {
-          let timeout: null | ReturnType<typeof setTimeout> = null;
-          if (!messages.hasNextPage) {
-            setIsLoaderVisible(false);
-            return;
-          }
-          if (
-            isLoaderVisible &&
-            isIdle &&
-            !isWsSyncing &&
-            messages.hasNextPage &&
-            !messages.isFetching &&
-            !messages.isError
-          ) {
-            timeout = setTimeout(() => {
-              tryLoadNewer();
-            }, 50);
-          }
-          return () => {
-            if (timeout) {
-              clearTimeout(timeout);
-            }
-          };
-          // eslint-disable-next-line
-        }, [
-          isLoaderVisible,
-          isIdle,
-          isWsSyncing,
-          messages.isFetching,
-          messages.isError,
-          messages.hasNextPage,
-        ]);
-
+        const { messages, retryInvalidate, tryLoadNewer } = context;
         if (messages.isFetchNextPageError) {
           return (
             <VerticalStack>
@@ -1668,14 +1655,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           );
         }
         if (messages.hasNextPage) {
-          return (
-            <MessagesSkeleton
-              scrollerEl={scrollerElRef.current}
-              onIntersectionChange={(isVisible) => {
-                setIsLoaderVisible(isVisible);
-              }}
-            />
-          );
+          return <MessagesSkeleton />;
         }
 
         return <div className="p-2"></div>;
@@ -1741,9 +1721,12 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           variant="outlined"
           onClick={() => {
             setSyncMode(isPolling ? "ws-syncing" : "polling");
+            if (!isPolling) {
+              setInitialGateOpenedReason("default");
+            }
           }}
         >
-          Current polling - {isPolling ? "ON" : "OFF"}
+          Current polling - {syncModeInfo.label}
         </Button>
 
         <form onSubmit={searchForm.handleSubmit(onSearchSubmit)} noValidate>
@@ -1788,7 +1771,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                   visibleStartIndex: range.startIndex,
                   visibleEndIndex: range.endIndex,
                 };
-                setIsIdle(false);
+                isIdleRef.current = false;
                 debouncedMakeIdle();
               }}
               scrollerRef={(el) => {
@@ -1796,12 +1779,16 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                   scrollerElRef.current = el;
                 }
               }}
+              totalListHeightChanged={() => {
+                isIdleRef.current = false;
+                debouncedMakeIdle();
+              }}
               atBottomThreshold={50}
               data={renderedMessages}
-              computeItemKey={(_, item) => String(item.id)}
+              computeItemKey={(_, item) => item.id}
               itemContent={(_, message) => {
                 return (
-                  <Message
+                  <MessageComponent
                     message={message}
                     totalItems={totalItems}
                     shouldHighlight={

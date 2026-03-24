@@ -66,13 +66,14 @@ type MessageDeleteMutationOptions = NonNullable<
   Parameters<typeof trpc.messages.delete.useMutation>[0]
 >;
 
-export type RenderedMessage =
-  RouterOutput["messages"]["get"]["items"][number] & {
-    isOptimistic?: true;
-    isFailed?: true;
-    isCompact?: true;
-    isFirstMessageOfTheDay?: true;
-  };
+export type Message = RouterOutput["messages"]["get"]["items"][number];
+
+export type RenderedMessage = Message & {
+  isOptimistic?: true;
+  isFailed?: true;
+  isCompact?: true;
+  isFirstMessageOfTheDay?: true;
+};
 
 type Props = {
   message: RenderedMessage;
