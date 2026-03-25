@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import "emoji-picker-element";
 
 import { useLatest } from "@/utils/hooks/useLatest";
@@ -19,9 +19,9 @@ type PickerStyle = React.CSSProperties & Record<`--${string}`, string | number>;
 
 const EmojiPicker = ({ onSelect }: Props) => {
   const theme = useTheme();
-  const { mode } = useColorScheme();
+  const { mode, systemMode } = useColorScheme();
   const compact = useMediaQuery("(max-width:360px)");
-  const isDark = mode === "dark";
+  const isDark = mode === "system" ? systemMode === "dark" : mode === "dark";
   const pickerRef = useRef<HTMLElement | null>(null);
 
   const dependencies = useLatest({
@@ -59,44 +59,48 @@ const EmojiPicker = ({ onSelect }: Props) => {
     };
     // eslint-disable-next-line
   }, [isDark]);
-  let pickerStyle: PickerStyle = {};
-  if (theme.vars) {
-    pickerStyle = {
-      display: "block",
-      width: compact ? 320 : 356,
-      height: 420,
 
-      // "--background": theme.palette.background.paper,
-      // "--border-color": theme.palette.divider,
-      // "--border-radius": "16px",
-      // "--border-size": "1px",
+  const pickerStyle = useMemo(() => {
+    let result: PickerStyle = {};
+    if (theme.vars) {
+      result = {
+        display: "block",
+        width: compact ? 320 : 356,
+        height: 420,
 
-      // "--button-hover-background": alpha(theme.palette.action.hover, 1),
-      // "--button-active-background": alpha(theme.palette.action.selected, 1),
+        "--background": theme.vars.palette.background.paper,
+        "--border-color": theme.vars.palette.divider,
+        "--border-radius": "16px",
+        "--border-size": "1px",
 
-      // "--indicator-color": theme.palette.primary.main,
-      // "--indicator-height": "3px",
+        "--button-hover-background": theme.vars.palette.action.focus,
+        "--button-active-background": theme.vars.palette.action.selected,
 
-      "--input-font-color": theme.vars.palette.text.primary,
-      "--input-placeholder-color": theme.vars.palette.text.secondary,
-      "--input-border-color": theme.vars.palette.divider,
-      "--input-border-radius": "10px",
-      "--input-border-size": "1px",
-      "--input-padding": "8px",
+        "--indicator-color": theme.vars.palette.primary.main,
+        "--indicator-height": "3px",
 
-      "--outline-color": theme.vars.palette.primary.main,
-      "--outline-size": "2px",
+        "--input-font-color": theme.vars.palette.text.primary,
+        "--input-placeholder-color": theme.vars.palette.text.secondary,
+        "--input-border-color": theme.vars.palette.divider,
+        "--input-border-radius": "10px",
+        "--input-border-size": "1px",
+        "--input-padding": "8px",
 
-      // "--emoji-size": compact ? "1.3rem" : "1.4rem",
-      // "--emoji-padding": compact ? "0.3rem" : "0.35rem",
+        "--outline-color": theme.vars.palette.primary.main,
+        "--outline-size": "2px",
 
-      // "--category-emoji-size": compact ? "1.05rem" : "1.15rem",
-      // "--category-emoji-padding": compact ? "0.25rem" : "0.3rem",
+        "--emoji-size": compact ? "1.3rem" : "1.4rem",
+        "--emoji-padding": compact ? "0.3rem" : "0.35rem",
 
-      // "--num-columns": compact ? 7 : 8,
-      // "--skintone-border-radius": "999px",
-    };
-  }
+        "--category-emoji-size": compact ? "1.05rem" : "1.15rem",
+        "--category-emoji-padding": compact ? "0.25rem" : "0.3rem",
+
+        "--num-columns": compact ? 7 : 8,
+        "--skintone-border-radius": "999px",
+      };
+    }
+    return result;
+  }, [compact, theme]);
 
   return <emoji-picker ref={pickerRef} style={pickerStyle} />;
 };

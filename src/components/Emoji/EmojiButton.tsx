@@ -7,6 +7,7 @@ import { useLocalPopover } from "@/utils/hooks/useOverlay";
 
 const EmojiPicker = dynamic(() => import("./EmojiPicker"), {
   ssr: false,
+  loading: () => <div className="w-sm" />,
 });
 
 type Props = {
@@ -14,47 +15,26 @@ type Props = {
 };
 
 const EmojiButton = (props: Props) => {
-  // const [value, setValue] = useState("");
-  // const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-  // const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
   const popover = useLocalPopover();
-  //const open = Boolean(anchorEl);
-
   const insertAtCaret = (emoji: string) => {
-    //   const el = inputRef.current;
-
-    //   if (!el) {
-    //     //setValue((prev) => prev + emoji);
-    //     return;
-    //   }
-
-    //   const start = el.selectionStart || 0;
-    //   //const end = el.selectionEnd ?? value.length;
-
-    // //  const nextValue = value.slice(0, start) + emoji + value.slice(end);
-    //   const nextCaret = start + emoji.length;
-
-    //  setValue(nextValue);
     props.onSelect(emoji);
-    // requestAnimationFrame(() => {
-    //  // el.focus();
-    //   el.setSelectionRange(nextCaret, nextCaret);
-    // });
   };
 
   return (
     <>
-      <Tooltip title="Add Emoji">
+      <Tooltip title="Add emoji">
         <IconButton type="button" onClick={popover.openPopover}>
           <EmojiEmotionsIcon />
         </IconButton>
       </Tooltip>
 
-      <popover.ReadyComponent placement="left-end">
+      <popover.ReadyComponent
+        placement="top-start"
+        paperProps={{ className: "rounded-2xl" }}
+      >
         <EmojiPicker
           onSelect={(emoji) => {
             insertAtCaret(emoji);
-            //setAnchorEl(null);
           }}
         />
       </popover.ReadyComponent>
