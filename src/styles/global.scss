@@ -357,3 +357,7 @@ html {
     }
   }
 }
+
+div:has(> .virtuoso-messages-header) {
+  @apply flex flex-col flex-1;
+}

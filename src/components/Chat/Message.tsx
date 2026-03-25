@@ -296,9 +296,9 @@ const Message = ({
             <div
               className={clsx(
                 "min-w-12 max-w-12 flex",
-                shouldDisplayAvatar
-                  ? `justify-center`
-                  : `justify-end ${hoverChildHiddenClass} ${hoverChildHoveredClass}`
+                !shouldDisplayAvatar && isDesktop
+                  ? `justify-end ${hoverChildHiddenClass} ${hoverChildHoveredClass}`
+                  : `justify-center`
               )}
             >
               {shouldDisplayAvatar && user.data?.user ? (

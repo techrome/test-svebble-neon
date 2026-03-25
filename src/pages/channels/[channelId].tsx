@@ -12,8 +12,8 @@ import PersonIcon from "@mui/icons-material/Person";
 import { Paper, Typography } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import ReplayIcon from "@mui/icons-material/Replay";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import debounce from "lodash/debounce";
 import z from "@/utils/zod";
 import { getQueryKey } from "@trpc/react-query";
@@ -67,6 +67,7 @@ import { isSameDay, isWithinMs } from "@/utils/timeUtils";
 import ReportMessageForm from "@/components/Chat/ReportMessageForm";
 import { submitTextareaOnEnter } from "@/utils/formSubmission";
 import EmojiButton from "@/components/Emoji/EmojiButton";
+import ChannelHeader from "@/components/Chat/ChannelHeader";
 
 const deserializeMessage = (
   serializedMessage: MessageSerializable
@@ -867,6 +868,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     { ...messages },
     {
       syncMode,
+      isIdleRef: isIdleRef.current,
       initialGateOpenedReason,
       wsSyncFailedCount,
       hasQueryLoadedInitialData: hasQueryLoadedInitialData.current,
@@ -1581,22 +1583,26 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     tryLoadNewer,
     isIdleTrigger,
     isWsSyncing,
+    channel,
   };
 
   const MessagesHeader = useMemo(
     () =>
       ({ context }: { context: typeof virtuosoContext }) => {
-        const { messages, tryLoadOlder } = context;
+        const { messages, tryLoadOlder, channel } = context;
 
         if (messages.isFetchPreviousPageError) {
           return (
-            <VerticalStack>
-              <Typography>Failed to load older messages</Typography>
+            <VerticalStack withPadding addClassName="items-center">
+              <Typography color="warning" variant="body2">
+                Failed to load older messages
+              </Typography>
               <Button
                 variant="contained"
                 color="inherit"
                 startIcon={<ReplayIcon />}
                 onClick={() => tryLoadOlder(true)}
+                isLoading={messages.isFetchingPreviousPage}
                 size="large"
                 className="w-fit"
               >
@@ -1608,7 +1614,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         if (messages.hasPreviousPage) {
           return <MessagesSkeleton />;
         }
-        return null;
+        return <ChannelHeader channel={channel} isInsideVirtuoso />;
       },
     []
   );
@@ -1618,13 +1624,16 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         const { messages, retryInvalidate, tryLoadNewer } = context;
         if (messages.isFetchNextPageError) {
           return (
-            <VerticalStack>
-              <Typography>Failed to load newer messages</Typography>
+            <VerticalStack withPadding addClassName="items-center">
+              <Typography color="warning" variant="body2">
+                Failed to load newer messages
+              </Typography>
               <Button
                 variant="contained"
                 color="inherit"
                 startIcon={<ReplayIcon />}
                 onClick={() => tryLoadNewer(true)}
+                isLoading={messages.isFetchingNextPage}
                 size="large"
                 className="w-fit"
               >
@@ -1639,8 +1648,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           messages.isError
         ) {
           return (
-            <VerticalStack>
-              <Typography>Failed to load messages</Typography>
+            <VerticalStack withPadding addClassName="items-center">
+              <Typography color="warning" variant="body2">
+                Failed to load messages
+              </Typography>
               <Button
                 variant="contained"
                 color="inherit"
@@ -1743,7 +1754,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         </form>
       </HorizontalStack>
       <div className="w-full min-h-0 flex flex-col flex-1">
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
           {shouldRenderList ? (
             <Virtuoso
               key={messagesQueryKey.around || "default"}
@@ -1853,11 +1864,14 @@ const MessageListOrchestrator = ({ channel }: Props) => {
               context={virtuosoContext}
               components={MessagesComponents}
             />
-          ) : messages.isFetching || !isInitialGateOpened ? (
-            <MessagesSkeleton fullHeight />
           ) : messages.isError ? (
-            <VerticalStack>
-              <Typography>Failed to load any messages</Typography>
+            <VerticalStack
+              addClassName="flex-1 justify-center items-center"
+              withPadding
+            >
+              <Typography color="warning" variant="body2">
+                Failed to load any messages
+              </Typography>
               <Button
                 variant="contained"
                 color="inherit"
@@ -1869,7 +1883,11 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 {messagesQueryKey.around ? "Load latest messages" : "Retry"}
               </Button>
             </VerticalStack>
-          ) : null}
+          ) : messages.isFetching || !isInitialGateOpened || totalItems ? (
+            <MessagesSkeleton fullHeight />
+          ) : (
+            <ChannelHeader channel={channel} />
+          )}
         </div>
 
         {user.data?.user?.id ? (
