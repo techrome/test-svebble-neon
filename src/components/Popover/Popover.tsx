@@ -5,6 +5,7 @@ import {
   Paper,
   Popper as MuiPopper,
   type PopperProps as MuiPopperProps,
+  type PaperProps,
   useTheme,
   type GrowProps,
 } from "@mui/material";
@@ -19,6 +20,7 @@ export type Props = Omit<MuiPopperProps, "children"> & {
   ) => void;
   autoFocusSurface?: boolean;
   timeout?: GrowProps["timeout"];
+  paperProps?: PaperProps;
 };
 
 const Popover = ({
@@ -29,6 +31,7 @@ const Popover = ({
   autoFocusSurface = true,
   timeout,
   anchorEl,
+  paperProps,
   ...props
 }: Props) => {
   const theme = useTheme();
@@ -91,6 +94,7 @@ const Popover = ({
                   if (event.key !== "Escape") return;
                   onClose?.(event.nativeEvent, "escapeKeyDown");
                 }}
+                {...paperProps}
               >
                 {children}
               </Paper>

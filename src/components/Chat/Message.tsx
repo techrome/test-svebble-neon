@@ -238,8 +238,12 @@ const Message = ({
                   endAdornment: (
                     <HorizontalStack wrap={false} addClassName="self-start">
                       <EmojiButton
-                        onSelect={(e) => {
-                          console.log("e", e);
+                        onSelect={(emoji) => {
+                          const currentText = form.getValues("content");
+                          form.setValue("content", currentText + emoji, {
+                            shouldDirty: true,
+                            shouldTouch: true,
+                          });
                         }}
                       />
                     </HorizontalStack>
@@ -342,6 +346,7 @@ const Message = ({
               )}
               <Typography
                 color={message.isOptimistic ? "textDisabled" : "textPrimary"}
+                className="whitespace-pre-line"
               >
                 {message.content}
                 {updatedAtFull ? (
@@ -369,13 +374,13 @@ const Message = ({
               )}
             >
               <HorizontalStack addClassName="p-1" spacing="none">
-                <Tooltip title="Add Reaction">
+                <Tooltip title="Add reaction">
                   <IconButton size="small">
                     <AddReactionIcon />
                   </IconButton>
                 </Tooltip>
                 {isOwnMessage && (
-                  <Tooltip title="Edit Message">
+                  <Tooltip title="Edit message">
                     <IconButton
                       size="small"
                       onClick={() => {

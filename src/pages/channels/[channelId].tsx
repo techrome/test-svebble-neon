@@ -1067,7 +1067,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     debounce(() => {
       setIsIdleTrigger((prev) => (prev % 10) + 1);
       isIdleRef.current = true;
-    }, 50),
+    }, 100),
     []
   );
 
@@ -1923,8 +1923,12 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                     endAdornment: (
                       <HorizontalStack wrap={false} addClassName="self-start">
                         <EmojiButton
-                          onSelect={(e) => {
-                            console.log("e", e);
+                          onSelect={(emoji) => {
+                            const currentText = form.getValues("content");
+                            form.setValue("content", currentText + emoji, {
+                              shouldDirty: true,
+                              shouldTouch: true,
+                            });
                           }}
                         />
                         <Tooltip title="Send message">
