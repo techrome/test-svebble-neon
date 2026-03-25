@@ -28,6 +28,7 @@ const Popover = ({
   placement = "bottom-start",
   autoFocusSurface = true,
   timeout,
+  anchorEl,
   ...props
 }: Props) => {
   const theme = useTheme();
@@ -57,6 +58,7 @@ const Popover = ({
       open={open}
       placement={placement}
       transition
+      anchorEl={anchorEl}
       {...props}
       className="z-10"
     >
@@ -67,7 +69,17 @@ const Popover = ({
         >
           <div>
             <ClickAwayListener
-              onClickAway={(event) => onClose?.(event, "clickAway")}
+              onClickAway={(event) => {
+                if (
+                  anchorEl instanceof HTMLElement &&
+                  event.target instanceof Node &&
+                  anchorEl.contains(event.target)
+                ) {
+                  return;
+                }
+
+                onClose?.(event, "clickAway");
+              }}
               mouseEvent="onMouseDown"
               touchEvent="onTouchStart"
             >

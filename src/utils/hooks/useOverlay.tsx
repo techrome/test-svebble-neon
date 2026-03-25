@@ -199,7 +199,6 @@ export const useLocalPopover = () => {
   const id = useId();
   const isOpen = Boolean(anchorEl);
 
-  // using refs for performance. just keep this in mind whenever you use the hook
   const initialPropsRef = useRef<{
     open: boolean;
     id: string;
@@ -215,7 +214,8 @@ export const useLocalPopover = () => {
   const readyComponentRef = useRef<React.FC<PopoverInitialProps> | null>(null);
 
   const openPopover = (e: React.SyntheticEvent<HTMLElement>) => {
-    setAnchorEl(e.currentTarget);
+    const trigger = e.currentTarget;
+    setAnchorEl((prev) => (prev === trigger ? null : trigger));
   };
 
   const closePopover = () => {

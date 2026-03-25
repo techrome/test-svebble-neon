@@ -9,6 +9,7 @@ import {
   VerticalStack,
 } from "@/components/Layout/Containers";
 import Button from "@/components/Button/Button";
+import useIsDesktop from "@/utils/hooks/useIsDesktop";
 
 const composeMouseHandlers = (
   childHandler?: React.MouseEventHandler<HTMLElement>,
@@ -33,6 +34,7 @@ type Props = {
   onCancel?: () => void;
   disabled?: boolean;
   closeOnConfirm?: boolean;
+  allowShiftBypass?: boolean;
   popoverProps?: Omit<
     PopoverProps,
     "open" | "id" | "anchorEl" | "onClose" | "children"
@@ -49,23 +51,15 @@ export const Popconfirm = ({
   onCancel,
   disabled,
   closeOnConfirm = true,
+  allowShiftBypass = true,
   popoverProps,
 }: Props) => {
   const { closePopover, openPopover, ReadyComponent } = useLocalPopover();
   const [isConfirming, setIsConfirming] = useState(false);
+  const isDesktop = useIsDesktop();
+  const shouldShowShiftBypass = isDesktop && allowShiftBypass;
 
   const child = React.Children.only(children);
-
-  const handleTriggerClick: React.MouseEventHandler<HTMLElement> = (event) => {
-    if (disabled) return;
-    openPopover(event);
-  };
-
-  const handleCancel = () => {
-    closePopover();
-    onCancel?.();
-    setIsConfirming(false);
-  };
 
   const handleConfirm = async () => {
     try {
@@ -80,20 +74,46 @@ export const Popconfirm = ({
     }
   };
 
+  const handleTriggerClick: React.MouseEventHandler<HTMLElement> = (event) => {
+    if (disabled || isConfirming) return;
+
+    if (shouldShowShiftBypass && event.shiftKey) {
+      void handleConfirm();
+      return;
+    }
+
+    openPopover(event);
+  };
+
+  const handleCancel = () => {
+    closePopover();
+    onCancel?.();
+    setIsConfirming(false);
+  };
+
   return (
     <>
       {React.cloneElement(child, {
         onClick: composeMouseHandlers(child.props.onClick, handleTriggerClick),
       })}
+
       <ReadyComponent {...popoverProps}>
         <Section addClassName="min-w-xs max-w-sm">
           <VerticalStack spacing="xs">
             <Typography>{title}</Typography>
+
             {Boolean(description) && (
               <Typography variant="body2" color="textSecondary">
                 {description}
               </Typography>
             )}
+
+            {shouldShowShiftBypass && (
+              <Typography variant="caption" color="textSecondary">
+                Tip: hold Shift and click to skip this confirmation.
+              </Typography>
+            )}
+
             <HorizontalStack>
               <Button
                 variant="contained"
