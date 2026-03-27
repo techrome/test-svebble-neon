@@ -82,7 +82,7 @@ export const messagesRouter = router({
       z.object({
         items: z.array(z.custom<Message>()),
         returnedDirection:
-          sharedMessagesValidations.messagesGetSchemaForm.shape.direction.optional(),
+          sharedMessagesValidations.infiniteListDirectionSchema,
         messages_version: versionSchema,
         isLatest: z.boolean().optional(),
       })
@@ -139,7 +139,7 @@ export const messagesRouter = router({
 
             const { messages_version, items } = toPayload(rows);
             return {
-              items: items.reverse(),
+              items: items,
               messages_version,
               returnedDirection: "backward",
             };
@@ -240,7 +240,7 @@ export const messagesRouter = router({
       const { messages_version, items } = toPayload(rows);
 
       return {
-        items: items.reverse(),
+        items: items,
         messages_version,
         returnedDirection: "backward",
         isLatest: true,
@@ -289,7 +289,8 @@ export const messagesRouter = router({
           .makeMessageCreateSchemaForm(ctx.user.emailVerified)
           .safeParse(input)
       );
-      //if (Math.random() < 0.5) throw new Error("Test error");
+      // await new Promise((r) => setTimeout(r, 1500));
+      // if (Math.random() < 0.7) throw new Error("Test error");
       const channelUpdate = db.$with("channel").as(
         db
           .update(schema.channels)

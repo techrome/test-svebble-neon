@@ -16,7 +16,9 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import debounce from "lodash/debounce";
 import z from "@/utils/zod";
-import { getQueryKey } from "@trpc/react-query";
+import { getQueryKey, type TRPCClientErrorLike } from "@trpc/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useRouter } from "next/router";
 
 import { type RouterInput, RouterOutput, trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
@@ -37,10 +39,14 @@ import { CACHE_TIME_MS, minutes, seconds } from "@/utils/cacheTime";
 import IconButton from "@/components/Button/IconButton";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
-import { useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  type UseInfiniteQueryOptions,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Text } from "@/utils/validators/helpers/text";
 import { useUser } from "@/trpc/hooks/useUser";
-import { SubmitHandler, useForm } from "react-hook-form";
+import { Controller, SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Input from "@/components/Fields/Input";
 import { type AppPage } from "@/pages/_app";
@@ -49,7 +55,6 @@ import {
   type MessageCreateFormValues,
   makeMessageCreateSchemaForm,
 } from "@/utils/validators/shared/messages";
-import { useRouter } from "next/router";
 import { getRouterQueryValue } from "@/utils/query";
 import {
   getChannelId,
@@ -68,6 +73,7 @@ import ReportMessageForm from "@/components/Chat/ReportMessageForm";
 import { submitTextareaOnEnter } from "@/utils/formSubmission";
 import EmojiButton from "@/components/Emoji/EmojiButton";
 import ChannelHeader from "@/components/Chat/ChannelHeader";
+import type { AppRouter } from "@/server";
 
 const deserializeMessage = (
   serializedMessage: MessageSerializable
@@ -104,10 +110,32 @@ const checkShouldCollapseMessage = (
   );
 };
 
-type MessageQueryOptions = Parameters<
-  typeof trpc.messages.get.useInfiniteQuery
->[1];
+type MessagesGetInput = RouterInput["messages"]["get"];
+type MessagesGetOutput = RouterOutput["messages"]["get"];
+type MessagesCursor = MessagesGetInput["cursor"];
+type MessagesError = TRPCClientErrorLike<AppRouter>;
+type MessagesQueryKey = ReturnType<typeof getQueryKey>;
+type MessagesSelectedData = InfiniteData<MessagesGetOutput, MessagesCursor> & {
+  items: RenderedMessage[];
+};
 
+type MessagesInfiniteQueryOptionsInitial = UseInfiniteQueryOptions<
+  MessagesGetOutput,
+  MessagesError,
+  MessagesSelectedData,
+  MessagesQueryKey,
+  MessagesCursor
+>;
+
+type MessagesInfiniteQueryOptions = Omit<
+  MessagesInfiniteQueryOptionsInitial,
+  | "queryKey"
+  | "queryFn"
+  | "initialPageParam"
+  | "getPreviousPageParam"
+  | "getNextPageParam"
+  | "select"
+>;
 const messageQuerySelectors = {
   getPreviousPageParam: (firstPage, _, firstPageParam) => {
     if (firstPage.returnedDirection === "backward") {
@@ -203,7 +231,44 @@ const messageQuerySelectors = {
       items,
     };
   },
-} satisfies NonNullable<MessageQueryOptions>;
+} satisfies Pick<
+  MessagesInfiniteQueryOptionsInitial,
+  "getPreviousPageParam" | "getNextPageParam" | "select"
+>;
+
+// doing all this to properly modify data before it hits cache
+const useMessagesGet = (
+  input: MessagesGetInput,
+  options?: MessagesInfiniteQueryOptions
+) => {
+  const utils = trpc.useUtils();
+
+  return useInfiniteQuery<
+    MessagesGetOutput,
+    MessagesError,
+    MessagesSelectedData,
+    MessagesQueryKey,
+    MessagesCursor
+  >({
+    initialPageParam: input.cursor,
+    ...options,
+    ...messageQuerySelectors,
+    queryKey: getQueryKey(trpc.messages.get, input, "infinite"),
+    queryFn: async ({ pageParam, signal }) => {
+      const page = await utils.client.messages.get.query(
+        {
+          ...input,
+          cursor: pageParam,
+        },
+        { signal }
+      );
+      if (page.returnedDirection === "backward") {
+        page.items.reverse();
+      }
+      return page;
+    },
+  });
+};
 
 const baseIntervalMs = Number(seconds(5));
 
@@ -293,9 +358,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   ); // null for initial render before router is ready
   const [syncMode, setSyncMode] = useState<SyncMode>("polling");
   const [wsSyncFailedCount, setWsSyncFailedCount] = useState<number>(0);
-  const [messagesQueryKey, setMessagesQueryKey] = useState<
-    RouterInput["messages"]["get"]
-  >({ limit: PER_PAGE, channelId: channelIdString });
+  const [messagesQueryKey, setMessagesQueryKey] = useState<MessagesGetInput>({
+    limit: PER_PAGE,
+    channelId: channelIdString,
+  });
   const isWsConnectedRef = useRef<boolean>(false);
   const isPolling = syncMode === "polling";
   const isWsSyncing = syncMode === "ws-syncing";
@@ -308,9 +374,9 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const refetchIntervalVars = useRef<{
     dataBefore:
       | Parameters<
-          Exclude<
-            NonNullable<MessageQueryOptions>["refetchInterval"],
-            number | boolean | undefined
+          Extract<
+            MessagesInfiniteQueryOptions["refetchInterval"],
+            (...args: never[]) => unknown
           >
         >[0]["state"]["data"]
       | undefined;
@@ -327,9 +393,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   });
 
   const messages = useAppQuery(
-    trpc.messages.get.useInfiniteQuery(messagesQueryKey, {
+    useMessagesGet(messagesQueryKey, {
       enabled: isPreparingQuery === false && isInitialGateOpened,
-      ...messageQuerySelectors,
       refetchInterval(query) {
         const vars = refetchIntervalVars.current;
         if (query.state.error || !isPolling) {

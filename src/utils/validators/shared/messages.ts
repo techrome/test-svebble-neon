@@ -9,6 +9,10 @@ export const messagesGetWebsocketsToken = z.object({
   channelId: numericIdQuerySchema,
 });
 
+export const infiniteListDirectionSchema = z
+  .enum(["forward", "backward"])
+  .optional();
+
 export const messagesGetSchemaForm = z.object({
   limit: z
     .int()
@@ -20,11 +24,10 @@ export const messagesGetSchemaForm = z.object({
   channelId: numericIdQuerySchema,
   cursor: z
     .object({
-      direction: z.enum(["forward", "backward"]).optional(),
+      direction: infiniteListDirectionSchema,
       id: numericIdSchema.optional(),
     })
     .optional(),
-  direction: z.enum(["forward", "backward"]).optional(),
 });
 
 export const messageCreateSchemaForm = z.object({

@@ -190,7 +190,7 @@ export const PasswordStrengthMeter = <TFV extends Password>({
   passwordFieldWasFocused: boolean;
 }) => {
   // doing this cast hack to force RHF to allow different schemas with the same shared field
-  const PASSWORD = "password" satisfies keyof Password as Path<TFV>;
+  const PASSWORD = "password" as Path<TFV>;
   const password = useWatch({ control: form.control, name: PASSWORD });
 
   const passwordStrengthInfo = useMemo(() => {
@@ -296,7 +296,7 @@ export const UsernameInput = <TFV extends Username>({
   autoFocus?: boolean;
 }) => {
   // doing this cast hack to force RHF to allow different schemas with the same shared field
-  const USERNAME = "username" satisfies keyof Username as Path<TFV>;
+  const USERNAME = "username" as Path<TFV>;
   const username = useWatch({
     control: form.control,
     name: USERNAME,

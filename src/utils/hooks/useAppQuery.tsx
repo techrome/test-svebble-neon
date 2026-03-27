@@ -1,6 +1,7 @@
 import { useContext, useEffect, useId } from "react";
-import { UseTRPCQueryResult } from "@trpc/react-query/shared";
-import { TRPCClientErrorLike } from "@trpc/client";
+import { type UseTRPCQueryResult } from "@trpc/react-query/shared";
+import { type UseInfiniteQueryResult } from "@tanstack/react-query";
+import { type TRPCClientErrorLike } from "@trpc/client";
 
 import { LoadingBoundaryContext } from "@/utils/loadingBoundaryContext";
 import type { AppRouter } from "@/server";
@@ -9,12 +10,16 @@ export type UseAppQueryOptions = {
   disableLoadingBoundary?: boolean;
 };
 
+type AppQueryLike<TData, TError> =
+  | UseTRPCQueryResult<TData, TError>
+  | UseInfiniteQueryResult<TData, TError>;
+
 const useAppQuery = <
-  T extends UseTRPCQueryResult<unknown, TRPCClientErrorLike<AppRouter>>,
+  T extends AppQueryLike<unknown, TRPCClientErrorLike<AppRouter>>,
 >(
   queryData: T,
   options: UseAppQueryOptions = {}
-): T => {
+) => {
   const uniqueKey = useId();
   const { setQueryKeys } = useContext(LoadingBoundaryContext);
 
