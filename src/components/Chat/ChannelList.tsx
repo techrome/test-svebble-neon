@@ -302,7 +302,7 @@ const ChannelListWrapper = () => {
     <Paper
       elevation={1}
       className={clsx(
-        `${defaultPadding} h-full min-h-[300px] flex flex-1 flex-col max-w-2xs max-md:hidden rounded-none ring ring-[var(--mui-palette-divider)]`
+        `${defaultPadding} h-full min-h-[300px] flex flex-1 flex-col max-w-2xs max-md:hidden rounded-none ring ring-mui-divider`
       )}
     >
       <LoadingBoundary isOuter addClassName="min-h-0">

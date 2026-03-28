@@ -79,7 +79,7 @@ export const SectionWrapper = (props: {
     <Paper
       elevation={3}
       className={clsx(
-        `${defaultPadding} rounded-lg border border-[var(--mui-palette-divider)]`,
+        `${defaultPadding} rounded-lg border border-mui-divider`,
         props.addClassName
       )}
       id={props.id}
@@ -249,7 +249,7 @@ const BasicProfileForm = () => {
               )}
               <ButtonBase
                 focusRipple
-                className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 bg-[rgb(var(--mui-palette-background-defaultChannel)/0.6)] text-[var(--mui-palette-text-primary)] transition absolute inset-0 rounded-full flex justify-center items-center"
+                className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 bg-[rgb(var(--mui-palette-background-defaultChannel)/0.6)] text-mui-text-primary transition absolute inset-0 rounded-full flex justify-center items-center"
                 type="button"
                 onClick={avatarEditModal.openModal}
               >
@@ -705,7 +705,7 @@ const EmailForm = () => {
                   </HorizontalStack>
                   <HorizontalStack addClassName="items-center">
                     <div className="flex items-center">
-                      <span className="mr-1 h-1.5 w-1.5 rounded-full animate-pulse bg-[var(--mui-palette-warning-main)]" />
+                      <span className="mr-1 h-1.5 w-1.5 rounded-full animate-pulse bg-mui-warning-main" />
                       <Typography variant="subtitle2">
                         Waiting for email confirmation...
                       </Typography>

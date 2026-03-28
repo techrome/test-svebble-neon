@@ -213,7 +213,7 @@ const Message = ({
     return (
       <div>
         <form
-          className="p-2 bg-[var(--mui-palette-action-selected)]"
+          className="p-2 bg-mui-action-selected"
           noValidate
           onSubmit={form.handleSubmit(onSubmit)}
         >
@@ -288,7 +288,7 @@ const Message = ({
       )}
       <VerticalStack
         spacing="none"
-        addClassName="px-1 relative group hover:bg-[var(--mui-palette-action-focus)]"
+        addClassName={`px-1 relative group hover:bg-mui-action-focus`}
       >
         <HorizontalStack
           ref={ref}

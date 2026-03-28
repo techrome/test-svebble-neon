@@ -20,7 +20,7 @@ const ChannelHeader = (props: Props) => {
         props.isInsideVirtuoso && "virtuoso-messages-header"
       )}
     >
-      <div className="w-fit rounded-full flex justify-center items-center p-2 bg-[var(--mui-palette-action-hover)]">
+      <div className="w-fit rounded-full flex justify-center items-center p-2 bg-mui-action-hover">
         <TagIcon fontSize="large" />
       </div>
       <Typography variant="h4" className="font-bold">

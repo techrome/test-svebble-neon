@@ -87,7 +87,7 @@ html {
   position: relative;
   z-index: 2000;
   .bar {
-    background: var(--mui-palette-primary-main);
+    background: $mui-primary-main;
     height: 3px;
     position: fixed;
     top: 0;
@@ -102,8 +102,8 @@ html {
     width: 100px;
     height: 100%;
     box-shadow:
-      0 0 10px var(--mui-palette-primary-main),
-      0 0 5px var(--mui-palette-primary-main);
+      0 0 10px $mui-primary-main,
+      0 0 5px $mui-primary-main;
     opacity: 1;
 
     -webkit-transform: rotate(3deg) translate(0px, -4px);
@@ -150,7 +150,7 @@ html {
     ry: 0;
 
     &.dash-frame-stroke-active {
-      --dash-color: var(--mui-palette-primary-main);
+      --dash-color: $mui-primary-main;
     }
 
     stroke: var(--dash-color);
@@ -200,13 +200,12 @@ html {
   & > * {
     @apply font-medium border rounded border-transparent py-2 px-2 sm:px-3 transition-all;
     &:hover {
-      border-color: var(--mui-palette-primary-main);
+      border-color: $mui-primary-main;
       box-shadow: var(--mui-shadows-3);
       background-color: rgba(
-        var(--mui-palette-primary-mainChannel) /
-          calc(var(--mui-palette-action-hoverOpacity))
+        var(--mui-palette-primary-mainChannel) / calc($mui-action-hoverOpacity)
       );
-      color: var(--mui-palette-primary-main);
+      color: $mui-primary-main;
       &:active {
         transform: scale(0.95);
       }
@@ -351,10 +350,10 @@ html {
   .MuiFormControlLabel-root {
     @apply ml-0 mr-0 pr-2;
     &:hover {
-      @apply bg-[var(--mui-palette-action-hover)];
+      @apply bg-mui-action-hover;
     }
     &:has(.MuiRadio-root.Mui-checked) {
-      @apply bg-[var(--mui-palette-action-selected)];
+      @apply bg-mui-action-selected;
     }
   }
 }
