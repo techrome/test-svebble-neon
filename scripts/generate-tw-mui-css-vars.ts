@@ -3,6 +3,11 @@ import { resolve } from "node:path";
 
 import { theme } from "@/utils/theme";
 
+type PaletteEntry = {
+  path: string[];
+  cssVarValue: string;
+};
+
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -12,17 +17,25 @@ const shouldSkipKey = (key: string) =>
   key === "contrastThreshold" ||
   key === "tonalOffset";
 
-const collectPaletteVars = (
+const extractMuiVar = (value: string): string | null => {
+  if (!value.startsWith("var(")) return null;
+
+  const inner = value.slice(4, -1);
+  const cssVarName = inner.split(",")[0]?.trim();
+
+  if (!cssVarName?.startsWith("--")) return null;
+
+  return `var(${cssVarName})`;
+};
+
+const collectPaletteEntries = (
   value: unknown,
   path: string[] = [],
-  out: string[] = []
-): string[] => {
+  out: PaletteEntry[] = []
+): PaletteEntry[] => {
   if (typeof value === "string") {
-    if (value.startsWith("var(")) {
-      const commaIndex = value.indexOf(",");
-      if (commaIndex !== -1) value = `${value.slice(0, commaIndex)})`;
-      out.push(`  --color-mui-${path.join("-")}: ${value};`);
-    }
+    const cssVarValue = extractMuiVar(value);
+    if (cssVarValue) out.push({ path, cssVarValue });
     return out;
   }
 
@@ -30,25 +43,39 @@ const collectPaletteVars = (
 
   for (const [key, child] of Object.entries(value)) {
     if (shouldSkipKey(key)) continue;
-    collectPaletteVars(child, [...path, key], out);
+    collectPaletteEntries(child, [...path, key], out);
   }
 
   return out;
 };
 
-const lines = collectPaletteVars(theme.vars?.palette).sort();
+const entries = collectPaletteEntries(theme.vars?.palette).sort((a, b) =>
+  a.cssVarValue.localeCompare(b.cssVarValue)
+);
 
-const css = `@theme inline {
-${lines.join("\n")}
+const tailwindCss = `@theme inline {
+${entries
+  .map(
+    ({ path, cssVarValue }) =>
+      `  --color-mui-${path.join("-")}: ${cssVarValue};`
+  )
+  .join("\n")}
 }
+`;
+
+const scss = `${entries
+  .map(({ path, cssVarValue }) => `$mui-${path.join("-")}: ${cssVarValue};`)
+  .join("\n")}
 `;
 
 writeFileSync(
   resolve("./src/styles/generated-tw-mui-css-vars.css"),
-  css,
+  tailwindCss,
   "utf8"
 );
 
+writeFileSync(resolve("./src/styles/_generated-mui-vars.scss"), scss, "utf8");
+
 console.log(
-  `Generated ${lines.length} Tailwind color aliases from MUI palette.`
+  `Generated ${entries.length} Tailwind aliases and SCSS variables from MUI palette.`
 );
