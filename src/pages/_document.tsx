@@ -1,7 +1,7 @@
 import { Head, Html, Main, NextScript } from "next/document";
 import InitColorSchemeScript from "@mui/material/InitColorSchemeScript";
 
-import { roboto } from "@/utils/theme";
+import { roboto } from "@/utils/font";
 
 const Document = () => {
   return (

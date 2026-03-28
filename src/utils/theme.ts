@@ -1,4 +1,3 @@
-import { Roboto } from "next/font/google";
 import { createTheme, responsiveFontSizes } from "@mui/material/styles";
 import type {} from "@mui/x-date-pickers/themeAugmentation";
 
@@ -18,13 +17,6 @@ declare module "@mui/material/Typography" {
     tiny: true;
   }
 }
-
-export const roboto = Roboto({
-  weight: ["300", "400", "500", "700"],
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-roboto",
-});
 
 let _theme = createTheme({
   typography: {
