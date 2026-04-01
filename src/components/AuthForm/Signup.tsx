@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Path,
+  FieldPath,
+  FieldValues,
   SubmitHandler,
   useForm,
   UseFormReturn,
@@ -180,18 +181,20 @@ const emptyFormValues: FormValues = {
   passwordConfirm: "",
 };
 
-type Password = Pick<FormValues, "password">;
-
-export const PasswordStrengthMeter = <TFV extends Password>({
+export const PasswordStrengthMeter = <
+  TFV extends FieldValues,
+  TName extends FieldPath<TFV>,
+>({
   form,
   passwordFieldWasFocused,
+  name,
 }: {
   form: UseFormReturn<TFV>;
   passwordFieldWasFocused: boolean;
+  name: TName;
 }) => {
-  // doing this cast hack to force RHF to allow different schemas with the same shared field
-  const PASSWORD = "password" as Path<TFV>;
-  const password = useWatch({ control: form.control, name: PASSWORD });
+  const password = useWatch({ control: form.control, name });
+  const fieldState = form.getFieldState(name, form.formState);
 
   const passwordStrengthInfo = useMemo(() => {
     let anyRequiredRuleFailed = false;
@@ -262,11 +265,7 @@ export const PasswordStrengthMeter = <TFV extends Password>({
 
   return (
     <Collapse
-      in={
-        form.formState.dirtyFields.password ||
-        form.formState.touchedFields.password ||
-        passwordFieldWasFocused
-      }
+      in={fieldState.isDirty || fieldState.isTouched || passwordFieldWasFocused}
     >
       <div>
         <LinearProgress
@@ -284,25 +283,26 @@ export const PasswordStrengthMeter = <TFV extends Password>({
   );
 };
 
-type Username = Pick<FormValues, "username">;
-
-export const UsernameInput = <TFV extends Username>({
+export const UsernameInput = <
+  TFV extends FieldValues,
+  TName extends FieldPath<TFV>,
+>({
   form,
   disabled,
   autoFocus,
+  name,
 }: {
   form: UseFormReturn<TFV>;
+  name: TName;
   disabled?: boolean;
   autoFocus?: boolean;
 }) => {
-  // doing this cast hack to force RHF to allow different schemas with the same shared field
-  const USERNAME = "username" as Path<TFV>;
   const username = useWatch({
     control: form.control,
-    name: USERNAME,
+    name,
   });
   const user = useUser();
-  const fieldState = form.getFieldState(USERNAME, form.formState);
+  const fieldState = form.getFieldState(name, form.formState);
 
   const debouncedUsername = normalizeText(
     useDebouncedValue(username, 750)
@@ -330,10 +330,10 @@ export const UsernameInput = <TFV extends Username>({
     if (usernameAvailabilityQuery.data) {
       if (usernameAvailabilityQuery.data.available) {
         if (fieldState.error?.type === "availability") {
-          form.clearErrors(USERNAME);
+          form.clearErrors(name);
         }
       } else {
-        form.setError(USERNAME, {
+        form.setError(name, {
           type: "availability",
           message: "Username is already taken.",
         });
@@ -345,8 +345,8 @@ export const UsernameInput = <TFV extends Username>({
   return (
     <Input
       control={form.control}
-      name={USERNAME}
-      autoComplete={USERNAME}
+      name={name}
+      autoComplete="username"
       label="Username"
       type="text"
       fullWidth
@@ -440,7 +440,7 @@ const Signup = (props: Props) => {
       >
         <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
           <VerticalStack>
-            <UsernameInput form={form} autoFocus={isDesktop} />
+            <UsernameInput form={form} name="username" autoFocus={isDesktop} />
             <Input
               control={form.control}
               name="email"
@@ -464,6 +464,7 @@ const Signup = (props: Props) => {
               />
               <PasswordStrengthMeter
                 form={form}
+                name="password"
                 passwordFieldWasFocused={passwordFieldWasFocused}
               />
             </div>

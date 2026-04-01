@@ -407,7 +407,7 @@ const UsernameForm = () => {
         />
       </HorizontalStack>
       <VerticalStack>
-        <UsernameInput form={form} disabled={isDisabled} />
+        <UsernameInput form={form} name="username" disabled={isDisabled} />
         <Button
           variant="contained"
           type="submit"
@@ -499,6 +499,7 @@ const PasswordForm = ({ hasOldPassword }: { hasOldPassword: boolean }) => {
           />
           <PasswordStrengthMeter
             form={form}
+            name="password"
             passwordFieldWasFocused={passwordFieldWasFocused}
           />
         </div>
