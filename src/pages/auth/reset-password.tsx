@@ -125,6 +125,7 @@ const ResetPassword = () => {
                 />
                 <PasswordStrengthMeter
                   form={form}
+                  name="password"
                   passwordFieldWasFocused={passwordFieldWasFocused}
                 />
               </div>
