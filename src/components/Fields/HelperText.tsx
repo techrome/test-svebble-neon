@@ -2,19 +2,21 @@ import React from "react";
 import { FieldError } from "react-hook-form";
 import clsx from "clsx";
 import Collapse from "@/components/Collapse/Collapse";
-import { useFormControl } from "@mui/material";
+import { FormHelperText, useFormControl } from "@mui/material";
 
 type Props = {
   hasError?: boolean;
   error?: FieldError;
   helperText?: React.ReactNode;
   helperTextAlwaysShown?: boolean;
+  isInsideFormHelperText?: boolean;
 };
 
 const HelperText = (props: Props) => {
   const muiFormControl = useFormControl();
+  const { isInsideFormHelperText = true } = props;
 
-  return (
+  const collapseComponent = (
     <Collapse
       in={
         props.hasError ||
@@ -27,6 +29,20 @@ const HelperText = (props: Props) => {
       </span>
     </Collapse>
   );
+
+  if (isInsideFormHelperText) return collapseComponent;
+  else
+    return (
+      <FormHelperText
+        component={"div"}
+        error={props.hasError}
+        focused={muiFormControl?.focused}
+        disabled={muiFormControl?.disabled}
+        className="mt-0 ml-3.5"
+      >
+        {collapseComponent}
+      </FormHelperText>
+    );
 };
 
 export default HelperText;

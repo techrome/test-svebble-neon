@@ -28,6 +28,7 @@ import { SnackbarListener } from "@/utils/snackbar";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 
 import "@/styles/global.scss";
+import "react-quill-new/dist/quill.snow.css";
 import { authRoutePrefix, privateRoutePrefix } from "@/utils/routes";
 import { AuthPageWrapper } from "@/components/AuthForm/Helpers";
 import { WebsocketsProvider } from "@/components/WebsocketsProvider/WebsocketsProvider";
