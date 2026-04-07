@@ -49,11 +49,9 @@ import {
 import { z } from "@/utils/zod";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import Input from "@/components/Fields/Input";
-import { submitTextareaOnEnter } from "@/utils/formSubmission";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { copyToClipboard } from "@/utils/stringUtils";
-import EmojiButton from "@/components/Emoji/EmojiButton";
+import MessageEditor from "@/components/Chat/MessageEditor";
 
 const hoverChildHiddenClass = "opacity-0 pointer-events-none";
 const hoverChildHoveredClass =
@@ -218,60 +216,33 @@ const Message = ({
           onSubmit={form.handleSubmit(onSubmit)}
         >
           <VerticalStack>
-            <Input
+            <MessageEditor
               control={form.control}
               name="content"
-              label="Message"
-              fullWidth
-              variant="standard"
-              hideError
-              multiline
-              maxRows={10}
+              placeholder={`Message`}
               autoFocus
-              onFocus={(e) => {
-                const el = e.currentTarget;
-                const end = el.value.length;
-                el.setSelectionRange(end, end);
-              }}
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <HorizontalStack wrap={false} addClassName="self-start">
-                      <EmojiButton
-                        onSelect={(emoji) => {
-                          const currentText = form.getValues("content");
-                          form.setValue("content", currentText + emoji, {
-                            shouldDirty: true,
-                            shouldTouch: true,
-                          });
-                        }}
-                      />
-                    </HorizontalStack>
-                  ),
-                  onKeyDown: submitTextareaOnEnter,
-                },
-              }}
+              hideError
             />
+            <HorizontalStack>
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                isLoading={messagesUpdateMutation.isPending}
+              >
+                Save
+              </Button>
+              <Button
+                type="button"
+                variant="contained"
+                color="inherit"
+                onClick={exitEditMode}
+                disabled={messagesUpdateMutation.isPending}
+              >
+                Cancel
+              </Button>
+            </HorizontalStack>
           </VerticalStack>
-          <HorizontalStack>
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              isLoading={messagesUpdateMutation.isPending}
-            >
-              Save
-            </Button>
-            <Button
-              type="button"
-              variant="contained"
-              color="inherit"
-              onClick={exitEditMode}
-              disabled={messagesUpdateMutation.isPending}
-            >
-              Cancel
-            </Button>
-          </HorizontalStack>
         </form>
       </div>
     );
@@ -301,7 +272,7 @@ const Message = ({
               className={clsx(
                 "min-w-12 max-w-12 flex",
                 !shouldDisplayAvatar && isDesktop
-                  ? `justify-end ${hoverChildHiddenClass} ${hoverChildHoveredClass}`
+                  ? `justify-center ${hoverChildHiddenClass} ${hoverChildHoveredClass}`
                   : `justify-center`
               )}
             >
@@ -346,9 +317,15 @@ const Message = ({
               )}
               <Typography
                 color={message.isOptimistic ? "textDisabled" : "textPrimary"}
-                className="whitespace-pre-line"
+                component={"div"}
+                className="message-content"
               >
-                {message.content}
+                <div
+                  className="message-html"
+                  dangerouslySetInnerHTML={{
+                    __html: message.content,
+                  }}
+                />
                 {updatedAtFull ? (
                   <Tooltip title={updatedAtFull}>
                     <Typography

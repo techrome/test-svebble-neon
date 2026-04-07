@@ -70,10 +70,9 @@ import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider"
 import { MessagesSkeleton } from "@/components/Chat/MessagesSkeleton";
 import { isSameDay, isWithinMs } from "@/utils/timeUtils";
 import ReportMessageForm from "@/components/Chat/ReportMessageForm";
-import { submitTextareaOnEnter } from "@/utils/formSubmission";
-import EmojiButton from "@/components/Emoji/EmojiButton";
 import ChannelHeader from "@/components/Chat/ChannelHeader";
 import type { AppRouter } from "@/server";
+import MessageEditor from "@/components/Chat/MessageEditor";
 
 const deserializeMessage = (
   serializedMessage: MessageSerializable
@@ -277,15 +276,15 @@ type SyncMode = "polling" | "ws-syncing" | "ws-live";
 const syncModeMapping = {
   polling: {
     label: "refetching periodically",
-    className: "bg-[var(--mui-palette-warning-main)]",
+    className: "bg-mui-warning-main",
   },
   "ws-syncing": {
     label: "syncing",
-    className: "bg-[var(--mui-palette-info-main)]",
+    className: "bg-mui-info-main",
   },
   "ws-live": {
     label: "live",
-    className: "bg-[var(--mui-palette-success-main)]",
+    className: "bg-mui-success-main",
   },
 } as const satisfies Record<SyncMode, { label: string; className: string }>;
 
@@ -990,15 +989,25 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         const nextPageFirstItemId = nextPage?.items[0]?.id;
         const prevPageLastItemId =
           prevPage?.items[prevPage?.items.length - 1]?.id;
+        const currentPageFirstItemId = data.pages[i]?.items?.[0]?.id;
 
         if (nextPageFirstItemId) {
           updatedPageParams[i] = {
+            ...updatedPageParams[i],
             id: nextPageFirstItemId,
             direction: "backward",
           };
         } else if (prevPageLastItemId) {
           updatedPageParams[i] = {
+            ...updatedPageParams[i],
             id: prevPageLastItemId,
+            direction: "forward",
+          };
+        } else if (currentPageFirstItemId) {
+          const newId = currentPageFirstItemId - BigInt(1);
+          updatedPageParams[i] = {
+            ...updatedPageParams[i],
+            id: newId < BigInt(1) ? BigInt(0) : newId,
             direction: "forward",
           };
         }
@@ -1372,7 +1381,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           highestMessagesVersion: messagesVersion,
         });
       }
-      return;
+      repairEmptyPageParams();
     }
   }, [messages.dataUpdatedAt]);
 
@@ -1773,13 +1782,13 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     <Paper
       elevation={1}
       className={clsx(
-        `min-h-0 flex-1 flex flex-col rounded-none ring ring-[var(--mui-palette-divider)]`
+        `min-h-0 flex-1 flex flex-col rounded-none ring ring-mui-divider`
       )}
       ref={wrapperRef}
     >
       <HorizontalStack
         withPadding
-        addClassName="justify-between items-center border-b border-(--mui-palette-divider) relative"
+        addClassName="justify-between items-center border-b border-mui-divider relative"
       >
         <Tooltip title={`Realtime sync status: ${syncModeInfo.label}`}>
           <div className="p-2 absolute top-0 left-0">
@@ -1958,61 +1967,22 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         {user.data?.user?.id ? (
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="py-1 px-2 bg-[var(--mui-palette-FilledInput-bg)]"
+            className="message-form"
             noValidate
           >
-            <HorizontalStack wrap={false} addClassName="items-start">
-              <Tooltip title="Attach file">
-                <IconButton
-                  className="mt-4"
-                  type="button"
-                  onClick={() => {
-                    // TODO
-                    commentDeleteAllMutation.mutate({ channelId: channel.id });
-                  }}
-                >
-                  <AttachFileIcon />
-                </IconButton>
-              </Tooltip>
-              <Input
+            <HorizontalStack addClassName="items-start">
+              <MessageEditor
                 control={form.control}
                 name="content"
-                label="Message"
-                fullWidth
-                variant="standard"
+                placeholder={`Message #${channel.name}`}
                 hideError
-                multiline
-                maxRows={10}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <HorizontalStack wrap={false} addClassName="self-start">
-                        <EmojiButton
-                          onSelect={(emoji) => {
-                            const currentText = form.getValues("content");
-                            form.setValue("content", currentText + emoji, {
-                              shouldDirty: true,
-                              shouldTouch: true,
-                            });
-                          }}
-                        />
-                        <Tooltip title="Send message">
-                          <IconButton type="submit">
-                            <SendIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </HorizontalStack>
-                    ),
-                    onKeyDown: submitTextareaOnEnter,
-                  },
-                }}
               />
             </HorizontalStack>
           </form>
         ) : (
           <VerticalStack
             spacing="xs"
-            addClassName="p-2 bg-[var(--mui-palette-FilledInput-bg)] items-center"
+            addClassName="p-2 bg-mui-FilledInput-bg items-center"
           >
             <Typography>Please log in to send a message.</Typography>
             <HorizontalStack addClassName="justify-center">
