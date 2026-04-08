@@ -2,7 +2,6 @@ import {
   numericIdQuerySchema,
   numericIdSchema,
 } from "@/utils/validators/helpers/custom";
-import { Text } from "@/utils/validators/helpers/text";
 import z from "@/utils/zod";
 
 export const messagesGetWebsocketsToken = z.object({
@@ -34,19 +33,11 @@ export const messageCreateSchemaForm = z.object({
   content: z.string(),
   channelId: numericIdSchema,
 });
-export const makeMessageCreateSchemaForm = (isVerifiedUser?: boolean) =>
-  messageCreateSchemaForm.safeExtend({
-    content: Text[isVerifiedUser ? "Long" : "Short"]({ required: true }),
-  });
 
 export const messageUpdateSchemaForm = messageCreateSchemaForm
   .omit({ channelId: true })
   .extend({
     id: numericIdSchema,
-  });
-export const makeMessageUpdateSchemaForm = (isVerifiedUser?: boolean) =>
-  messageUpdateSchemaForm.safeExtend({
-    content: Text[isVerifiedUser ? "Long" : "Short"]({ required: true }),
   });
 
 export const messageDeleteSchemaForm = messageUpdateSchemaForm.pick({
@@ -56,7 +47,3 @@ export const messageDeleteSchemaForm = messageUpdateSchemaForm.pick({
 export const messageBulkDeleteSchemaForm = messageCreateSchemaForm.pick({
   channelId: true,
 });
-
-export type MessageCreateFormValues = z.infer<
-  ReturnType<typeof makeMessageCreateSchemaForm>
->;

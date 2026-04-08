@@ -6,7 +6,7 @@ import isBoolean from "lodash/isBoolean";
 
 import { PartialFor } from "@/utils/types";
 import { toISOString } from "@/utils/timeUtils";
-import { reactNodeToText } from "@/utils/reactNodeToText";
+import { reactNodeToText } from "@/utils/htmlToText";
 
 export type SnackbarId = string | number;
 

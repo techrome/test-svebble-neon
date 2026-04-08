@@ -19,6 +19,7 @@ import * as schema from "../../db/schema";
 import { router } from "../core";
 import { privateProcedure, publicProcedure } from "../procedures";
 import * as sharedMessagesValidations from "@/utils/validators/shared/messages";
+import * as serverMessagesValidations from "../validators/messages";
 import { throwIfZodError } from "../helpers/validate";
 import { P } from "@/utils/permissions";
 import { after, before, beforeOrEqual } from "../../db/helpers/time";
@@ -283,12 +284,12 @@ export const messagesRouter = router({
     rateLimitMiddlewares.auth_messagesWrite
   )
     .input(sharedMessagesValidations.messageCreateSchemaForm)
-    .mutation(async ({ input, ctx }) => {
-      throwIfZodError(
-        sharedMessagesValidations
-          .makeMessageCreateSchemaForm(ctx.user.emailVerified)
-          .safeParse(input)
-      );
+    .mutation(async ({ input: dangerousInput, ctx }) => {
+      const fullCheckResult = serverMessagesValidations
+        .makeMessageCreateSchema(ctx.user.emailVerified)
+        .safeParse(dangerousInput);
+      throwIfZodError(fullCheckResult);
+      const input = fullCheckResult.data;
       // await new Promise((r) => setTimeout(r, 1500));
       // if (Math.random() < 0.7) throw new Error("Test error");
       const channelUpdate = db.$with("channel").as(
@@ -350,12 +351,12 @@ export const messagesRouter = router({
     rateLimitMiddlewares.auth_messagesWrite
   )
     .input(sharedMessagesValidations.messageUpdateSchemaForm)
-    .mutation(async ({ input, ctx }) => {
-      throwIfZodError(
-        sharedMessagesValidations
-          .makeMessageUpdateSchemaForm(ctx.user.emailVerified)
-          .safeParse(input)
-      );
+    .mutation(async ({ input: dangerousInput, ctx }) => {
+      const fullCheckResult = serverMessagesValidations
+        .makeMessageUpdateSchema(ctx.user.emailVerified)
+        .safeParse(dangerousInput);
+      throwIfZodError(fullCheckResult);
+      const input = fullCheckResult.data;
 
       const messageUpdate = db.$with("message").as(
         db

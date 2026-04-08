@@ -1,5 +1,11 @@
 import React from "react";
 
+export const htmlToText = (html: string) => {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || "";
+};
+
 const recursiveCollectNodes = (node: React.ReactNode): string[] => {
   if (typeof node === "string" || typeof node === "number") {
     return [String(node)];
