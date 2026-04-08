@@ -54,7 +54,7 @@ import { useAuthModal } from "@/utils/hooks/useAuthModal";
 import {
   type MessageCreateFormValues,
   makeMessageCreateSchemaForm,
-} from "@/utils/validators/shared/messages";
+} from "@/utils/validators/client/messages";
 import { getRouterQueryValue } from "@/utils/query";
 import {
   getChannelId,
@@ -270,6 +270,7 @@ const useMessagesGet = (
 };
 
 const baseIntervalMs = Number(seconds(5));
+const maxIntervalMs = Number(seconds(30));
 
 type SyncMode = "polling" | "ws-syncing" | "ws-live";
 
@@ -380,14 +381,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         >[0]["state"]["data"]
       | undefined;
     currentIntervalMs: number;
-    maxIntervalMs: number;
-    intervalStepMs: number;
     wasFetching: boolean;
   }>({
     dataBefore: undefined,
     currentIntervalMs: baseIntervalMs,
-    maxIntervalMs: Number(seconds(30)),
-    intervalStepMs: baseIntervalMs,
     wasFetching: false,
   });
 
@@ -409,10 +406,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         if (!isFetching && vars.wasFetching) {
           vars.currentIntervalMs =
             vars.dataBefore === query.state.data
-              ? Math.min(
-                  vars.maxIntervalMs,
-                  vars.currentIntervalMs + vars.intervalStepMs
-                )
+              ? Math.min(maxIntervalMs, vars.currentIntervalMs + baseIntervalMs)
               : baseIntervalMs;
         }
 
@@ -800,6 +794,13 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
   };
 
+  const onOwnMessageActionSuccess = () => {
+    if (isPolling) {
+      refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
+      utils.messages.get.invalidate();
+    }
+  };
+
   const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
     onSuccess: () => {
       utils.messages.get.invalidate();
@@ -836,9 +837,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       if (handleNewMessagesVersion(data.channel.messages_version)) {
         appendMessage(data.message, appliedMessagesVersion.current);
       }
-      if (isPolling) {
-        utils.messages.get.invalidate();
-      }
+      onOwnMessageActionSuccess();
     },
     onError(_error, _variables, onMutateResult) {
       if (onMutateResult?.tempId) {
@@ -1893,9 +1892,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                           appliedMessagesVersion.current
                         );
                       }
-                      if (isPolling) {
-                        utils.messages.get.invalidate();
-                      }
+                      onOwnMessageActionSuccess();
                     }}
                     onDeleteSuccess={(data) => {
                       if (
@@ -1906,9 +1903,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                           appliedMessagesVersion.current
                         );
                       }
-                      if (isPolling) {
-                        utils.messages.get.invalidate();
-                      }
+                      onOwnMessageActionSuccess();
                     }}
                     onOptimisticFailedRetry={() => {
                       deleteOptimisticMessage(message.id);

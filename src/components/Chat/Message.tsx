@@ -42,16 +42,13 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import Popconfirm from "@/components/Popover/Popconfirm";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
 import { Divider } from "@/components/Layout/Dividers";
-import {
-  makeMessageUpdateSchemaForm,
-  messageUpdateSchemaForm,
-} from "@/utils/validators/shared/messages";
 import { z } from "@/utils/zod";
 import { SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { copyToClipboard } from "@/utils/stringUtils";
 import MessageEditor from "@/components/Chat/MessageEditor";
+import { makeMessageUpdateSchemaForm } from "@/utils/validators/client/messages";
 
 const hoverChildHiddenClass = "opacity-0 pointer-events-none";
 const hoverChildHoveredClass =
@@ -85,7 +82,7 @@ type Props = {
   onReportClick: React.MouseEventHandler<HTMLElement>;
 };
 
-type FormValues = z.infer<typeof messageUpdateSchemaForm>;
+type FormValues = z.infer<ReturnType<typeof makeMessageUpdateSchemaForm>>;
 
 const Message = ({
   message,
