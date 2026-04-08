@@ -162,6 +162,13 @@
       "when": 1772985796857,
       "tag": "0022_productive_leopardon",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1775639336457,
+      "tag": "0023_gigantic_whistler",
+      "breakpoints": true
     }
   ]
 }

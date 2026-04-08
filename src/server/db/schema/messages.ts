@@ -23,7 +23,7 @@ export const messages = pgTable(
       user_id: uuid()
         .notNull()
         .references(() => user.id),
-      content: varchar({ length: TEXT_LIMITS.long }).notNull(),
+      content: varchar({ length: TEXT_LIMITS.long * 4 }).notNull(),
       channel_id: bigint("channel_id", { mode: "bigint" })
         .notNull()
         .references(() => channels.id),
