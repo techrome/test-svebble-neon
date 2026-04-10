@@ -33,9 +33,9 @@ const quillGlobal = globalThis as typeof globalThis & {
 };
 
 if (!quillGlobal.__spoilerParchmentRegistered) {
-  const SpoilerAttribute = new Parchment.Attributor("spoiler", "data-spoiler", {
+  const SpoilerAttribute = new Parchment.Attributor("spoiler", "sp", {
     scope: Parchment.Scope.INLINE,
-    whitelist: ["true"],
+    whitelist: ["1"],
   });
 
   Quill.register(SpoilerAttribute, true);
@@ -109,7 +109,7 @@ const toolbarSections: {
     {
       className: `ql-${FORMATS.spoiler}`,
       label: "Spoiler",
-      value: "true",
+      value: "1",
       children: <VisibilityOffIcon />,
     },
   ],
@@ -201,12 +201,13 @@ export default function QuillEditor({
       className={clsx(
         className,
         "custom-quill-editor",
-        isFocused && "custom-quill-editor-focused"
+        isFocused && "custom-quill-editor-focused",
+        helperTextProps?.hasError && "custom-quill-editor-errored"
       )}
     >
       <Toolbar id={toolbarId} isVisible={isToolbarVisible} />
       <HorizontalStack
-        addClassName="items-start p-1 quill-editor-wrapper"
+        addClassName="items-start p-1 relative quill-editor-wrapper"
         spacing="none"
         wrap={false}
       >

@@ -20,8 +20,8 @@ const ALLOWED_TAGS = [
 ];
 
 const SPOILER_ATTR = {
-  name: "data-spoiler",
-  values: ["true"],
+  name: "sp",
+  values: ["1"],
 };
 
 const spoilerAllowedAttributes = Object.fromEntries(
@@ -100,10 +100,11 @@ const findMeaningfulNodeIndexes = (nodes: DomNode[]) => {
   return { first, last };
 };
 
-export const trimHtml = (html: string): string => {
-  if (!html) return "";
+type Document = ReturnType<typeof htmlparser2.parseDocument>;
 
-  const document = htmlparser2.parseDocument(html);
+export const trimHtml = (document: Document): string => {
+  if (!document?.children) return "";
+
   const nodes = document.children;
 
   const { first: firstMeaningfulIndex, last: lastMeaningfulIndex } =
@@ -115,6 +116,6 @@ export const trimHtml = (html: string): string => {
 
   return nodes
     .slice(firstMeaningfulIndex, lastMeaningfulIndex + 1)
-    .map((node) => renderHTML(node))
+    .map((node) => renderHTML(node, { encodeEntities: "utf8" }))
     .join("");
 };

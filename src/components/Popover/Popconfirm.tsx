@@ -114,7 +114,14 @@ export const Popconfirm = ({
               </Typography>
             )}
 
-            <HorizontalStack>
+            <HorizontalStack addClassName="justify-between">
+              <Button
+                variant="contained"
+                color="inherit"
+                onClick={handleCancel}
+              >
+                {cancelText}
+              </Button>
               <Button
                 variant="contained"
                 color="primary"
@@ -122,13 +129,6 @@ export const Popconfirm = ({
                 isLoading={isConfirming}
               >
                 {confirmText}
-              </Button>
-              <Button
-                variant="contained"
-                color="inherit"
-                onClick={handleCancel}
-              >
-                {cancelText}
               </Button>
             </HorizontalStack>
           </VerticalStack>

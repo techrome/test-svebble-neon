@@ -1839,8 +1839,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 align: "center",
               }}
               increaseViewportBy={{
-                bottom: 100,
-                top: 100,
+                bottom: 1000,
+                top: 1000,
               }}
               alignToBottom
               followOutput={

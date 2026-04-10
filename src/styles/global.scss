@@ -375,6 +375,9 @@ div:has(> .virtuoso-messages-header) {
     @apply pl-0;
   }
 
+  a {
+    @apply text-mui-primary-main;
+  }
   code,
   .ql-code-block-container {
     @apply bg-mui-action-focus py-0.5 px-1 rounded-sm text-sm;
@@ -384,8 +387,12 @@ div:has(> .virtuoso-messages-header) {
     @apply my-1.5 pl-4 border-l-4 border-mui-action-disabled;
   }
 
-  & [data-spoiler="true"] {
-    @apply bg-mui-action-selected p-1 rounded-sm;
+  [sp="1"] {
+    @apply bg-mui-action-selected px-1 py-0.5 rounded-sm;
+    transition: var(--default-transition-duration);
+    * {
+      transition: var(--default-transition-duration);
+    }
   }
 
   li[data-list="ordered"] {
@@ -406,6 +413,12 @@ div:has(> .virtuoso-messages-header) {
   }
   &.custom-quill-editor-focused.custom-quill-editor-focused.custom-quill-editor-focused {
     @apply ring-2 ring-mui-primary-main;
+  }
+  &.custom-quill-editor-errored {
+    @apply ring;
+  }
+  &.custom-quill-editor-errored.custom-quill-editor-errored.custom-quill-editor-errored.custom-quill-editor-errored {
+    @apply ring-mui-error-main;
   }
 
   .quill {
@@ -447,7 +460,7 @@ div:has(> .virtuoso-messages-header) {
   }
   .ql-editor {
     @include rich-text-editor;
-    @apply p-2 max-h-[300px] overflow-y-auto;
+    @apply p-2 max-h-[500px] overflow-y-auto;
 
     &.ql-blank:before {
       @apply text-mui-text-disabled not-italic left-2;
@@ -464,9 +477,6 @@ div:has(> .virtuoso-messages-header) {
     @apply fill-mui-text-secondary;
   }
 
-  .ql-snow a {
-    @apply text-mui-primary-main;
-  }
   .ql-snow .ql-tooltip {
     @apply bg-mui-background-paper! border-0! ring! ring-mui-divider! text-mui-text-primary;
     .ql-action,
@@ -487,12 +497,37 @@ div:has(> .virtuoso-messages-header) {
 }
 
 .message-content {
+  max-height: max(300px, calc(100dvh - 300px));
+  overflow-y: auto;
   display: flow-root;
   .message-html {
     @include rich-text-editor;
     @apply inline whitespace-pre-wrap;
     > :last-child:not(ul, ol, blockquote) {
       @apply inline;
+    }
+    a {
+      &:hover {
+        @apply text-mui-primary-dark;
+      }
+      &:active {
+        @apply text-mui-primary-light;
+      }
+      &:visited {
+        @apply text-mui-secondary-main;
+        &:hover {
+          @apply text-mui-secondary-dark;
+        }
+        &:active {
+          @apply text-mui-secondary-light;
+        }
+      }
+    }
+    [sp="1"]:not([data-spoiler-open="1"]) {
+      @apply text-transparent! cursor-pointer select-none bg-mui-text-disabled hover:bg-mui-text-secondary;
+      * {
+        @apply text-transparent!;
+      }
     }
   }
 }

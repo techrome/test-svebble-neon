@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import SendIcon from "@mui/icons-material/Send";
 import TextFormatIcon from "@mui/icons-material/TextFormat";
@@ -14,15 +20,42 @@ import {
   type FieldValues,
 } from "react-hook-form";
 import { type BasePropsBuilder } from "@/components/Fields/BasePropsBuilder";
+import { Typography } from "@mui/material";
+import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
+import { htmlToText } from "@/utils/htmlToText";
+import { useUser } from "@/trpc/hooks/useUser";
+import { getMessageContentMaxLength } from "@/utils/validators/client/messages";
 
 const QuillEditor = dynamic(() => import("@/components/Fields/QuillEditor"), {
   ssr: false,
 });
 
+const TextCounter = (props: { value: string; maxLength: number }) => {
+  const debouncedValue = useDebouncedValue(props.value, 500);
+
+  const counter = useMemo(() => {
+    return htmlToText(debouncedValue).length;
+  }, [debouncedValue]);
+
+  if (counter < Math.ceil(props.maxLength / 2)) return null;
+
+  return (
+    <div className="absolute bottom-0 right-1 pointer-events-none">
+      <Typography
+        variant="tiny"
+        color={counter > props.maxLength ? "error" : "textSecondary"}
+      >
+        {counter}/{props.maxLength}
+      </Typography>
+    </div>
+  );
+};
+
 type EditorProps = {
   placeholder?: string;
   disabled?: boolean;
   autoFocus?: boolean;
+  isEdit?: boolean;
 };
 
 type Props<
@@ -39,10 +72,12 @@ const MessageEditor = <TFV extends FieldValues, TName extends FieldPath<TFV>>({
   disabled: disabledProp,
   hideError,
   autoFocus,
+  isEdit,
 }: Props<TFV, TName>) => {
   const [isToolbarVisible, setIsToolbarVisible] = useState(false);
   const reactQuillRef = useRef<ReactQuill | null>(null);
 
+  const user = useUser();
   const controller = useController({
     name,
     control,
@@ -51,11 +86,17 @@ const MessageEditor = <TFV extends FieldValues, TName extends FieldPath<TFV>>({
 
   const field = controller.field;
   const error = controller.fieldState.error;
+
   // const isSubmitting = controller.formState.isSubmitting;
   // const disabled = autoDisableOnSubmit
   //   ? isSubmitting || disabledProp
   //   : disabledProp;
-  const hasError = hideError ? false : Boolean(error);
+  const hasError =
+    error?.type === "too_big"
+      ? Boolean(error)
+      : hideError
+        ? false
+        : Boolean(error);
 
   const setEditorRef = useCallback(
     (instance: ReactQuill | null) => {
@@ -91,7 +132,7 @@ const MessageEditor = <TFV extends FieldValues, TName extends FieldPath<TFV>>({
         quill.setSelection(index, 0, "silent");
       });
     }
-  }, []);
+  }, [autoFocus]);
 
   return (
     <QuillEditor
@@ -101,17 +142,19 @@ const MessageEditor = <TFV extends FieldValues, TName extends FieldPath<TFV>>({
       placeholder={placeholder}
       editorRef={setEditorRef}
       startAccessory={
-        <Tooltip title="Attach file">
-          <IconButton
-            type="button"
-            className=""
-            onClick={() => {
-              // TODO
-            }}
-          >
-            <AttachFileIcon />
-          </IconButton>
-        </Tooltip>
+        !isEdit && (
+          <Tooltip title="Attach file">
+            <IconButton
+              type="button"
+              className=""
+              onClick={() => {
+                // TODO
+              }}
+            >
+              <AttachFileIcon />
+            </IconButton>
+          </Tooltip>
+        )
       }
       endAccessory={
         <>
@@ -142,6 +185,12 @@ const MessageEditor = <TFV extends FieldValues, TName extends FieldPath<TFV>>({
               <SendIcon />
             </IconButton>
           </Tooltip>
+          <TextCounter
+            value={field.value}
+            maxLength={getMessageContentMaxLength(
+              user.data?.user?.emailVerified
+            )}
+          />
         </>
       }
       onSubmitShortcut={() => {

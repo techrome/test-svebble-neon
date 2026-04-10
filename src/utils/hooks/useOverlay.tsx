@@ -194,7 +194,11 @@ type PopoverInitialProps = Omit<
   onClose?: PopoverProps["onClose"];
 };
 
-export const useLocalPopover = () => {
+type UseLocalPopoverProps = {
+  useTarget?: boolean;
+};
+
+export const useLocalPopover = (props: UseLocalPopoverProps = {}) => {
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const id = useId();
   const isOpen = Boolean(anchorEl);
@@ -214,7 +218,11 @@ export const useLocalPopover = () => {
   const readyComponentRef = useRef<React.FC<PopoverInitialProps> | null>(null);
 
   const openPopover = (e: React.SyntheticEvent<HTMLElement>) => {
-    const trigger = e.currentTarget;
+    const trigger = props.useTarget
+      ? e.target instanceof HTMLElement
+        ? e.target
+        : null
+      : e.currentTarget;
     setAnchorEl((prev) => (prev === trigger ? null : trigger));
   };
 

@@ -17,18 +17,18 @@ const Confirm = (props: Props) => {
         <Button
           size="large"
           variant="contained"
-          color="primary"
-          onClick={props.onConfirm}
-        >
-          Confirm
-        </Button>
-        <Button
-          size="large"
-          variant="contained"
           color="inherit"
           onClick={props.onCancel}
         >
           Cancel
+        </Button>
+        <Button
+          size="large"
+          variant="contained"
+          color="primary"
+          onClick={props.onConfirm}
+        >
+          Confirm
         </Button>
       </HorizontalStack>
     </VerticalStack>

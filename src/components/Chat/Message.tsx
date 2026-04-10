@@ -1,4 +1,5 @@
 import React, {
+  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -22,11 +23,16 @@ import FlagIcon from "@mui/icons-material/Flag";
 import ReplyIcon from "@mui/icons-material/Reply";
 import LinkIcon from "@mui/icons-material/Link";
 import ReplayIcon from "@mui/icons-material/Replay";
+import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
 
 import { trpc, type RouterOutput } from "@/trpc";
 import Button from "@/components/Button/Button";
 import clsx from "clsx";
-import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
+import {
+  defaultPadding,
+  HorizontalStack,
+  VerticalStack,
+} from "@/components/Layout/Containers";
 import UserAvatar from "@/components/Avatar/UserAvatar";
 import { useUser } from "@/trpc/hooks/useUser";
 import { useLocalPopover } from "@/utils/hooks/useOverlay";
@@ -49,6 +55,23 @@ import { useAppSnackbar } from "@/utils/snackbar";
 import { copyToClipboard } from "@/utils/stringUtils";
 import MessageEditor from "@/components/Chat/MessageEditor";
 import { makeMessageUpdateSchemaForm } from "@/utils/validators/client/messages";
+import { useLatest } from "@/utils/hooks/useLatest";
+
+const closestWithin = <T extends HTMLElement>(
+  start: EventTarget | null,
+  selector: string,
+  boundary: HTMLElement
+): T | null => {
+  let node = start instanceof HTMLElement ? start : null;
+
+  while (node) {
+    if (node.matches(selector)) return node as T;
+    if (node === boundary) break;
+    node = node.parentElement;
+  }
+
+  return null;
+};
 
 const hoverChildHiddenClass = "opacity-0 pointer-events-none";
 const hoverChildHoveredClass =
@@ -97,8 +120,11 @@ const Message = ({
 }: Props) => {
   const user = useUser();
   const menuPopover = useLocalPopover();
+  const externalLinkConfirmationPopover = useLocalPopover({ useTarget: true });
+  const staticDependencies = useLatest({ externalLinkConfirmationPopover });
   const isDesktop = useIsDesktop();
   const ref = useRef<HTMLDivElement | null>(null);
+  const editFormRef = useRef<HTMLFormElement | null>(null);
   const { addAppSnackbar } = useAppSnackbar();
 
   const schema = useMemo(
@@ -112,6 +138,7 @@ const Message = ({
   const isFormDirty = form.formState.isDirty;
 
   const [isEdit, setIsEdit] = useState(false);
+  const [pendingExternalLink, setPendingExternalLink] = useState<string>("");
 
   const messagesUpdateMutation = trpc.messages.update.useMutation({
     onSuccess: (...args) => {
@@ -141,6 +168,26 @@ const Message = ({
       form.reset({ content: message.content, id: message.id });
     }
   }, [message, isEdit, form]);
+
+  useEffect(() => {
+    let raf1 = 0;
+    let raf2 = 0;
+
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        editFormRef.current?.scrollIntoView({
+          behavior: "auto",
+          block: "nearest",
+          inline: "nearest",
+        });
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [isEdit]);
 
   const MoreButton = (
     <Tooltip title="More">
@@ -202,7 +249,54 @@ const Message = ({
       message.isFirstMessageOfTheDay,
       totalItems,
     ]);
+
   const shouldDisplayAvatar = Boolean(user.data?.user && !message.isCompact);
+
+  const onHTMLContentClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const boundary = e.currentTarget;
+      const target = e.target;
+      if (!(target instanceof HTMLElement)) return;
+
+      const spoiler = closestWithin<HTMLElement>(target, `[sp="1"]`, boundary);
+
+      if (spoiler) {
+        const isOpen = spoiler.getAttribute("data-spoiler-open") === "1";
+        if (!isOpen) {
+          e.preventDefault();
+          spoiler.setAttribute("data-spoiler-open", "1");
+          return;
+        }
+      }
+      const link = closestWithin<HTMLAnchorElement>(
+        target,
+        `a[href]`,
+        boundary
+      );
+
+      if (link) {
+        const { externalLinkConfirmationPopover } = staticDependencies.current;
+        e.preventDefault();
+
+        setPendingExternalLink(link.href);
+        externalLinkConfirmationPopover.openPopover(e);
+        return;
+      }
+    },
+    [staticDependencies]
+  );
+
+  const messageHTMLContent = useMemo(() => {
+    return (
+      <div
+        className="message-html"
+        dangerouslySetInnerHTML={{
+          __html: message.content,
+        }}
+        onClick={onHTMLContentClick}
+      />
+    );
+  }, [message.content, onHTMLContentClick]);
 
   if (isEdit) {
     return (
@@ -211,6 +305,7 @@ const Message = ({
           className="p-2 bg-mui-action-selected"
           noValidate
           onSubmit={form.handleSubmit(onSubmit)}
+          ref={editFormRef}
         >
           <VerticalStack>
             <MessageEditor
@@ -219,6 +314,7 @@ const Message = ({
               placeholder={`Message`}
               autoFocus
               hideError
+              isEdit
             />
             <HorizontalStack>
               <Button
@@ -264,7 +360,7 @@ const Message = ({
           fullWidth
           wrap={false}
         >
-          <HorizontalStack wrap={false} spacing="xs">
+          <HorizontalStack wrap={false} spacing="xs" addClassName="flex-1">
             <div
               className={clsx(
                 "min-w-12 max-w-12 flex",
@@ -299,7 +395,11 @@ const Message = ({
                 </Tooltip>
               ) : null}
             </div>
-            <VerticalStack spacing="none" fullWidth={false}>
+            <VerticalStack
+              spacing="none"
+              fullWidth={false}
+              addClassName="flex-1"
+            >
               {!message.isCompact && (
                 <HorizontalStack addClassName="items-center" spacing="xs">
                   <Typography>
@@ -317,12 +417,7 @@ const Message = ({
                 component={"div"}
                 className="message-content"
               >
-                <div
-                  className="message-html"
-                  dangerouslySetInnerHTML={{
-                    __html: message.content,
-                  }}
-                />
+                {messageHTMLContent}
                 {updatedAtFull ? (
                   <Tooltip title={updatedAtFull}>
                     <Typography
@@ -495,6 +590,43 @@ const Message = ({
           </MenuList>
         </Paper>
       </menuPopover.ReadyComponent>
+      <externalLinkConfirmationPopover.ReadyComponent>
+        <VerticalStack addClassName={`${defaultPadding} min-w-xs max-w-sm`}>
+          <Typography>
+            You will be navigated to the following address:
+          </Typography>
+          <Typography
+            variant="h6"
+            component={"p"}
+            color="primary"
+            className="text-center max-h-[300px] overflow-y-auto"
+          >
+            {pendingExternalLink}
+          </Typography>
+          <HorizontalStack addClassName="justify-between">
+            <Button
+              variant="contained"
+              color="inherit"
+              onClick={externalLinkConfirmationPopover.closePopover}
+            >
+              Cancel
+            </Button>
+            <a
+              href={pendingExternalLink}
+              rel="noopener noreferrer nofollow"
+              target="_blank"
+            >
+              <Button
+                variant="contained"
+                color="primary"
+                endIcon={<ArrowOutwardIcon />}
+              >
+                Proceed
+              </Button>
+            </a>
+          </HorizontalStack>
+        </VerticalStack>
+      </externalLinkConfirmationPopover.ReadyComponent>
     </div>
   );
 };
