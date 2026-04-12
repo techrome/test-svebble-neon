@@ -95,7 +95,7 @@
     "dayjs": "^1.11.19",
     "dom-serializer": "^3.0.0",
     "dotenv": "^16.4.7",
-    "drizzle-orm": "0.41.0",
+    "drizzle-orm": "0.45.2",
     "drizzle-zod": "0.8.3",
     "emoji-picker-element": "^1.29.1",
     "fuse.js": "^7.1.0",
