@@ -16,7 +16,8 @@ import { useRouter } from "next/router";
 import { trpc } from "@/trpc";
 import Navbar from "@/components/Navbar/Navbar";
 import TopLoader from "@/components/TopLoader/TopLoader";
-import { roboto, theme } from "@/utils/theme";
+import { theme } from "@/utils/theme";
+import { roboto } from "@/utils/font";
 import { store } from "@/redux";
 import GlobalModal from "@/components/Overlays/GlobalModal";
 import GlobalDrawer from "@/components/Overlays/GlobalDrawer";
@@ -27,6 +28,7 @@ import { SnackbarListener } from "@/utils/snackbar";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 
 import "@/styles/global.scss";
+import "react-quill-new/dist/quill.snow.css";
 import { authRoutePrefix, privateRoutePrefix } from "@/utils/routes";
 import { AuthPageWrapper } from "@/components/AuthForm/Helpers";
 import { WebsocketsProvider } from "@/components/WebsocketsProvider/WebsocketsProvider";

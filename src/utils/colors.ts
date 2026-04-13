@@ -5,6 +5,9 @@ export const colorSchemes = {
     palette: {
       primary: { main: "#1976d2" },
       secondary: { main: "#9c27b0" },
+      text: {
+        disabled: "rgba(0, 0, 0, 0.5)",
+      },
     },
   },
   dark: {

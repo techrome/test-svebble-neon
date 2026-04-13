@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import z from "zod";
+import z from "@/utils/zod";
 
 export const throwIfZodError: <TInput>(
   parseResult: z.ZodSafeParseResult<TInput>

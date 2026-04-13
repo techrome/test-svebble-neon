@@ -1,6 +1,6 @@
 import { initTRPC } from "@trpc/server";
 import superJSON from "superjson";
-import z, { ZodError } from "zod";
+import z from "@/utils/zod";
 import { APIError } from "better-auth";
 
 import { isDev } from "@@/scripts/helpers/isDev";
@@ -44,7 +44,7 @@ export const trpc = initTRPC.context<TRPCContext>().create({
           ? error.cause.statusCode
           : shape.data.httpStatus,
         zodError:
-          error.code === "BAD_REQUEST" && error.cause instanceof ZodError
+          error.code === "BAD_REQUEST" && error.cause instanceof z.ZodError
             ? {
                 flattened: z.flattenError(error.cause),
                 tree: z.treeifyError(error.cause),

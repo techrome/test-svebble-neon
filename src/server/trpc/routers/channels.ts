@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "@/utils/zod";
 import { eq, desc, and, sql, isNull } from "drizzle-orm";
 
 import { db } from "../../db/core";

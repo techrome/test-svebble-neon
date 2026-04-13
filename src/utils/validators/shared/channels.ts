@@ -3,7 +3,7 @@ import {
   numericIdSchema,
 } from "@/utils/validators/helpers/custom";
 import { Text } from "@/utils/validators/helpers/text";
-import z from "zod";
+import z from "@/utils/zod";
 
 export const channelCreateSchemaForm = z.object({
   name: Text.Title({ required: true }),

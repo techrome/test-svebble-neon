@@ -1,7 +1,7 @@
 import React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { SubmitHandler, useForm } from "react-hook-form";
-import z from "zod";
+import z from "@/utils/zod";
 
 import {
   HorizontalStack,

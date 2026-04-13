@@ -30,17 +30,11 @@ import {
 } from "react-hook-form";
 import Fuse from "fuse.js";
 import { type Dayjs } from "dayjs";
-import z from "zod";
+import z from "@/utils/zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import clsx from "clsx";
-import NextImage from "next/image";
 
-import {
-  useGlobalDrawer,
-  useGlobalModal,
-  useLocalModal,
-  useLocalPopover,
-} from "@/utils/hooks/useOverlay";
+import { useGlobalDrawer, useLocalPopover } from "@/utils/hooks/useOverlay";
 import {
   HorizontalStack,
   Section,
@@ -71,10 +65,6 @@ import { Text } from "@/utils/validators/helpers/text";
 import { isWithinMinute } from "@/utils/timeUtils";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { zDayjs } from "@/utils/validators/helpers/custom";
-import AuthForm, {
-  AuthType,
-  authTypeMapping,
-} from "@/components/AuthForm/AuthForm";
 import { trpc } from "@/trpc";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { useUser } from "@/trpc/hooks/useUser";
@@ -82,8 +72,8 @@ import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import { useQueryClient } from "@tanstack/react-query";
 import { userLogoutLifecycle } from "@/trpc/helpers/userLifecycle";
 import { env } from "@/utils/env";
-import DefaultAvatar from "@/components/DefaultAvatar/DefaultAvatar";
 import { useAuthModal } from "@/utils/hooks/useAuthModal";
+import UserAvatar from "@/components/Avatar/UserAvatar";
 
 const MotionItem = React.forwardRef<
   React.ComponentRef<typeof motion.div>,
@@ -142,22 +132,7 @@ export const AuthButtons = (props: {
               wrap={false}
               addClassName="items-center justify-center"
             >
-              <div className="relative w-12 h-12 rounded-full">
-                {user.data.user.image ? (
-                  <NextImage
-                    className="rounded-full"
-                    src={`${env.NEXT_PUBLIC_CDN_URL}/${user.data.user.image}`}
-                    alt="user-avatar"
-                    fill
-                    unoptimized
-                  />
-                ) : (
-                  <DefaultAvatar
-                    name={user.data.user.username}
-                    seed={user.data.user.id}
-                  />
-                )}
-              </div>
+              <UserAvatar user={user.data.user} size="md" />
               <div>
                 <Typography variant="body1">
                   <strong>{user.data.user.name}</strong>
@@ -388,7 +363,7 @@ const filterSchemaForm = z
     if (v.startDate && v.endDate && v.endDate.isBefore(v.startDate)) {
       ctx.addIssue({
         code: "custom",
-        path: ["endDate"],
+        path: ["endDate"] satisfies (keyof typeof v)[],
         message: "To (time) must be after From (time)",
       });
     }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import z from "zod";
+import z from "@/utils/zod";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import ErrorIcon from "@mui/icons-material/Error";
 import { CircularProgress, Typography } from "@mui/material";
@@ -125,6 +125,7 @@ const ResetPassword = () => {
                 />
                 <PasswordStrengthMeter
                   form={form}
+                  name="password"
                   passwordFieldWasFocused={passwordFieldWasFocused}
                 />
               </div>

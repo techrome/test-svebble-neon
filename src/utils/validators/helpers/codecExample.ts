@@ -1,5 +1,5 @@
 /* eslint-disable */
-import z from "zod";
+import z from "@/utils/zod";
 
 import dayjs from "@/utils/dayjs";
 import { Text } from "@/utils/validators/helpers/text";

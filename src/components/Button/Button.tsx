@@ -18,7 +18,7 @@ const Button = ({ children, isLoading, ...props }: Props) => {
       </div>
 
       {isLoading && (
-        <div className="absolute inset-0 flex justify-center items-center text-[var(--mui-palette-text-primary)]">
+        <div className="absolute inset-0 flex justify-center items-center text-mui-text-primary">
           <CircularProgress size={20} color="inherit" />
         </div>
       )}

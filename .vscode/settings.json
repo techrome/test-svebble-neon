@@ -15,7 +15,8 @@
   "javascript.preferences.importModuleSpecifier": "non-relative",
   "typescript.preferences.autoImportSpecifierExcludeRegexes": [
     "^@/server/",
-    "^src/server/"
+    "^src/server/",
+    "^zod$"
   ],
   "javascript.preferences.autoImportSpecifierExcludeRegexes": [
     "^@/server/",

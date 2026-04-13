@@ -1,5 +1,5 @@
 import React from "react";
-import z from "zod";
+import z from "@/utils/zod";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import { Typography } from "@mui/material";
 import { SubmitHandler, useForm } from "react-hook-form";

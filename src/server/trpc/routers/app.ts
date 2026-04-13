@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "@/utils/zod";
 
 import { router } from "../core";
 import { publicProcedureSSRDefaultRateLimit } from "../procedures";

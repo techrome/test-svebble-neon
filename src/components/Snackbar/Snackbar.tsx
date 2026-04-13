@@ -63,7 +63,7 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
       severity={props.variant}
       className={
         props.isSystemNotification && !props.isRead
-          ? "border border-(--mui-palette-warning-main)"
+          ? "border border-mui-warning-main"
           : ""
       }
       {...eventHandlers}

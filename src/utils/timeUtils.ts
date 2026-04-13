@@ -17,5 +17,15 @@ export const isWithinPeriod = (
   diff: number
 ) => Math.abs(a.diff(b, unit, true)) <= diff;
 
+// faster alternative for hot paths
+export const isWithinMs = (a: Date, b: Date, diff: number) =>
+  Math.abs(a.getTime() - b.getTime()) <= diff;
+
+// faster alternative for hot paths
+export const isSameDay = (a: Date, b: Date) =>
+  a.getDate() === b.getDate() &&
+  a.getMonth() === b.getMonth() &&
+  a.getFullYear() === b.getFullYear();
+
 export const isWithinMinute = (a: Dayjs, b: Dayjs) =>
   isWithinPeriod(a, b, "minute", 1);

@@ -6,25 +6,26 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { type GetStaticProps } from "next";
 import Button from "@/components/Button/Button";
 import clsx from "clsx";
-import ViewListIcon from "@mui/icons-material/ViewList";
 import PersonIcon from "@mui/icons-material/Person";
 import { Paper, Typography } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
-import EmojiEmotionsIcon from "@mui/icons-material/EmojiEmotions";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import ReplayIcon from "@mui/icons-material/Replay";
+import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import debounce from "lodash/debounce";
-import z from "zod";
-import { getQueryKey } from "@trpc/react-query";
+import z from "@/utils/zod";
+import { getQueryKey, type TRPCClientErrorLike } from "@trpc/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { useRouter } from "next/router";
 
-import { utils as serverUtils } from "@/server";
 import { type RouterInput, RouterOutput, trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
-import { Comment } from "@/components/CommentsList/CommentsList";
+import MessageComponent, {
+  type RenderedMessage,
+  type Message,
+} from "@/components/Chat/Message";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import {
   useGlobalDrawer,
@@ -32,23 +33,20 @@ import {
   useLocalDrawer,
   useLocalModal,
 } from "@/utils/hooks/useOverlay";
-import {
-  defaultPadding,
-  HorizontalStack,
-  Section,
-  VerticalStack,
-} from "@/components/Layout/Containers";
+import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
 import { useAppSnackbar } from "@/utils/snackbar";
-import { CACHE_TIME_MS, seconds } from "@/utils/cacheTime";
+import { CACHE_TIME_MS, minutes, seconds } from "@/utils/cacheTime";
 import IconButton from "@/components/Button/IconButton";
 import Tooltip from "@/components/Tooltip/Tooltip";
-import { SectionWrapper } from "@/pages/app/my-profile";
-import { Divider } from "@/components/Layout/Dividers";
 import { userLoginLifecycle } from "@/trpc/helpers/userLifecycle";
-import { InfiniteData, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  type UseInfiniteQueryOptions,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { Text } from "@/utils/validators/helpers/text";
 import { useUser } from "@/trpc/hooks/useUser";
-import { SubmitHandler, useForm } from "react-hook-form";
+import { Controller, SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Input from "@/components/Fields/Input";
 import { type AppPage } from "@/pages/_app";
@@ -56,124 +54,43 @@ import { useAuthModal } from "@/utils/hooks/useAuthModal";
 import {
   type MessageCreateFormValues,
   makeMessageCreateSchemaForm,
-} from "@/utils/validators/shared/messages";
-import { useRouter } from "next/router";
+} from "@/utils/validators/client/messages";
 import { getRouterQueryValue } from "@/utils/query";
 import {
   getChannelId,
   subscribeWs,
   type WebsocketPayload,
   type WebsocketItem,
+  type MessageSerializable,
 } from "@/trpc/helpers/websockets";
 import ChannelListWrapper from "@/components/Chat/ChannelList";
-import Skeleton from "@/components/Skeleton/Skeleton";
-import { useScreenHeight } from "@/utils/hooks/useScreenHeight";
-import { useEffectAfterMount } from "@/utils/hooks/useEffectAfterMount";
 import { numericIdQuerySchemaRaw } from "@/utils/validators/helpers/custom";
 import { TermsLabel } from "@/components/AuthForm/Helpers";
 import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider";
+import { MessagesSkeleton } from "@/components/Chat/MessagesSkeleton";
+import { isSameDay, isWithinMs } from "@/utils/timeUtils";
+import ReportMessageForm from "@/components/Chat/ReportMessageForm";
+import ChannelHeader from "@/components/Chat/ChannelHeader";
+import type { AppRouter } from "@/server";
+import MessageEditor from "@/components/Chat/MessageEditor";
 
-type Options = {
-  root?: Element | null;
-  rootMargin?: string;
-  threshold?: number;
-  enabled?: boolean;
-};
-
-export function useOnEnterView(
-  onIntersectionChange: (isVisible: boolean) => void,
-  {
-    root = null,
-    rootMargin = "0px",
-    threshold = 0,
-    enabled = true,
-  }: Options = {}
-) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const onIntersectionChangeRef = useRef(onIntersectionChange);
-  // eslint-disable-next-line
-  onIntersectionChangeRef.current = onIntersectionChange;
-
-  useEffect(() => {
-    if (!enabled) return;
-    const el = ref.current;
-    if (!el) return;
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        onIntersectionChangeRef.current(entry.isIntersecting);
-      },
-      { root, rootMargin, threshold }
-    );
-
-    io.observe(el);
-
-    return () => io.disconnect();
-  }, [enabled, root, rootMargin, threshold]);
-
-  return ref;
-}
+const deserializeMessage = (
+  serializedMessage: MessageSerializable
+): Message => ({
+  ...serializedMessage,
+  created_at: new Date(serializedMessage.created_at),
+  updated_at: new Date(serializedMessage.updated_at),
+  id: BigInt(serializedMessage.id),
+  channel_id: BigInt(serializedMessage.channel_id),
+});
 
 const BASE_INDEX = 1_000_000_000;
 const PER_PAGE = 50;
 const MAX_PAGES = 5;
-
-const SKELETON_CONFIG = {
-  AVG_ROW_HEIGHT_PX: 80,
-  MIN_ROWS: 1,
-  MAX_ROWS: 60,
-  WIDTHS: [0.35, 0.55, 0.7, 0.42, 0.62, 0.48, 0.8],
-} as const;
-
-const emptyFunc = () => {};
-
-const MessagesSkeleton = ({
-  scrollerEl,
-  onIntersectionChange,
-  fullHeight,
-}: {
-  scrollerEl?: HTMLElement | null;
-  onIntersectionChange?: (isVisible: boolean) => void;
-  fullHeight?: boolean;
-}) => {
-  const screenHeight = useScreenHeight();
-
-  const rowCount = useMemo(() => {
-    const rawCount = Math.ceil(
-      screenHeight / (fullHeight ? 1 : 2) / SKELETON_CONFIG.AVG_ROW_HEIGHT_PX
-    );
-    return Math.min(
-      SKELETON_CONFIG.MAX_ROWS,
-      Math.max(SKELETON_CONFIG.MIN_ROWS, rawCount)
-    );
-  }, [screenHeight, fullHeight]);
-
-  const onIntersectionChangeCallback = onIntersectionChange || emptyFunc;
-  const ref = useOnEnterView(onIntersectionChangeCallback, {
-    root: scrollerEl,
-    enabled: Boolean(onIntersectionChange),
-    rootMargin: "200px 0px",
-    threshold: 0,
-  });
-
-  return (
-    <div className="p-2" ref={ref}>
-      {Array.from({ length: rowCount }).map((_, i) => {
-        const widthPercent =
-          100 * SKELETON_CONFIG.WIDTHS[i % SKELETON_CONFIG.WIDTHS.length];
-        return (
-          <HorizontalStack key={i} addClassName="items-center">
-            <Skeleton variant="circular" height={50} width={50} />
-            <Skeleton
-              height={SKELETON_CONFIG.AVG_ROW_HEIGHT_PX}
-              width={`${widthPercent}%`}
-            />
-          </HorizontalStack>
-        );
-      })}
-    </div>
-  );
-};
+const COMPACT_GAP_MS = minutes(5);
+const MAX_GROUP_AGE_MS = minutes(20);
+const MAX_GROUP_MESSAGES = 15;
+const FETCH_MORE_THRESHOLD = 1;
 
 const searchSchemaForm = z.object({
   text: Text.Long(),
@@ -181,16 +98,47 @@ const searchSchemaForm = z.object({
 
 type SearchFormValues = z.infer<typeof searchSchemaForm>;
 
-type MessageQueryOptions = Parameters<
-  typeof trpc.messages.get.useInfiniteQuery
->[1];
+const checkShouldCollapseMessage = (
+  prevMessage: Message | RenderedMessage | undefined,
+  message: Message | RenderedMessage
+) => {
+  return Boolean(
+    prevMessage &&
+      prevMessage.user_id === message.user_id &&
+      isWithinMs(message.created_at, prevMessage.created_at, minutes(5))
+  );
+};
 
-type Message = RouterOutput["messages"]["get"]["items"][number];
+type MessagesGetInput = RouterInput["messages"]["get"];
+type MessagesGetOutput = RouterOutput["messages"]["get"];
+type MessagesCursor = MessagesGetInput["cursor"];
+type MessagesError = TRPCClientErrorLike<AppRouter>;
+type MessagesQueryKey = ReturnType<typeof getQueryKey>;
+type MessagesSelectedData = InfiniteData<MessagesGetOutput, MessagesCursor> & {
+  items: RenderedMessage[];
+};
 
+type MessagesInfiniteQueryOptionsInitial = UseInfiniteQueryOptions<
+  MessagesGetOutput,
+  MessagesError,
+  MessagesSelectedData,
+  MessagesQueryKey,
+  MessagesCursor
+>;
+
+type MessagesInfiniteQueryOptions = Omit<
+  MessagesInfiniteQueryOptionsInitial,
+  | "queryKey"
+  | "queryFn"
+  | "initialPageParam"
+  | "getPreviousPageParam"
+  | "getNextPageParam"
+  | "select"
+>;
 const messageQuerySelectors = {
   getPreviousPageParam: (firstPage, _, firstPageParam) => {
     if (firstPage.returnedDirection === "backward") {
-      return firstPage.items.length === PER_PAGE
+      return firstPage.items.length >= PER_PAGE
         ? { id: firstPage.items[0].id, direction: "backward" }
         : undefined;
     } else {
@@ -206,7 +154,7 @@ const messageQuerySelectors = {
   getNextPageParam: (lastPage, _, lastPageParam) => {
     if (lastPage.isLatest) return undefined;
     if (lastPage.returnedDirection === "forward") {
-      return lastPage.items.length === PER_PAGE
+      return lastPage.items.length >= PER_PAGE
         ? {
             id: lastPage.items[lastPage.items.length - 1].id,
             direction: "forward",
@@ -223,28 +171,121 @@ const messageQuerySelectors = {
         : undefined;
     }
   },
-  select: (data) => ({
-    ...data,
-    items: data.pages.flatMap((p) => p.items),
-  }),
-} satisfies NonNullable<MessageQueryOptions>;
+  select: (data) => {
+    let items: (Message &
+      Pick<RenderedMessage, "isCompact" | "isFirstMessageOfTheDay">)[] = [];
+
+    // collapsing messages by the same user within a short period of time
+    // while having sane limits on how many messages can be collapsed consecutively
+    let groupStartCreatedAt: Date | undefined;
+    let groupMessageCount = 0;
+    for (let pageIndex = 0; pageIndex < data.pages.length; pageIndex++) {
+      const page = data.pages[pageIndex];
+      for (let itemIndex = 0; itemIndex < page.items.length; itemIndex++) {
+        const prevPage = data.pages[pageIndex - 1];
+        const prevMessage =
+          itemIndex === 0 && prevPage
+            ? prevPage.items[prevPage.items.length - 1]
+            : page.items[itemIndex - 1];
+        const message = page.items[itemIndex];
+
+        const isFirstMessageOfTheDay =
+          !prevMessage ||
+          !isSameDay(message.created_at, prevMessage.created_at);
+
+        const continuesPreviousGroup =
+          !isFirstMessageOfTheDay &&
+          !!prevMessage &&
+          prevMessage.user_id === message.user_id &&
+          isWithinMs(
+            message.created_at,
+            prevMessage.created_at,
+            COMPACT_GAP_MS
+          ) &&
+          !!groupStartCreatedAt &&
+          isWithinMs(
+            message.created_at,
+            groupStartCreatedAt,
+            MAX_GROUP_AGE_MS
+          ) &&
+          groupMessageCount < MAX_GROUP_MESSAGES;
+
+        if (continuesPreviousGroup) {
+          groupMessageCount += 1;
+          items.push({ ...message, isCompact: true });
+        } else {
+          groupStartCreatedAt = message.created_at;
+          groupMessageCount = 1;
+          if (isFirstMessageOfTheDay) {
+            items.push({ ...message, isFirstMessageOfTheDay: true });
+          } else {
+            items.push(message);
+          }
+        }
+      }
+    }
+
+    return {
+      ...data,
+      items,
+    };
+  },
+} satisfies Pick<
+  MessagesInfiniteQueryOptionsInitial,
+  "getPreviousPageParam" | "getNextPageParam" | "select"
+>;
+
+// doing all this to properly modify data before it hits cache
+const useMessagesGet = (
+  input: MessagesGetInput,
+  options?: MessagesInfiniteQueryOptions
+) => {
+  const utils = trpc.useUtils();
+
+  return useInfiniteQuery<
+    MessagesGetOutput,
+    MessagesError,
+    MessagesSelectedData,
+    MessagesQueryKey,
+    MessagesCursor
+  >({
+    initialPageParam: input.cursor,
+    ...options,
+    ...messageQuerySelectors,
+    queryKey: getQueryKey(trpc.messages.get, input, "infinite"),
+    queryFn: async ({ pageParam, signal }) => {
+      const page = await utils.client.messages.get.query(
+        {
+          ...input,
+          cursor: pageParam,
+        },
+        { signal }
+      );
+      if (page.returnedDirection === "backward") {
+        page.items.reverse();
+      }
+      return page;
+    },
+  });
+};
 
 const baseIntervalMs = Number(seconds(5));
+const maxIntervalMs = Number(seconds(30));
 
 type SyncMode = "polling" | "ws-syncing" | "ws-live";
 
 const syncModeMapping = {
   polling: {
     label: "refetching periodically",
-    className: "bg-[var(--mui-palette-warning-main)]",
+    className: "bg-mui-warning-main",
   },
   "ws-syncing": {
     label: "syncing",
-    className: "bg-[var(--mui-palette-info-main)]",
+    className: "bg-mui-info-main",
   },
   "ws-live": {
     label: "live",
-    className: "bg-[var(--mui-palette-success-main)]",
+    className: "bg-mui-success-main",
   },
 } as const satisfies Record<SyncMode, { label: string; className: string }>;
 
@@ -252,9 +293,9 @@ type Props = {
   channel: RouterOutput["channels"]["get"]["items"][number];
 };
 
-const ChannelInner = ({ channel }: Props) => {
+const MessageListOrchestrator = ({ channel }: Props) => {
   const localModal = useLocalModal();
-  const { closeModal, openModal } = useGlobalModal();
+  const globalModal = useGlobalModal();
   const localDrawer = useLocalDrawer();
   const { openDrawer, closeDrawer } = useGlobalDrawer();
   const { addAppSnackbar, dismissAllAppSnackbars } = useAppSnackbar();
@@ -292,64 +333,64 @@ const ChannelInner = ({ channel }: Props) => {
   const wasRefetching = useRef<boolean>(false);
   const userInteractedRef = useRef(false);
 
-  const [isIdle, setIsIdle] = useState(false);
+  const [isIdleTrigger, setIsIdleTrigger] = useState(0);
   const [isInitialScrollHandled, setIsInitialScrollHandled] =
     useState<boolean>(true);
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
     useState<boolean>(false);
   const hasCompletedFirstInit = useRef<boolean>(false);
   const hasStartedWsSyncRefetch = useRef<boolean>(false);
-
+  const nextOptimisticIdRef = useRef<bigint>(BigInt(-1));
   // gating initial load to avoid unnecessary refetch when waiting for websockets
   // in most cases it should be: ws connected -> start fetching initial page
   const [initialGateOpenedReason, setInitialGateOpenedReason] = useState<
-    "fallback" | "websockets" | null
+    "default" | "websockets" | null
   >(null);
   const isInitialGateOpened = Boolean(initialGateOpenedReason);
   const initialTimerToOpenGateRef = useRef<ReturnType<
     typeof setTimeout
   > | null>(null);
+  const isIdleRef = useRef<boolean>(false);
+  const fetchMoreTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [isQueryBootstrapping, setIsQueryBootstrapping] = useState<
-    boolean | null
-  >(null); // null for initial render before router is ready
+  const [isPreparingQuery, setIsPreparingQuery] = useState<boolean | null>(
+    null
+  ); // null for initial render before router is ready
   const [syncMode, setSyncMode] = useState<SyncMode>("polling");
   const [wsSyncFailedCount, setWsSyncFailedCount] = useState<number>(0);
-  const [messagesQueryKey, setMessagesQueryKey] = useState<
-    RouterInput["messages"]["get"]
-  >({ limit: PER_PAGE, channelId: channelIdString });
-
+  const [messagesQueryKey, setMessagesQueryKey] = useState<MessagesGetInput>({
+    limit: PER_PAGE,
+    channelId: channelIdString,
+  });
+  const isWsConnectedRef = useRef<boolean>(false);
   const isPolling = syncMode === "polling";
   const isWsSyncing = syncMode === "ws-syncing";
   const isWsLive = syncMode === "ws-live";
 
-  const isWsConnectedRef = useRef<boolean>(false);
+  const [optimisticMessages, setOptimisticMessages] = useState<
+    RenderedMessage[]
+  >([]);
 
   const refetchIntervalVars = useRef<{
     dataBefore:
       | Parameters<
-          Exclude<
-            NonNullable<MessageQueryOptions>["refetchInterval"],
-            number | boolean | undefined
+          Extract<
+            MessagesInfiniteQueryOptions["refetchInterval"],
+            (...args: never[]) => unknown
           >
         >[0]["state"]["data"]
       | undefined;
     currentIntervalMs: number;
-    maxIntervalMs: number;
-    intervalStepMs: number;
     wasFetching: boolean;
   }>({
     dataBefore: undefined,
     currentIntervalMs: baseIntervalMs,
-    maxIntervalMs: Number(seconds(30)),
-    intervalStepMs: baseIntervalMs,
     wasFetching: false,
   });
 
   const messages = useAppQuery(
-    trpc.messages.get.useInfiniteQuery(messagesQueryKey, {
-      enabled: isQueryBootstrapping === false && isInitialGateOpened,
-      ...messageQuerySelectors,
+    useMessagesGet(messagesQueryKey, {
+      enabled: isPreparingQuery === false && isInitialGateOpened,
       refetchInterval(query) {
         const vars = refetchIntervalVars.current;
         if (query.state.error || !isPolling) {
@@ -365,10 +406,7 @@ const ChannelInner = ({ channel }: Props) => {
         if (!isFetching && vars.wasFetching) {
           vars.currentIntervalMs =
             vars.dataBefore === query.state.data
-              ? Math.min(
-                  vars.maxIntervalMs,
-                  vars.currentIntervalMs + vars.intervalStepMs
-                )
+              ? Math.min(maxIntervalMs, vars.currentIntervalMs + baseIntervalMs)
               : baseIntervalMs;
         }
 
@@ -454,46 +492,199 @@ const ChannelInner = ({ channel }: Props) => {
     firstItemIndex !== null &&
     initialTopMostItemIndex !== -1;
 
-  const { highestLoadedId, lowestLoadedId } = useMemo(() => {
-    if (!messages.data?.items.length) {
-      return {
-        highestLoadedId: null,
-        lowestLoadedId: null,
+  const websocketsMessageQueue = useRef<WebsocketItem[]>([]);
+
+  const appendMessage = (message: Message, newMessagesVersion: bigint) => {
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      if (!queryData || !queryData.pages.length || messages.hasNextPage) {
+        return queryData;
+      }
+      let updatedPages = [...queryData.pages];
+
+      updatedPages[updatedPages.length - 1] = {
+        ...updatedPages[updatedPages.length - 1],
+        items: [...updatedPages[updatedPages.length - 1].items, message],
+        messages_version: newMessagesVersion,
       };
-    }
-    return {
-      highestLoadedId: messages.data.items[messages.data.items.length - 1].id,
-      lowestLoadedId: messages.data.items[0].id,
-    };
-  }, [messages.data?.items]);
 
-  const websocketsDependencies = useRef({
-    messagesQueryKey,
-    highestLoadedId,
-    lowestLoadedId,
-    firstItemIndex,
-    messages,
-    isPolling,
-    isWsSyncing,
-    handleNewMessagesVersion,
-    utils,
-    initialGateOpenedReason,
-  });
+      const shouldCreateNewPage =
+        updatedPages[updatedPages.length - 1].items.length >= PER_PAGE;
 
-  websocketsDependencies.current = {
-    messagesQueryKey,
-    highestLoadedId,
-    lowestLoadedId,
-    firstItemIndex,
-    messages,
-    isPolling,
-    isWsSyncing,
-    handleNewMessagesVersion,
-    utils,
-    initialGateOpenedReason,
+      if (shouldCreateNewPage) {
+        updatedPages.push({
+          items: [],
+          returnedDirection: "forward",
+          messages_version: newMessagesVersion,
+        });
+        let updatedPageParams = [...queryData.pageParams];
+        updatedPageParams.push({
+          id: message.id,
+          direction: "forward",
+        });
+
+        return {
+          ...queryData,
+          pages: updatedPages,
+          pageParams: updatedPageParams,
+        };
+      }
+
+      return { ...queryData, pages: updatedPages };
+    });
   };
 
-  const websocketsMessageQueue = useRef<WebsocketItem[]>([]);
+  const editMessage = (message: Message, newMessagesVersion: bigint) => {
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      const pagesCount = queryData?.pages.length;
+      if (!queryData || !pagesCount) return queryData;
+
+      const itemToUpdateId = BigInt(message.id);
+      const firstPage = queryData.pages[0];
+      const lastNonEmptyPage = queryData.pages[pagesCount - 1].items.length
+        ? queryData.pages[pagesCount - 1]
+        : queryData.pages[pagesCount - 2];
+
+      const lowestLoadedId = firstPage.items[0]?.id;
+      const highestLoadedId =
+        lastNonEmptyPage?.items?.[lastNonEmptyPage?.items?.length - 1]?.id;
+
+      if (
+        !lowestLoadedId ||
+        !highestLoadedId ||
+        itemToUpdateId < lowestLoadedId ||
+        itemToUpdateId > highestLoadedId
+      ) {
+        return queryData;
+      }
+
+      let updatedPages = [...queryData.pages];
+      for (let i = 0; i < updatedPages.length; i++) {
+        const page = updatedPages[i];
+        const foundItemIndex = page.items.findIndex(
+          (m) => m.id === itemToUpdateId
+        );
+        if (foundItemIndex >= 0) {
+          let updatedItems = [...page.items];
+          updatedItems[foundItemIndex] = {
+            ...message,
+            id: itemToUpdateId,
+          };
+
+          updatedPages[i] = {
+            ...updatedPages[i],
+            items: updatedItems,
+            messages_version: newMessagesVersion,
+          };
+          return { ...queryData, pages: updatedPages };
+        }
+      }
+      return queryData;
+    });
+  };
+
+  const deleteMessage = (
+    itemToDeleteId: bigint,
+    newMessagesVersion: bigint
+  ) => {
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      const pagesCount = queryData?.pages.length;
+      if (!queryData || !pagesCount) return queryData;
+
+      const firstNonEmptyPage = queryData.pages[0].items.length
+        ? queryData.pages[0]
+        : queryData.pages[1];
+      const lastNonEmptyPage = queryData.pages[pagesCount - 1].items.length
+        ? queryData.pages[pagesCount - 1]
+        : queryData.pages[pagesCount - 2];
+
+      const lowestLoadedId = firstNonEmptyPage?.items[0]?.id;
+      const highestLoadedId =
+        lastNonEmptyPage?.items?.[lastNonEmptyPage?.items?.length - 1]?.id;
+
+      if (
+        !lowestLoadedId ||
+        !highestLoadedId ||
+        itemToDeleteId < lowestLoadedId ||
+        itemToDeleteId > highestLoadedId
+      ) {
+        return queryData;
+      }
+
+      let updatedPages = [...queryData.pages];
+      let updatedPageParams = [...queryData.pageParams];
+
+      let targetMessageGlobalIndex = firstItemIndex || 0;
+      for (let i = 0; i < updatedPages.length; i++) {
+        const page = updatedPages[i];
+        const foundItemIndex = page.items.findIndex(
+          (m) => m.id === itemToDeleteId
+        );
+        if (foundItemIndex < 0) {
+          targetMessageGlobalIndex += page.items.length;
+          continue;
+        }
+
+        targetMessageGlobalIndex += foundItemIndex;
+        const visibleGlobalStartIndex =
+          visibleRangeRef.current?.visibleStartIndex || 0;
+        const isTargetMessageAboveViewport =
+          targetMessageGlobalIndex < visibleGlobalStartIndex;
+
+        let updatedItems = [...page.items];
+        updatedItems.splice(foundItemIndex, 1);
+        if (!updatedItems.length && i !== updatedPages.length - 1) {
+          updatedPages.splice(i, 1);
+          updatedPageParams.splice(i, 1);
+        } else {
+          updatedPages[i] = {
+            ...updatedPages[i],
+            items: updatedItems,
+            messages_version: newMessagesVersion,
+          };
+        }
+        if (isTargetMessageAboveViewport) {
+          setFirstItemIndex((prev) => (prev !== null ? prev + 1 : prev));
+        }
+
+        break;
+      }
+      return {
+        ...queryData,
+        pages: updatedPages,
+        pageParams: updatedPageParams,
+      };
+    });
+  };
+
+  const dependencies = useRef({
+    messagesQueryKey,
+    firstItemIndex,
+    messages,
+    isPolling,
+    isWsSyncing,
+    handleNewMessagesVersion,
+    utils,
+    initialGateOpenedReason,
+    isIdleTrigger,
+    appendMessage,
+    editMessage,
+    deleteMessage,
+  });
+
+  dependencies.current = {
+    messagesQueryKey,
+    firstItemIndex,
+    messages,
+    isPolling,
+    isWsSyncing,
+    handleNewMessagesVersion,
+    utils,
+    initialGateOpenedReason,
+    isIdleTrigger,
+    appendMessage,
+    editMessage,
+    deleteMessage,
+  };
 
   const wsMessageCreateHandler = useCallback(
     (
@@ -501,13 +692,12 @@ const ChannelInner = ({ channel }: Props) => {
       isApplyingBufferedEvents?: boolean
     ) => {
       const {
-        messagesQueryKey,
         isPolling,
         isWsSyncing,
         messages,
         handleNewMessagesVersion,
-        utils,
-      } = websocketsDependencies.current;
+        appendMessage,
+      } = dependencies.current;
       const message = data.message;
       const newMessagesVersion = BigInt(data.messagesVersion);
       if (isPolling) return;
@@ -533,49 +723,7 @@ const ChannelInner = ({ channel }: Props) => {
         }
       }
 
-      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-        if (!queryData || !queryData.pages.length || messages.hasNextPage) {
-          return queryData;
-        }
-        let updatedPages = [...queryData.pages];
-        const newMessage: Message = {
-          ...message,
-          created_at: new Date(message.created_at),
-          updated_at: new Date(message.updated_at),
-          id: BigInt(message.id),
-          channel_id: BigInt(message.channel_id),
-        };
-
-        updatedPages[updatedPages.length - 1] = {
-          ...updatedPages[updatedPages.length - 1],
-          items: [...updatedPages[updatedPages.length - 1].items, newMessage],
-          messages_version: newMessagesVersion,
-        };
-
-        const shouldCreateNewPage =
-          updatedPages[updatedPages.length - 1].items.length >= PER_PAGE;
-
-        if (shouldCreateNewPage) {
-          updatedPages.push({
-            items: [],
-            returnedDirection: "forward",
-            messages_version: newMessagesVersion,
-          });
-          let updatedPageParams = [...queryData.pageParams];
-          updatedPageParams.push({
-            id: newMessage.id,
-            direction: "forward",
-          });
-
-          return {
-            ...queryData,
-            pages: updatedPages,
-            pageParams: updatedPageParams,
-          };
-        }
-
-        return { ...queryData, pages: updatedPages };
-      });
+      appendMessage(deserializeMessage(message), newMessagesVersion);
     },
     []
   );
@@ -587,13 +735,8 @@ const ChannelInner = ({ channel }: Props) => {
     ) => {
       const message = data.message;
 
-      const {
-        messagesQueryKey,
-        isWsSyncing,
-        isPolling,
-        handleNewMessagesVersion,
-        utils,
-      } = websocketsDependencies.current;
+      const { isWsSyncing, isPolling, handleNewMessagesVersion, editMessage } =
+        dependencies.current;
       const newMessagesVersion = BigInt(data.messagesVersion);
       if (isPolling) return;
       if (isWsSyncing && !isApplyingBufferedEvents) {
@@ -609,55 +752,7 @@ const ChannelInner = ({ channel }: Props) => {
         return;
       }
 
-      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-        const pagesCount = queryData?.pages.length;
-        if (!queryData || !pagesCount) return queryData;
-
-        const itemToUpdateId = BigInt(message.id);
-        const firstPage = queryData.pages[0];
-        const lastNonEmptyPage = queryData.pages[pagesCount - 1].items.length
-          ? queryData.pages[pagesCount - 1]
-          : queryData.pages[pagesCount - 2];
-
-        const lowestLoadedId = firstPage.items[0]?.id;
-        const highestLoadedId =
-          lastNonEmptyPage?.items?.[lastNonEmptyPage?.items?.length - 1]?.id;
-
-        if (
-          !lowestLoadedId ||
-          !highestLoadedId ||
-          itemToUpdateId < lowestLoadedId ||
-          itemToUpdateId > highestLoadedId
-        ) {
-          return queryData;
-        }
-
-        let updatedPages = [...queryData.pages];
-        for (let i = 0; i < updatedPages.length; i++) {
-          const page = updatedPages[i];
-          const foundItemIndex = page.items.findIndex(
-            (m) => m.id === itemToUpdateId
-          );
-          if (foundItemIndex >= 0) {
-            let updatedItems = [...page.items];
-            updatedItems[foundItemIndex] = {
-              ...message,
-              created_at: new Date(message.created_at),
-              updated_at: new Date(message.updated_at),
-              id: itemToUpdateId,
-              channel_id: BigInt(message.channel_id),
-            };
-
-            updatedPages[i] = {
-              ...updatedPages[i],
-              items: updatedItems,
-              messages_version: newMessagesVersion,
-            };
-            return { ...queryData, pages: updatedPages };
-          }
-        }
-        return queryData;
-      });
+      editMessage(deserializeMessage(message), newMessagesVersion);
     },
     []
   );
@@ -670,13 +765,11 @@ const ChannelInner = ({ channel }: Props) => {
       const message = data.message;
       const itemToDeleteId = BigInt(message.id);
       const {
-        firstItemIndex,
-        messagesQueryKey,
         isWsSyncing,
         isPolling,
         handleNewMessagesVersion,
-        utils,
-      } = websocketsDependencies.current;
+        deleteMessage,
+      } = dependencies.current;
       const newMessagesVersion = BigInt(data.messagesVersion);
       if (isPolling) return;
       if (isWsSyncing && !isApplyingBufferedEvents) {
@@ -692,78 +785,21 @@ const ChannelInner = ({ channel }: Props) => {
         return;
       }
 
-      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-        const pagesCount = queryData?.pages.length;
-        if (!queryData || !pagesCount) return queryData;
-
-        const itemToUpdateId = BigInt(message.id);
-        const firstNonEmptyPage = queryData.pages[0].items.length
-          ? queryData.pages[0]
-          : queryData.pages[1];
-        const lastNonEmptyPage = queryData.pages[pagesCount - 1].items.length
-          ? queryData.pages[pagesCount - 1]
-          : queryData.pages[pagesCount - 2];
-
-        const lowestLoadedId = firstNonEmptyPage.items[0]?.id;
-        const highestLoadedId =
-          lastNonEmptyPage?.items?.[lastNonEmptyPage?.items?.length - 1]?.id;
-
-        if (
-          !lowestLoadedId ||
-          !highestLoadedId ||
-          itemToUpdateId < lowestLoadedId ||
-          itemToUpdateId > highestLoadedId
-        ) {
-          return queryData;
-        }
-
-        let updatedPages = [...queryData.pages];
-        let updatedPageParams = [...queryData.pageParams];
-
-        let targetMessageGlobalIndex = firstItemIndex || 0;
-        for (let i = 0; i < updatedPages.length; i++) {
-          const page = updatedPages[i];
-          const foundItemIndex = page.items.findIndex(
-            (m) => m.id === itemToDeleteId
-          );
-          if (foundItemIndex < 0) {
-            targetMessageGlobalIndex += page.items.length;
-            continue;
-          }
-
-          targetMessageGlobalIndex += foundItemIndex;
-          const visibleGlobalStartIndex =
-            visibleRangeRef.current?.visibleStartIndex || 0;
-          const isTargetMessageAboveViewport =
-            targetMessageGlobalIndex < visibleGlobalStartIndex;
-
-          let updatedItems = [...page.items];
-          updatedItems.splice(foundItemIndex, 1);
-          if (!updatedItems.length && i !== updatedPages.length - 1) {
-            updatedPages.splice(i, 1);
-            updatedPageParams.splice(i, 1);
-          } else {
-            updatedPages[i] = {
-              ...updatedPages[i],
-              items: updatedItems,
-              messages_version: newMessagesVersion,
-            };
-          }
-          if (isTargetMessageAboveViewport) {
-            setFirstItemIndex((prev) => (prev !== null ? prev + 1 : prev));
-          }
-
-          break;
-        }
-        return {
-          ...queryData,
-          pages: updatedPages,
-          pageParams: updatedPageParams,
-        };
-      });
+      deleteMessage(itemToDeleteId, newMessagesVersion);
     },
     []
   );
+
+  const deleteOptimisticMessage = (id: bigint) => {
+    setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  const onOwnMessageActionSuccess = () => {
+    if (isPolling) {
+      refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
+      utils.messages.get.invalidate();
+    }
+  };
 
   const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
     onSuccess: () => {
@@ -772,12 +808,50 @@ const ChannelInner = ({ channel }: Props) => {
   });
 
   const messageCreateMutation = trpc.messages.create.useMutation({
-    onSuccess: () => {
-      form.reset();
-      if (isPolling) {
-        utils.messages.get.invalidate();
+    onMutate(variables) {
+      const currentUser = user.data?.user;
+      if (!currentUser) return;
+      const tempId = nextOptimisticIdRef.current;
+      nextOptimisticIdRef.current -= BigInt(1);
+      setOptimisticMessages((prev) => [
+        ...prev,
+        {
+          channel_id: variables.channelId,
+          content: variables.content,
+          created_at: new Date(),
+          updated_at: new Date(),
+          deleted_at: null,
+          id: tempId,
+          user_id: currentUser.id,
+          author: {
+            ...currentUser,
+          },
+          isOptimistic: true,
+        },
+      ]);
+      return {
+        tempId,
+      };
+    },
+    onSuccess(data, _vars, onMutateResult) {
+      if (onMutateResult?.tempId) {
+        deleteOptimisticMessage(onMutateResult.tempId);
+      }
+      if (handleNewMessagesVersion(data.channel.messages_version)) {
+        appendMessage(data.message, appliedMessagesVersion.current);
+      }
+      onOwnMessageActionSuccess();
+    },
+    onError(_error, _variables, onMutateResult) {
+      if (onMutateResult?.tempId) {
+        setOptimisticMessages((prev) =>
+          prev.map((m) =>
+            m.id === onMutateResult.tempId ? { ...m, isFailed: true } : m
+          )
+        );
       }
     },
+    meta: { keepDefaultErrorHandling: true },
   });
 
   const commentDeleteAllMutation = trpc.messages.deleteAll.useMutation({
@@ -809,6 +883,7 @@ const ChannelInner = ({ channel }: Props) => {
   };
 
   const onSubmit: SubmitHandler<MessageCreateFormValues> = (values) => {
+    form.reset();
     messageCreateMutation.mutate(values);
   };
   const onSearchSubmit: SubmitHandler<SearchFormValues> = (values) => {
@@ -821,8 +896,8 @@ const ChannelInner = ({ channel }: Props) => {
   //   appliedMessagesVersion: appliedMessagesVersion.current,
   // });
 
-  const tryLoadOlder = async (ignoreError?: boolean) => {
-    if (ignoreError ? false : messages.isFetchPreviousPageError) {
+  const tryLoadOlder = async (bypassExistingError?: boolean) => {
+    if (!bypassExistingError && messages.isFetchPreviousPageError) {
       return;
     }
 
@@ -855,10 +930,22 @@ const ChannelInner = ({ channel }: Props) => {
     });
   };
 
-  console.log({ ...messages }, { syncMode, initialGateOpenedReason });
+  console.log(
+    { ...messages },
+    {
+      syncMode,
+      isIdleRef: isIdleRef.current,
+      initialGateOpenedReason,
+      wsSyncFailedCount,
+      hasQueryLoadedInitialData: hasQueryLoadedInitialData.current,
+      isWsConnectedRef: isWsConnectedRef.current,
+      websocketsMessageQueue: websocketsMessageQueue.current,
+      appliedMessagesVersion: appliedMessagesVersion.current,
+    }
+  );
 
-  const tryLoadNewer = async (ignoreError?: boolean) => {
-    if (ignoreError ? false : messages.isFetchNextPageError) {
+  const tryLoadNewer = async (bypassExistingError?: boolean) => {
+    if (!bypassExistingError && messages.isFetchNextPageError) {
       return;
     }
 
@@ -904,15 +991,25 @@ const ChannelInner = ({ channel }: Props) => {
         const nextPageFirstItemId = nextPage?.items[0]?.id;
         const prevPageLastItemId =
           prevPage?.items[prevPage?.items.length - 1]?.id;
+        const currentPageFirstItemId = data.pages[i]?.items?.[0]?.id;
 
         if (nextPageFirstItemId) {
           updatedPageParams[i] = {
+            ...updatedPageParams[i],
             id: nextPageFirstItemId,
             direction: "backward",
           };
         } else if (prevPageLastItemId) {
           updatedPageParams[i] = {
+            ...updatedPageParams[i],
             id: prevPageLastItemId,
+            direction: "forward",
+          };
+        } else if (currentPageFirstItemId) {
+          const newId = currentPageFirstItemId - BigInt(1);
+          updatedPageParams[i] = {
+            ...updatedPageParams[i],
+            id: newId < BigInt(1) ? BigInt(0) : newId,
             direction: "forward",
           };
         }
@@ -1040,22 +1137,13 @@ const ChannelInner = ({ channel }: Props) => {
     }
   };
 
-  const debouncedLoadersDependencies = useRef({
-    isIdle,
-  });
-  debouncedLoadersDependencies.current = {
-    isIdle,
-  };
-
   // eslint-disable-next-line
   const debouncedMakeIdle = useCallback(
     // eslint-disable-next-line
-    debounce(async () => {
-      const { isIdle } = debouncedLoadersDependencies.current;
-      if (!isIdle) {
-        setIsIdle(true);
-      }
-    }, 50),
+    debounce(() => {
+      setIsIdleTrigger((prev) => (prev % 10) + 1);
+      isIdleRef.current = true;
+    }, 100),
     []
   );
 
@@ -1187,11 +1275,11 @@ const ChannelInner = ({ channel }: Props) => {
     );
     const onConnectionLost = () => {
       if (isEffectCleanup) return;
-      const { isPolling } = websocketsDependencies.current;
+      const { isPolling } = dependencies.current;
       isWsConnectedRef.current = false;
       if (!isPolling) {
         setSyncMode("polling");
-        setInitialGateOpenedReason("fallback");
+        setInitialGateOpenedReason("default");
         addAppSnackbar({
           message:
             "Realtime connection lost. Falling back to periodic refetch.",
@@ -1211,16 +1299,16 @@ const ChannelInner = ({ channel }: Props) => {
       if (isEffectCleanup) return;
       const isWsConnected = websocketsClient.connection.state === "connected";
       const isWsChannelAttached = websocketsChannel.state === "attached";
-      const { initialGateOpenedReason } = websocketsDependencies.current;
+      const { initialGateOpenedReason } = dependencies.current;
       if (isWsConnected && isWsChannelAttached) {
         isWsConnectedRef.current = true;
         websocketsMessageQueue.current = [];
         clearInitialTimerToOpenGate();
         setWsSyncFailedCount(0);
         setSyncMode("ws-syncing");
-        if (!initialGateOpenedReason) {
-          setInitialGateOpenedReason("websockets");
-        }
+        setInitialGateOpenedReason(
+          initialGateOpenedReason ? "default" : "websockets"
+        );
       }
     };
 
@@ -1270,8 +1358,8 @@ const ChannelInner = ({ channel }: Props) => {
   const shouldStartWsSyncRefetch =
     isWsSyncing &&
     !messages.isFetching &&
-    (!shouldRenderList || isIdle) &&
-    initialGateOpenedReason === "fallback" &&
+    (!shouldRenderList || isIdleRef.current) &&
+    initialGateOpenedReason === "default" &&
     !hasStartedWsSyncRefetch.current;
 
   useEffect(() => {
@@ -1295,7 +1383,7 @@ const ChannelInner = ({ channel }: Props) => {
           highestMessagesVersion: messagesVersion,
         });
       }
-      return;
+      repairEmptyPageParams();
     }
   }, [messages.dataUpdatedAt]);
 
@@ -1309,6 +1397,7 @@ const ChannelInner = ({ channel }: Props) => {
     if (prevWasRefetching && !messages.isRefetching) {
       if (messages.isRefetchError) {
         setSyncMode("polling");
+        setInitialGateOpenedReason("default");
         return;
       }
 
@@ -1329,7 +1418,7 @@ const ChannelInner = ({ channel }: Props) => {
   useEffect(() => {
     if (wsSyncFailedCount > 0) {
       setSyncMode("polling");
-      setInitialGateOpenedReason("fallback");
+      setInitialGateOpenedReason("default");
     }
   }, [wsSyncFailedCount]);
 
@@ -1370,7 +1459,7 @@ const ChannelInner = ({ channel }: Props) => {
     hasStartedWsSyncRefetch.current = false;
     clearInitialTimerToOpenGate();
     setWsSyncFailedCount(0);
-    setIsQueryBootstrapping(true);
+    setIsPreparingQuery(true);
     setIsInitialScrollHandled(false);
     setIsMessageHighlightConsumed(false);
 
@@ -1381,11 +1470,11 @@ const ChannelInner = ({ channel }: Props) => {
       } else {
         setSyncMode("polling");
         if (hasCompletedFirstInit.current) {
-          setInitialGateOpenedReason("fallback");
+          setInitialGateOpenedReason("default");
         } else {
           setInitialGateOpenedReason(null);
           initialTimerToOpenGateRef.current = setTimeout(() => {
-            setInitialGateOpenedReason("fallback");
+            setInitialGateOpenedReason("default");
             initialTimerToOpenGateRef.current = null;
           }, 1000);
         }
@@ -1416,7 +1505,7 @@ const ChannelInner = ({ channel }: Props) => {
   }, [urlMessageId]);
 
   useEffect(() => {
-    if (!isQueryBootstrapping) return;
+    if (!isPreparingQuery) return;
 
     if (foundMessageIndex === -1) {
       qc.removeQueries({
@@ -1429,17 +1518,17 @@ const ChannelInner = ({ channel }: Props) => {
       }));
     }
 
-    setIsQueryBootstrapping(false);
+    setIsPreparingQuery(false);
 
     // eslint-disable-next-line
-  }, [isQueryBootstrapping]);
+  }, [isPreparingQuery]);
 
   useEffect(() => {
     if (
-      isQueryBootstrapping !== false ||
+      isPreparingQuery !== false ||
       isInitialScrollHandled ||
       !messages.data?.items.length ||
-      !isIdle
+      !isIdleRef.current
     ) {
       return;
     }
@@ -1476,8 +1565,90 @@ const ChannelInner = ({ channel }: Props) => {
     isInitialScrollHandled,
     messages.hasNextPage,
     messages.data?.items,
-    isQueryBootstrapping,
-    isIdle,
+    isPreparingQuery,
+    isIdleTrigger,
+  ]);
+
+  const clearFetchMoreTimeout = () => {
+    if (fetchMoreTimeout.current) {
+      clearTimeout(fetchMoreTimeout.current);
+    }
+  };
+
+  useEffect(() => {
+    if (
+      !messages.hasPreviousPage ||
+      firstItemIndex === null ||
+      !visibleRangeRef.current
+    ) {
+      return;
+    }
+
+    const localVisibleStartIndex = Math.max(
+      0,
+      visibleRangeRef.current?.visibleStartIndex - firstItemIndex
+    );
+
+    if (
+      isIdleRef.current &&
+      localVisibleStartIndex <= FETCH_MORE_THRESHOLD &&
+      !isWsSyncing &&
+      messages.hasPreviousPage &&
+      !messages.isFetching &&
+      !messages.isError
+    ) {
+      clearFetchMoreTimeout();
+      fetchMoreTimeout.current = setTimeout(() => {
+        tryLoadOlder();
+      }, 50);
+    }
+    return clearFetchMoreTimeout;
+    // eslint-disable-next-line
+  }, [
+    isIdleTrigger,
+    isWsSyncing,
+    totalItems,
+    messages.isFetching,
+    messages.isError,
+    messages.hasPreviousPage,
+  ]);
+
+  useEffect(() => {
+    if (
+      !messages.hasNextPage ||
+      firstItemIndex === null ||
+      !visibleRangeRef.current
+    ) {
+      return;
+    }
+
+    const localVisibleEndIndex = Math.max(
+      0,
+      visibleRangeRef.current?.visibleEndIndex - firstItemIndex
+    );
+
+    if (
+      isIdleRef.current &&
+      localVisibleEndIndex >= totalItems - 1 - FETCH_MORE_THRESHOLD &&
+      !isWsSyncing &&
+      messages.hasNextPage &&
+      !messages.isFetching &&
+      !messages.isError
+    ) {
+      clearFetchMoreTimeout();
+      fetchMoreTimeout.current = setTimeout(() => {
+        tryLoadNewer();
+      }, 50);
+    }
+    return clearFetchMoreTimeout;
+    // eslint-disable-next-line
+  }, [
+    isIdleTrigger,
+    isWsSyncing,
+    totalItems,
+    messages.isFetching,
+    messages.isError,
+    messages.hasNextPage,
   ]);
 
   const virtuosoContext = {
@@ -1486,62 +1657,28 @@ const ChannelInner = ({ channel }: Props) => {
     retryInvalidate,
     tryLoadOlder,
     tryLoadNewer,
-    isIdle,
+    isIdleTrigger,
     isWsSyncing,
+    channel,
   };
 
   const MessagesHeader = useMemo(
     () =>
       ({ context }: { context: typeof virtuosoContext }) => {
-        const { messages, tryLoadOlder, scrollerElRef, isIdle, isWsSyncing } =
-          context;
-
-        // eslint-disable-next-line
-        const [isLoaderVisible, setIsLoaderVisible] = useState(false);
-
-        // eslint-disable-next-line
-        useEffect(() => {
-          let timeout: null | ReturnType<typeof setTimeout> = null;
-          if (!messages.hasPreviousPage) {
-            setIsLoaderVisible(false);
-            return;
-          }
-          if (
-            isLoaderVisible &&
-            isIdle &&
-            !isWsSyncing &&
-            messages.hasPreviousPage &&
-            !messages.isFetching &&
-            !messages.isError
-          ) {
-            timeout = setTimeout(() => {
-              tryLoadOlder();
-            }, 50);
-          }
-          return () => {
-            if (timeout) {
-              clearTimeout(timeout);
-            }
-          };
-          // eslint-disable-next-line
-        }, [
-          isLoaderVisible,
-          isIdle,
-          isWsSyncing,
-          messages.isFetching,
-          messages.isError,
-          messages.hasPreviousPage,
-        ]);
+        const { messages, tryLoadOlder, channel } = context;
 
         if (messages.isFetchPreviousPageError) {
           return (
-            <VerticalStack>
-              <Typography>Failed to load older messages</Typography>
+            <VerticalStack withPadding addClassName="items-center">
+              <Typography color="warning" variant="body2">
+                Failed to load older messages
+              </Typography>
               <Button
                 variant="contained"
                 color="inherit"
                 startIcon={<ReplayIcon />}
                 onClick={() => tryLoadOlder(true)}
+                isLoading={messages.isFetchingPreviousPage}
                 size="large"
                 className="w-fit"
               >
@@ -1551,77 +1688,28 @@ const ChannelInner = ({ channel }: Props) => {
           );
         }
         if (messages.hasPreviousPage) {
-          return (
-            <MessagesSkeleton
-              scrollerEl={scrollerElRef.current}
-              onIntersectionChange={(isVisible) => {
-                setIsLoaderVisible(isVisible);
-              }}
-            />
-          );
+          return <MessagesSkeleton />;
         }
-        return null;
+        return <ChannelHeader channel={channel} isInsideVirtuoso />;
       },
     []
   );
   const MessagesFooter = useMemo(
     () =>
       ({ context }: { context: typeof virtuosoContext }) => {
-        const {
-          messages,
-          scrollerElRef,
-          retryInvalidate,
-          tryLoadNewer,
-          isIdle,
-          isWsSyncing,
-        } = context;
-
-        // eslint-disable-next-line
-        const [isLoaderVisible, setIsLoaderVisible] = useState(false);
-
-        // eslint-disable-next-line
-        useEffect(() => {
-          let timeout: null | ReturnType<typeof setTimeout> = null;
-          if (!messages.hasNextPage) {
-            setIsLoaderVisible(false);
-            return;
-          }
-          if (
-            isLoaderVisible &&
-            isIdle &&
-            !isWsSyncing &&
-            messages.hasNextPage &&
-            !messages.isFetching &&
-            !messages.isError
-          ) {
-            timeout = setTimeout(() => {
-              tryLoadNewer();
-            }, 50);
-          }
-          return () => {
-            if (timeout) {
-              clearTimeout(timeout);
-            }
-          };
-          // eslint-disable-next-line
-        }, [
-          isLoaderVisible,
-          isIdle,
-          isWsSyncing,
-          messages.isFetching,
-          messages.isError,
-          messages.hasNextPage,
-        ]);
-
+        const { messages, retryInvalidate, tryLoadNewer } = context;
         if (messages.isFetchNextPageError) {
           return (
-            <VerticalStack>
-              <Typography>Failed to load newer messages</Typography>
+            <VerticalStack withPadding addClassName="items-center">
+              <Typography color="warning" variant="body2">
+                Failed to load newer messages
+              </Typography>
               <Button
                 variant="contained"
                 color="inherit"
                 startIcon={<ReplayIcon />}
                 onClick={() => tryLoadNewer(true)}
+                isLoading={messages.isFetchingNextPage}
                 size="large"
                 className="w-fit"
               >
@@ -1636,8 +1724,10 @@ const ChannelInner = ({ channel }: Props) => {
           messages.isError
         ) {
           return (
-            <VerticalStack>
-              <Typography>Failed to load messages</Typography>
+            <VerticalStack withPadding addClassName="items-center">
+              <Typography color="warning" variant="body2">
+                Failed to load messages
+              </Typography>
               <Button
                 variant="contained"
                 color="inherit"
@@ -1652,17 +1742,10 @@ const ChannelInner = ({ channel }: Props) => {
           );
         }
         if (messages.hasNextPage) {
-          return (
-            <MessagesSkeleton
-              scrollerEl={scrollerElRef.current}
-              onIntersectionChange={(isVisible) => {
-                setIsLoaderVisible(isVisible);
-              }}
-            />
-          );
+          return <MessagesSkeleton />;
         }
 
-        return null;
+        return <div className="p-2"></div>;
       },
     []
   );
@@ -1675,19 +1758,39 @@ const ChannelInner = ({ channel }: Props) => {
     []
   );
 
+  const renderedMessages = useMemo<
+    typeof optimisticMessages | undefined
+  >(() => {
+    if (optimisticMessages.length && messages.data?.items) {
+      let resultOptimisticMessages: typeof optimisticMessages = [];
+      for (let i = 0; i < optimisticMessages.length; i++) {
+        const prevMessage =
+          i === 0
+            ? messages.data.items[messages.data.items.length - 1]
+            : optimisticMessages[i - 1];
+        const message = optimisticMessages[i];
+        const isCompact = checkShouldCollapseMessage(prevMessage, message);
+        resultOptimisticMessages.push(
+          isCompact ? { ...message, isCompact } : message
+        );
+      }
+      return messages.data.items.concat(resultOptimisticMessages);
+    } else return messages.data?.items;
+  }, [messages.data?.items, optimisticMessages]);
+
   const syncModeInfo = syncModeMapping[syncMode];
 
   return (
     <Paper
       elevation={1}
       className={clsx(
-        `min-h-0 flex-1 flex flex-col rounded-none ring ring-[var(--mui-palette-divider)]`
+        `min-h-0 flex-1 flex flex-col rounded-none ring ring-mui-divider`
       )}
       ref={wrapperRef}
     >
       <HorizontalStack
         withPadding
-        addClassName="justify-between items-center border-b border-(--mui-palette-divider) relative"
+        addClassName="justify-between items-center border-b border-mui-divider relative"
       >
         <Tooltip title={`Realtime sync status: ${syncModeInfo.label}`}>
           <div className="p-2 absolute top-0 left-0">
@@ -1700,14 +1803,22 @@ const ChannelInner = ({ channel }: Props) => {
           </div>
         </Tooltip>
         <Typography>Some text</Typography>
-        <Button
+        {/* TODO */}
+        {/* <Button
           variant="outlined"
           onClick={() => {
-            setSyncMode(isPolling ? "ws-syncing" : "polling");
+            // setSyncMode(isPolling ? "ws-syncing" : "polling");
+            // if (!isPolling) {
+            //   setInitialGateOpenedReason("default");
+            // }
+            // messagesCreateSpamMutation.mutate({
+            //   channelId: channel.id,
+            //   isBulk: true,
+            // });
           }}
         >
-          Current polling - {isPolling ? "ON" : "OFF"}
-        </Button>
+          Current polling - {syncModeInfo.label}
+        </Button> */}
 
         <form onSubmit={searchForm.handleSubmit(onSearchSubmit)} noValidate>
           <Input
@@ -1723,7 +1834,7 @@ const ChannelInner = ({ channel }: Props) => {
         </form>
       </HorizontalStack>
       <div className="w-full min-h-0 flex flex-col flex-1">
-        <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
           {shouldRenderList ? (
             <Virtuoso
               key={messagesQueryKey.around || "default"}
@@ -1735,8 +1846,8 @@ const ChannelInner = ({ channel }: Props) => {
                 align: "center",
               }}
               increaseViewportBy={{
-                bottom: 100,
-                top: 100,
+                bottom: 1000,
+                top: 1000,
               }}
               alignToBottom
               followOutput={
@@ -1751,7 +1862,7 @@ const ChannelInner = ({ channel }: Props) => {
                   visibleStartIndex: range.startIndex,
                   visibleEndIndex: range.endIndex,
                 };
-                setIsIdle(false);
+                isIdleRef.current = false;
                 debouncedMakeIdle();
               }}
               scrollerRef={(el) => {
@@ -1759,33 +1870,84 @@ const ChannelInner = ({ channel }: Props) => {
                   scrollerElRef.current = el;
                 }
               }}
+              totalListHeightChanged={() => {
+                isIdleRef.current = false;
+                debouncedMakeIdle();
+              }}
               atBottomThreshold={50}
-              data={messages.data?.items}
-              computeItemKey={(_, item) => String(item.id)}
-              itemContent={(_, comment) => {
+              data={renderedMessages}
+              computeItemKey={(_, item) => item.id}
+              itemContent={(_, message) => {
                 return (
-                  <Comment
-                    comment={comment}
+                  <MessageComponent
+                    message={message}
+                    totalItems={totalItems}
                     shouldHighlight={
                       !isMessageHighlightConsumed &&
                       isInitialScrollHandled &&
-                      urlMessageId === String(comment.id)
+                      urlMessageId === String(message.id)
                     }
                     onHighlightConsumed={() => {
                       setIsMessageHighlightConsumed(true);
                     }}
-                    isPolling={isPolling}
+                    onUpdateSuccess={(data) => {
+                      if (
+                        handleNewMessagesVersion(data.channel.messages_version)
+                      ) {
+                        editMessage(
+                          data.message,
+                          appliedMessagesVersion.current
+                        );
+                      }
+                      onOwnMessageActionSuccess();
+                    }}
+                    onDeleteSuccess={(data) => {
+                      if (
+                        handleNewMessagesVersion(data.channel.messages_version)
+                      ) {
+                        deleteMessage(
+                          data.message.id,
+                          appliedMessagesVersion.current
+                        );
+                      }
+                      onOwnMessageActionSuccess();
+                    }}
+                    onOptimisticFailedRetry={() => {
+                      deleteOptimisticMessage(message.id);
+                      messageCreateMutation.mutate({
+                        channelId: message.channel_id,
+                        content: message.content,
+                      });
+                    }}
+                    onOptimisticFailedDelete={() => {
+                      deleteOptimisticMessage(message.id);
+                    }}
+                    onReportClick={() => {
+                      globalModal.openModal({
+                        props: { title: "Report Message" },
+                        content: (
+                          <ReportMessageForm
+                            message={message}
+                            onCancel={() => {}}
+                            onConfirm={() => {}}
+                          />
+                        ),
+                      });
+                    }}
                   />
                 );
               }}
               context={virtuosoContext}
               components={MessagesComponents}
             />
-          ) : messages.isFetching || !isInitialGateOpened ? (
-            <MessagesSkeleton fullHeight />
           ) : messages.isError ? (
-            <VerticalStack>
-              <Typography>Failed to load any messages</Typography>
+            <VerticalStack
+              addClassName="flex-1 justify-center items-center"
+              withPadding
+            >
+              <Typography color="warning" variant="body2">
+                Failed to load any messages
+              </Typography>
               <Button
                 variant="contained"
                 color="inherit"
@@ -1797,79 +1959,32 @@ const ChannelInner = ({ channel }: Props) => {
                 {messagesQueryKey.around ? "Load latest messages" : "Retry"}
               </Button>
             </VerticalStack>
-          ) : null}
+          ) : messages.isFetching || !isInitialGateOpened || totalItems ? (
+            <MessagesSkeleton fullHeight />
+          ) : (
+            <ChannelHeader channel={channel} />
+          )}
         </div>
 
         {user.data?.user?.id ? (
           <form
             onSubmit={form.handleSubmit(onSubmit)}
-            className="py-1 px-2 bg-[var(--mui-palette-FilledInput-bg)]"
+            className="message-form"
             noValidate
           >
-            <HorizontalStack wrap={false} addClassName="items-start">
-              <Tooltip title="Attach file">
-                <IconButton
-                  className="mt-4"
-                  onClick={() => {
-                    commentDeleteAllMutation.mutate({ channelId: channel.id });
-                  }}
-                >
-                  <AttachFileIcon />
-                </IconButton>
-              </Tooltip>
-              <Input
+            <HorizontalStack addClassName="items-start">
+              <MessageEditor
                 control={form.control}
                 name="content"
-                label="Message"
-                fullWidth
-                variant="standard"
+                placeholder={`Message #${channel.name}`}
                 hideError
-                multiline
-                maxRows={10}
-                slotProps={{
-                  input: {
-                    endAdornment: (
-                      <HorizontalStack wrap={false} addClassName="self-start">
-                        <Tooltip title="Add emoji">
-                          <IconButton
-                            type="button"
-                            onClick={() => {
-                              messagesCreateSpamMutation.mutate({
-                                isBulk: false,
-                                count: 10,
-                                channelId: channel.id,
-                              });
-                            }}
-                          >
-                            <EmojiEmotionsIcon />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Send message">
-                          <IconButton type="submit">
-                            <SendIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </HorizontalStack>
-                    ),
-                    onKeyDown: (e) => {
-                      if (e.nativeEvent.isComposing) return;
-
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-
-                        const form = e.currentTarget.form;
-                        form?.requestSubmit();
-                      }
-                    },
-                  },
-                }}
               />
             </HorizontalStack>
           </form>
         ) : (
           <VerticalStack
             spacing="xs"
-            addClassName="p-2 bg-[var(--mui-palette-FilledInput-bg)] items-center"
+            addClassName="p-2 bg-mui-FilledInput-bg items-center"
           >
             <Typography>Please log in to send a message.</Typography>
             <HorizontalStack addClassName="justify-center">
@@ -1936,7 +2051,10 @@ const Channel: AppPage = () => {
           <div>Channel not found</div>
         ) : (
           <LoadingBoundary addClassName="min-h-0 h-full flex-1">
-            <ChannelInner key={foundChannel.id} channel={foundChannel} />
+            <MessageListOrchestrator
+              key={foundChannel.id}
+              channel={foundChannel}
+            />
           </LoadingBoundary>
         )}
       </HorizontalStack>

@@ -1,7 +1,8 @@
+@use "./generated-mui-vars" as *;
 @import "./tailwind-init.css";
 
 @theme {
-  --default-transition-duration: 250ms;
+  --default-transition-duration: 200ms;
   --breakpoint-sm: 600px;
   --breakpoint-md: 900px;
   --breakpoint-lg: 1200px;
@@ -86,7 +87,7 @@ html {
   position: relative;
   z-index: 2000;
   .bar {
-    background: var(--mui-palette-primary-main);
+    background: $mui-primary-main;
     height: 3px;
     position: fixed;
     top: 0;
@@ -101,8 +102,8 @@ html {
     width: 100px;
     height: 100%;
     box-shadow:
-      0 0 10px var(--mui-palette-primary-main),
-      0 0 5px var(--mui-palette-primary-main);
+      0 0 10px $mui-primary-main,
+      0 0 5px $mui-primary-main;
     opacity: 1;
 
     -webkit-transform: rotate(3deg) translate(0px, -4px);
@@ -112,7 +113,7 @@ html {
 }
 
 .rotating-dash-frame {
-  @apply relative flex flex-col;
+  @apply relative flex flex-col min-w-0;
 
   .dash-frame-content {
     @apply relative flex flex-col;
@@ -149,7 +150,7 @@ html {
     ry: 0;
 
     &.dash-frame-stroke-active {
-      --dash-color: var(--mui-palette-primary-main);
+      --dash-color: #{$mui-primary-main};
     }
 
     stroke: var(--dash-color);
@@ -199,13 +200,12 @@ html {
   & > * {
     @apply font-medium border rounded border-transparent py-2 px-2 sm:px-3 transition-all;
     &:hover {
-      border-color: var(--mui-palette-primary-main);
+      border-color: $mui-primary-main;
       box-shadow: var(--mui-shadows-3);
       background-color: rgba(
-        var(--mui-palette-primary-mainChannel) /
-          calc(var(--mui-palette-action-hoverOpacity))
+        var(--mui-palette-primary-mainChannel) / calc($mui-action-hoverOpacity)
       );
-      color: var(--mui-palette-primary-main);
+      color: $mui-primary-main;
       &:active {
         transform: scale(0.95);
       }
@@ -344,4 +344,190 @@ html {
     rgb(var(--mui-palette-secondary-mainChannel) / 0.2) 55%,
     transparent 75%
   );
+}
+
+.custom-radio-control {
+  .MuiFormControlLabel-root {
+    @apply ml-0 mr-0 pr-2;
+    &:hover {
+      @apply bg-mui-action-hover;
+    }
+    &:has(.MuiRadio-root.Mui-checked) {
+      @apply bg-mui-action-selected;
+    }
+  }
+}
+
+div:has(> .virtuoso-messages-header) {
+  @apply flex flex-col flex-1;
+}
+
+@mixin rich-text-editor {
+  @apply text-base;
+  * {
+    @apply m-0;
+  }
+  ol,
+  ul {
+    @apply pl-10;
+  }
+  li {
+    @apply pl-0;
+  }
+
+  a {
+    @apply text-mui-primary-main;
+  }
+  code,
+  .ql-code-block-container {
+    @apply bg-mui-action-focus py-0.5 px-1 rounded-sm text-sm;
+  }
+
+  blockquote {
+    @apply my-1.5 pl-4 border-l-4 border-mui-action-disabled;
+  }
+
+  [sp="1"] {
+    @apply bg-mui-action-selected px-1 py-0.5 rounded-sm;
+    transition: var(--default-transition-duration);
+    * {
+      transition: var(--default-transition-duration);
+    }
+  }
+
+  li[data-list="ordered"] {
+    list-style-type: decimal;
+  }
+  li[data-list="bullet"] {
+    list-style-type: disc;
+  }
+}
+
+.custom-quill-editor.custom-quill-editor.custom-quill-editor {
+  @apply bg-mui-background-paper w-full rounded-sm;
+  background-image: var(--mui-overlays-8);
+  font-family: var(--font-roboto);
+
+  &:hover {
+    @apply ring ring-mui-text-primary;
+  }
+  &.custom-quill-editor-focused.custom-quill-editor-focused.custom-quill-editor-focused {
+    @apply ring-2 ring-mui-primary-main;
+  }
+  &.custom-quill-editor-errored {
+    @apply ring;
+  }
+  &.custom-quill-editor-errored.custom-quill-editor-errored.custom-quill-editor-errored.custom-quill-editor-errored {
+    @apply ring-mui-error-main;
+  }
+
+  .quill {
+    @apply w-full;
+  }
+  .ql-toolbar.ql-snow {
+    @apply border-0 border-b border-b-mui-divider;
+
+    .ql-formats {
+      > button {
+        @apply hover:bg-mui-action-hover rounded-sm transition p-1 flex justify-center items-center h-7;
+        &:hover:not(.ql-active) {
+          @apply text-mui-text-secondary;
+          .ql-stroke {
+            @apply stroke-mui-text-secondary;
+          }
+          .ql-fill {
+            @apply fill-mui-text-secondary;
+          }
+        }
+        &.ql-active {
+          @apply bg-mui-action-selected text-mui-primary-main;
+          .ql-stroke {
+            @apply stroke-mui-primary-main;
+          }
+          .ql-fill {
+            @apply fill-mui-primary-main;
+          }
+        }
+      }
+      > button + button {
+        @apply ml-1;
+      }
+    }
+  }
+  .ql-container.ql-snow {
+    @apply border-0;
+    font-family: var(--font-roboto);
+  }
+  .ql-editor {
+    @include rich-text-editor;
+    @apply p-2 max-h-[500px] overflow-y-auto;
+
+    &.ql-blank:before {
+      @apply text-mui-text-disabled not-italic left-2;
+    }
+
+    li[data-list="bullet"] > .ql-ui:before {
+      content: "";
+    }
+  }
+  .ql-snow .ql-stroke {
+    @apply stroke-mui-text-secondary;
+  }
+  .ql-snow .ql-fill {
+    @apply fill-mui-text-secondary;
+  }
+
+  .ql-snow .ql-tooltip {
+    @apply bg-mui-background-paper! border-0! ring! ring-mui-divider! text-mui-text-primary;
+    .ql-action,
+    .ql-remove {
+      @apply text-mui-primary-main p-1;
+    }
+    .ql-preview {
+      @apply underline;
+    }
+    > input {
+      @apply border-mui-divider;
+    }
+  }
+}
+
+.message-form {
+  @apply p-2 bg-mui-action-selected;
+}
+
+.message-content {
+  max-height: max(300px, calc(100dvh - 300px));
+  overflow-y: auto;
+  display: flow-root;
+  .message-html {
+    @include rich-text-editor;
+    @apply inline whitespace-pre-wrap;
+    > :last-child:not(ul, ol, blockquote) {
+      @apply inline;
+    }
+    a {
+      &:hover {
+        @apply text-mui-primary-dark;
+      }
+      &:active {
+        @apply text-mui-primary-light;
+      }
+      &:visited {
+        @apply text-mui-secondary-main;
+        &:hover {
+          @apply text-mui-secondary-dark;
+        }
+        &:active {
+          @apply text-mui-secondary-light;
+        }
+      }
+    }
+    [sp="1"]:not([data-spoiler-open="1"]) {
+      @apply text-transparent! cursor-pointer select-none bg-mui-text-disabled hover:bg-mui-text-secondary;
+      * {
+        @apply text-transparent!;
+      }
+    }
+  }
 }

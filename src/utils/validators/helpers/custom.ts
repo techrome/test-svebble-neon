@@ -1,4 +1,4 @@
-import z from "zod";
+import z from "@/utils/zod";
 import { Dayjs } from "dayjs";
 
 import dayjs from "@/utils/dayjs";
@@ -33,3 +33,8 @@ export const extendExisting = <
 ) => {
   return schema.extend(overrides);
 };
+
+export const toObject = <T extends readonly string[]>(arr: T) =>
+  Object.fromEntries(arr.map((val) => [val, val])) as {
+    readonly [K in T[number]]: K;
+  };

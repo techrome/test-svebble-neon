@@ -2,7 +2,7 @@ import { RouterOutput } from "@/trpc";
 import { kibibytes } from "@/utils/storageUnits";
 import { Text } from "@/utils/validators/helpers/text";
 import { signupSchemaForm, zEmail } from "@/utils/validators/shared/auth";
-import z from "zod";
+import z from "@/utils/zod";
 
 export const AVATAR_MAX_SIZE_KB = 128;
 export const AVATAR_MAX_WIDTH = 256;
@@ -77,11 +77,11 @@ export const usernameSchemaForm = z.object({
 export type User = NonNullable<RouterOutput["auth"]["user"]["user"]>;
 
 export const makeUsernameSchemaForm = (currentUsername: User["username"]) =>
-  usernameSchemaForm.superRefine(({ username }, ctx) => {
-    if (username.toLowerCase() === String(currentUsername).toLowerCase()) {
+  usernameSchemaForm.superRefine((data, ctx) => {
+    if (data.username.toLowerCase() === String(currentUsername).toLowerCase()) {
       ctx.addIssue({
         code: "custom",
-        path: ["username"],
+        path: ["username"] satisfies (keyof typeof data)[],
         message: "New username must be different than your current username.",
       });
     }
@@ -99,7 +99,7 @@ export const basePasswordSchemaForm = z
       ctx.addIssue({
         code: "custom",
         message: "New passwords do not match.",
-        path: ["passwordConfirm"],
+        path: ["passwordConfirm"] satisfies (keyof typeof data)[],
       });
     }
   });
@@ -120,7 +120,7 @@ export const makePasswordSchemaForm = (hasOldPassword: boolean) => {
             code: "custom",
             message:
               "New password must be different than the current password.",
-            path: ["password"],
+            path: ["password"] satisfies (keyof typeof data)[],
           });
         }
       });
@@ -141,7 +141,7 @@ export const makeEmailChangeSchemaForm = (activeEmail?: string) => {
       ctx.addIssue({
         code: "custom",
         message: "New email should be different than your active email.",
-        path: ["email"],
+        path: ["email"] satisfies (keyof typeof data)[],
       });
     }
   });

@@ -2,10 +2,8 @@ import React, { useEffect, useRef } from "react";
 import { AppBar, Toolbar, Typography } from "@mui/material";
 import MenuIcon from "@mui/icons-material/Menu";
 import NotificationsIcon from "@mui/icons-material/Notifications";
-import UserIcon from "@mui/icons-material/AccountCircle";
 import { useRouter } from "next/router";
 import { nanoid } from "@reduxjs/toolkit";
-import NextImage from "next/image";
 
 import { useGlobalDrawer, useLocalPopover } from "@/utils/hooks/useOverlay";
 import { HorizontalStack } from "@/components/Layout/Containers";
@@ -25,9 +23,8 @@ import {
   DrawerContent,
   NotificationsContent,
 } from "@/components/Navbar/DrawerContent";
-import { env } from "@/utils/env";
-import { defaultAvatars } from "@/pages/app/my-profile";
-import DefaultAvatar from "@/components/DefaultAvatar/DefaultAvatar";
+
+import UserAvatar from "@/components/Avatar/UserAvatar";
 
 const getHashId = (url: string) => {
   const hashIndex = url.indexOf("#");
@@ -272,10 +269,7 @@ const NavbarInner = () => {
             </Badge>
           </IconButton>
         </LoadingBoundary>
-        <notificationsPopover.ReadyComponent
-          transitionDuration={0}
-          disableRestoreFocus
-        >
+        <notificationsPopover.ReadyComponent>
           <NotificationsContent />
         </notificationsPopover.ReadyComponent>
         <IconButton
@@ -290,22 +284,7 @@ const NavbarInner = () => {
           }}
         >
           {user.data?.user ? (
-            <div className="relative w-8 h-8 rounded-full">
-              {user.data.user.image ? (
-                <NextImage
-                  className="rounded-full"
-                  src={`${env.NEXT_PUBLIC_CDN_URL}/${user.data.user.image}`}
-                  alt="user-avatar"
-                  fill
-                  unoptimized
-                />
-              ) : (
-                <DefaultAvatar
-                  name={user.data.user.username}
-                  seed={user.data.user.id}
-                />
-              )}
-            </div>
+            <UserAvatar user={user.data.user} />
           ) : (
             <MenuIcon />
           )}

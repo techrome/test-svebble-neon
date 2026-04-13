@@ -30,12 +30,12 @@ const HomePage: AppPage = () => {
         <Paper
           elevation={1}
           className={clsx(
-            `${defaultPadding} flex flex-1 flex-col rounded-none ring ring-[var(--mui-palette-divider)] glow-pulse-wrapper`
+            `${defaultPadding} flex flex-1 flex-col rounded-none ring ring-mui-divider glow-pulse-wrapper`
           )}
         >
           <Paper
             elevation={5}
-            className="rounded-xl p-14 z-10 shadow-none ring ring-[var(--mui-palette-divider)]"
+            className="rounded-xl p-14 z-10 shadow-none ring ring-mui-divider"
           >
             <VerticalStack addClassName={`${defaultPadding} items-center`}>
               <Typography variant="h2" component="h1" className="text-center">
