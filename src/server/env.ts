@@ -3,11 +3,13 @@ import z from "@/utils/zod";
 
 // relative paths here because this file is used in some cli and they can't recognize TS path aliases
 import { isDev } from "../../scripts/helpers/isDev";
-import { isGithubActions } from "../../scripts/helpers/isGithubActions";
-import { domain, required, requiredForDev, requiredForProd } from "@/utils/env";
-
-const ignoreForGithubActions = <T extends z.ZodTypeAny>(schema: T): T =>
-  (isGithubActions ? schema.optional() : schema) as T; // keeping the original schema type to avoid widening it to optional unnecessarily
+import {
+  domain,
+  required,
+  requiredForDev,
+  requiredForProd,
+  ignoreForGithubActions,
+} from "@/utils/env";
 
 export const env = createEnv({
   server: {
