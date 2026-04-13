@@ -3,6 +3,10 @@ import z from "@/utils/zod";
 
 // relative paths here because this file is used in some cli and they can't recognize TS path aliases
 import { isDev } from "./isDev";
+import { isGithubActions } from "./isGithubActions";
+
+export const ignoreForGithubActions = <T extends z.ZodTypeAny>(schema: T): T =>
+  (isGithubActions ? schema.optional() : schema) as T; // keeping the original schema type to avoid widening it to optional unnecessarily
 
 export const requiredWhen = (isRequired: boolean) => {
   let schema = z.string();
@@ -33,7 +37,7 @@ export const url = (required: boolean) => {
 export const env = createEnv({
   shared: {
     NODE_ENV: z.enum(["development", "production"]),
-    NEXT_PUBLIC_CDN_URL: url(!isDev),
+    NEXT_PUBLIC_CDN_URL: ignoreForGithubActions(url(!isDev)),
   },
   experimental__runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
