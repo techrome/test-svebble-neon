@@ -32,7 +32,8 @@ import {
   numericIdSchema,
   versionSchema,
 } from "@/utils/validators/helpers/custom";
-import { type NullableFields } from "@/utils/types";
+import { PartialFor, type NullableFields } from "@/utils/types";
+import { AuthSession } from "../context";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -62,7 +63,82 @@ const generateRandomText = (
   return result;
 };
 
-type Message = typeof schema.messages.$inferSelect;
+const { deleted_at: _deleted_at, ...messageColumns } = getTableColumns(
+  schema.messages
+);
+
+const pickFromShape = <
+  TShape extends Record<string, unknown>,
+  TSource extends { [K in keyof TShape]: unknown },
+>(
+  source: TSource,
+  shape: TShape
+) => {
+  let result = {} as { [K in keyof TShape]: TSource[K] };
+
+  for (const key of Object.keys(shape) as Array<keyof TShape>) {
+    result[key] = source[key];
+  }
+
+  return result;
+};
+
+const messageAuthorColumns = {
+  id: schema.user.id,
+  username: schema.user.username,
+  displayUsername: schema.user.displayUsername,
+  name: schema.user.name,
+  image: schema.user.image,
+  role: schema.user.role,
+};
+
+type FullMessage = typeof schema.messages.$inferSelect;
+type FullUser = typeof schema.user.$inferSelect;
+
+type Message = Pick<FullMessage, keyof typeof messageColumns>;
+
+type MessageAuthor = Pick<FullUser, keyof typeof messageAuthorColumns>;
+type MessageWithAuthor = Message & {
+  author: PartialFor<MessageAuthor, "username" | "displayUsername" | "image">;
+};
+
+const pickMessageAuthor = (
+  user: NonNullable<AuthSession>["user"]
+): MessageWithAuthor["author"] => ({
+  id: user.id,
+  username: user.username,
+  displayUsername: user.displayUsername,
+  name: user.name,
+  image: user.image,
+  role: user.role,
+});
+
+const messagesJoinOn = (...extra: Array<SQL | undefined>) =>
+  and(
+    eq(schema.messages.channel_id, schema.channels.id),
+    isNull(schema.messages.deleted_at),
+    ...extra
+  );
+
+const toMessagesPayload = (
+  rows: Array<{
+    messages_version: bigint;
+    message: NullableFields<Message> | null;
+    author: NullableFields<MessageAuthor> | null;
+  }>
+) => {
+  if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
+  const messages_version = rows[0].messages_version;
+  let items: MessageWithAuthor[] = [];
+  for (const row of rows) {
+    if (row.message?.id && row.author?.id) {
+      let newItem = row.message as MessageWithAuthor;
+      newItem.author = row.author as MessageAuthor;
+      items.push(newItem);
+    }
+  }
+  return { messages_version, items };
+};
 
 export const messagesRouter = router({
   ablyTokenRequest: publicProcedure
@@ -81,7 +157,7 @@ export const messagesRouter = router({
     .input(sharedMessagesValidations.messagesGetSchemaForm)
     .output(
       z.object({
-        items: z.array(z.custom<Message>()),
+        items: z.array(z.custom<MessageWithAuthor>()),
         returnedDirection:
           sharedMessagesValidations.infiniteListDirectionSchema,
         messages_version: versionSchema,
@@ -98,25 +174,54 @@ export const messagesRouter = router({
         isNull(schema.channels.deleted_at)
       );
 
-      const messagesJoinOn = (...extra: Array<SQL | undefined>) =>
-        and(
-          eq(schema.messages.channel_id, schema.channels.id),
-          isNull(schema.messages.deleted_at),
-          ...extra
-        );
+      type Direction = NonNullable<typeof cursor>["direction"];
 
-      const toPayload = (
-        rows: Array<{
-          messages_version: bigint;
-          message: NullableFields<Message> | null;
-        }>
-      ) => {
-        if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
-        const messages_version = rows[0].messages_version;
-        const items = rows.flatMap((r) =>
-          r.message && r.message.id ? [r.message as Message] : []
-        );
-        return { messages_version, items };
+      const selectMessagesSubquery = ({
+        extraCondition,
+        direction,
+      }: {
+        extraCondition?: SQL;
+        direction: Direction;
+      }) =>
+        db
+          .select(messageColumns)
+          .from(schema.messages)
+          .where(messagesJoinOn(extraCondition))
+          .orderBy(
+            direction === "forward"
+              ? asc(schema.messages.id)
+              : desc(schema.messages.id)
+          )
+          .limit(input.limit)
+          .as("messages_subquery");
+
+      const selectMessageRows = ({
+        extraCondition,
+        direction,
+      }: {
+        extraCondition?: SQL;
+        direction: Direction;
+      }) => {
+        const messagesSubquery = selectMessagesSubquery({
+          extraCondition,
+          direction,
+        });
+
+        return db
+          .select({
+            messages_version: schema.channels.messages_version,
+            message: pickFromShape(messagesSubquery, messageColumns),
+            author: messageAuthorColumns,
+          })
+          .from(schema.channels)
+          .leftJoinLateral(messagesSubquery, sql`true`)
+          .leftJoin(schema.user, eq(schema.user.id, messagesSubquery.user_id))
+          .where(channelFilter)
+          .orderBy(
+            direction === "forward"
+              ? asc(messagesSubquery.id)
+              : desc(messagesSubquery.id)
+          );
       };
 
       if (cursor) {
@@ -124,21 +229,12 @@ export const messagesRouter = router({
           if (cursor.direction === "backward") {
             if (Math.random() < rate) throw new Error("Test error");
 
-            const rows = await db
-              .select({
-                messages_version: schema.channels.messages_version,
-                message: schema.messages,
-              })
-              .from(schema.channels)
-              .leftJoin(
-                schema.messages,
-                and(messagesJoinOn(before(schema.messages.id, cursor.id)))
-              )
-              .where(channelFilter)
-              .orderBy(desc(schema.messages.id))
-              .limit(input.limit);
+            const rows = await selectMessageRows({
+              extraCondition: before(schema.messages.id, cursor.id),
+              direction: "backward",
+            });
 
-            const { messages_version, items } = toPayload(rows);
+            const { messages_version, items } = toMessagesPayload(rows);
             return {
               items: items,
               messages_version,
@@ -149,21 +245,12 @@ export const messagesRouter = router({
           if (cursor.direction === "forward") {
             if (Math.random() < rate) throw new Error("Test error");
 
-            const rows = await db
-              .select({
-                messages_version: schema.channels.messages_version,
-                message: schema.messages,
-              })
-              .from(schema.channels)
-              .leftJoin(
-                schema.messages,
-                and(messagesJoinOn(after(schema.messages.id, cursor.id)))
-              )
-              .where(channelFilter)
-              .orderBy(asc(schema.messages.id))
-              .limit(input.limit);
+            const rows = await selectMessageRows({
+              extraCondition: after(schema.messages.id, cursor.id),
+              direction: "forward",
+            });
 
-            const { messages_version, items } = toPayload(rows);
+            const { messages_version, items } = toMessagesPayload(rows);
             return {
               items,
               messages_version,
@@ -177,68 +264,68 @@ export const messagesRouter = router({
         });
       }
       if (input.around) {
-        if (Math.random() < rate) throw new Error("Test error");
         const sideLimit = input.limit / 2;
 
-        const prevIncl = db
-          .select({
-            messages_version: schema.channels.messages_version,
-            message: getTableColumns(schema.messages),
-          })
-          .from(schema.channels)
-          .leftJoin(
-            schema.messages,
-            and(messagesJoinOn(beforeOrEqual(schema.messages.id, input.around)))
-          )
-          .where(channelFilter)
-          .orderBy(desc(schema.messages.id))
-          .limit(sideLimit + 1) // +1 because it includes the target message
-          .as("prevIncl");
+        const selectAroundSideIds = ({
+          extraCondition,
+          direction,
+          limit,
+        }: {
+          extraCondition: SQL;
+          direction: Direction;
+          limit: number;
+        }) =>
+          db
+            .select({
+              id: schema.messages.id,
+            })
+            .from(schema.channels)
+            .innerJoin(schema.messages, messagesJoinOn(extraCondition))
+            .where(channelFilter)
+            .orderBy(
+              direction === "forward"
+                ? asc(schema.messages.id)
+                : desc(schema.messages.id)
+            )
+            .limit(limit);
 
-        const next = db
-          .select({
-            messages_version: schema.channels.messages_version,
-            message: getTableColumns(schema.messages),
+        const aroundIds = unionAll(
+          selectAroundSideIds({
+            extraCondition: beforeOrEqual(schema.messages.id, input.around),
+            direction: "backward",
+            limit: sideLimit + 1, // includes target
+          }),
+          selectAroundSideIds({
+            extraCondition: after(schema.messages.id, input.around),
+            direction: "forward",
+            limit: sideLimit,
           })
-          .from(schema.channels)
-          .leftJoin(
-            schema.messages,
-            and(messagesJoinOn(after(schema.messages.id, input.around)))
-          )
-          .where(channelFilter)
-          .orderBy(asc(schema.messages.id))
-          .limit(sideLimit)
-          .as("next");
-
-        // using union to make it a single db call and avoid concurrency issues
-        const combined = unionAll(
-          db.select().from(prevIncl),
-          db.select().from(next)
-        ).as("combined");
+        ).as("around_ids");
 
         const rows = await db
-          .select()
-          .from(combined)
-          .orderBy(asc(combined.message.id));
+          .select({
+            messages_version: schema.channels.messages_version,
+            message: messageColumns,
+            author: messageAuthorColumns,
+          })
+          .from(aroundIds)
+          .innerJoin(schema.messages, eq(schema.messages.id, aroundIds.id))
+          .innerJoin(
+            schema.channels,
+            eq(schema.channels.id, schema.messages.channel_id)
+          )
+          .innerJoin(schema.user, eq(schema.user.id, schema.messages.user_id))
+          .where(channelFilter)
+          .orderBy(asc(schema.messages.id));
 
-        const { items, messages_version } = toPayload(rows);
+        const { items, messages_version } = toMessagesPayload(rows);
 
         return { items, messages_version };
       }
       if (Math.random() < rate) throw new Error("Test error");
 
-      const rows = await db
-        .select({
-          messages_version: schema.channels.messages_version,
-          message: schema.messages,
-        })
-        .from(schema.channels)
-        .leftJoin(schema.messages, and(messagesJoinOn()))
-        .where(channelFilter)
-        .orderBy(desc(schema.messages.id))
-        .limit(input.limit);
-
-      const { messages_version, items } = toPayload(rows);
+      const rows = await selectMessageRows({ direction: "backward" });
+      const { messages_version, items } = toMessagesPayload(rows);
 
       return {
         items: items,
@@ -292,6 +379,9 @@ export const messagesRouter = router({
       const input = fullCheckResult.data;
       // await new Promise((r) => setTimeout(r, 1500));
       // if (Math.random() < 0.7) throw new Error("Test error");
+
+      const author = pickMessageAuthor(ctx.user);
+
       const channelUpdate = db.$with("channel").as(
         db
           .update(schema.channels)
@@ -318,7 +408,7 @@ export const messagesRouter = router({
             user_id: ctx.user.id,
             channel_id: sql`(select ${channelUpdate.id} from ${channelUpdate})`,
           })
-          .returning()
+          .returning(messageColumns)
       );
 
       const [newData] = await db
@@ -327,8 +417,9 @@ export const messagesRouter = router({
         .from(messageInsert)
         .innerJoin(channelUpdate, sql`true`);
 
-      const newMessage = newData?.message;
-      if (!newMessage) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!newData?.message) throw new TRPCError({ code: "NOT_FOUND" });
+      const newMessage = newData.message as MessageWithAuthor;
+      newMessage.author = author;
 
       waitUntil(
         publishChannelEvent({
@@ -344,7 +435,7 @@ export const messagesRouter = router({
           channelId: String(newMessage.channel_id),
         }).catch((e) => console.error("Ably message create publish failed", e))
       );
-      return newData;
+      return { message: newMessage, channel: newData.channel };
     }),
   update: privateProcedure(
     [P.messages.update],
@@ -357,6 +448,8 @@ export const messagesRouter = router({
         .safeParse(dangerousInput);
       throwIfZodError(fullCheckResult);
       const input = fullCheckResult.data;
+
+      const author = pickMessageAuthor(ctx.user);
 
       const messageUpdate = db.$with("message").as(
         db
@@ -372,9 +465,8 @@ export const messagesRouter = router({
               eq(schema.messages.channel_id, schema.channels.id)
             )
           )
-          .returning(getTableColumns(schema.messages))
+          .returning(messageColumns)
       );
-
       const channelUpdate = db.$with("channel").as(
         db
           .update(schema.channels)
@@ -400,9 +492,10 @@ export const messagesRouter = router({
         .select()
         .from(messageUpdate)
         .innerJoin(channelUpdate, sql`true`);
+      if (!updatedData.message) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const updatedMessage = updatedData?.message;
-      if (!updatedMessage) throw new TRPCError({ code: "NOT_FOUND" });
+      const updatedMessage = updatedData.message as MessageWithAuthor;
+      updatedMessage.author = author;
 
       waitUntil(
         publishChannelEvent({
@@ -418,7 +511,10 @@ export const messagesRouter = router({
           channelId: String(updatedMessage.channel_id),
         }).catch((e) => console.error("Ably message update publish failed", e))
       );
-      return updatedData;
+      return {
+        message: updatedMessage,
+        channel: updatedData.channel,
+      };
     }),
   delete: privateProcedure(
     [P.messages.delete],

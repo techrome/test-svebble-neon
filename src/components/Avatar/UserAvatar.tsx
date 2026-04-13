@@ -9,7 +9,7 @@ import { env } from "@/utils/env";
 type Props = {
   user?: Pick<
     NonNullable<NonNullable<ReturnType<typeof useUser>["data"]>["user"]>,
-    "username" | "id" | "image"
+    "displayUsername" | "id" | "image"
   >;
   size?: "sm" | "md" | "lg";
 };
@@ -33,7 +33,7 @@ const UserAvatar = ({ user, size = "sm" }: Props) => {
           unoptimized
         />
       ) : (
-        <DefaultAvatar name={user.username} seed={user.id} />
+        <DefaultAvatar name={user.displayUsername} seed={user.id} />
       )}
     </div>
   );

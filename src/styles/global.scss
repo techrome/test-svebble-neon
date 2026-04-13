@@ -150,7 +150,7 @@ html {
     ry: 0;
 
     &.dash-frame-stroke-active {
-      --dash-color: $mui-primary-main;
+      --dash-color: #{$mui-primary-main};
     }
 
     stroke: var(--dash-color);

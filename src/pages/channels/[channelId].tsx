@@ -90,7 +90,7 @@ const MAX_PAGES = 5;
 const COMPACT_GAP_MS = minutes(5);
 const MAX_GROUP_AGE_MS = minutes(20);
 const MAX_GROUP_MESSAGES = 15;
-const FETCH_MORE_THRESHOLD = 5;
+const FETCH_MORE_THRESHOLD = 1;
 
 const searchSchemaForm = z.object({
   text: Text.Long(),
@@ -809,8 +809,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const messageCreateMutation = trpc.messages.create.useMutation({
     onMutate(variables) {
-      const userId = user.data?.user?.id;
-      if (!userId) return;
+      const currentUser = user.data?.user;
+      if (!currentUser) return;
       const tempId = nextOptimisticIdRef.current;
       nextOptimisticIdRef.current -= BigInt(1);
       setOptimisticMessages((prev) => [
@@ -822,7 +822,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           updated_at: new Date(),
           deleted_at: null,
           id: tempId,
-          user_id: userId,
+          user_id: currentUser.id,
+          author: {
+            ...currentUser,
+          },
           isOptimistic: true,
         },
       ]);
@@ -1801,17 +1804,21 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         </Tooltip>
         <Typography>Some text</Typography>
         {/* TODO */}
-        <Button
+        {/* <Button
           variant="outlined"
           onClick={() => {
-            setSyncMode(isPolling ? "ws-syncing" : "polling");
-            if (!isPolling) {
-              setInitialGateOpenedReason("default");
-            }
+            // setSyncMode(isPolling ? "ws-syncing" : "polling");
+            // if (!isPolling) {
+            //   setInitialGateOpenedReason("default");
+            // }
+            // messagesCreateSpamMutation.mutate({
+            //   channelId: channel.id,
+            //   isBulk: true,
+            // });
           }}
         >
           Current polling - {syncModeInfo.label}
-        </Button>
+        </Button> */}
 
         <form onSubmit={searchForm.handleSubmit(onSearchSubmit)} noValidate>
           <Input

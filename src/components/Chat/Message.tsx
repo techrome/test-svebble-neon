@@ -250,7 +250,7 @@ const Message = ({
       totalItems,
     ]);
 
-  const shouldDisplayAvatar = Boolean(user.data?.user && !message.isCompact);
+  const shouldDisplayAvatar = Boolean(!message.isCompact);
 
   const onHTMLContentClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -369,19 +369,9 @@ const Message = ({
                   : `justify-center`
               )}
             >
-              {shouldDisplayAvatar && user.data?.user ? (
+              {shouldDisplayAvatar ? (
                 <div className="pt-1">
-                  <UserAvatar
-                    user={
-                      isOwnMessage
-                        ? user.data.user
-                        : {
-                            username: user.data.user.username,
-                            id: user.data.user.id,
-                          }
-                    }
-                    size="md"
-                  />
+                  <UserAvatar user={message.author} size="md" />
                 </div>
               ) : !message.isOptimistic ? (
                 <Tooltip title={createdAtFull}>
@@ -403,7 +393,7 @@ const Message = ({
               {!message.isCompact && (
                 <HorizontalStack addClassName="items-center" spacing="xs">
                   <Typography>
-                    <strong>{user.data?.user?.name}</strong>
+                    <strong>{message.author.name}</strong>
                   </Typography>
                   <Tooltip title={createdAtFull}>
                     <Typography variant="caption" color="textDisabled">
