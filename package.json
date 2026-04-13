@@ -28,6 +28,7 @@
     "test-cron": "npm run call-script:dev -- scripts/trigger-cron.ts",
     "generate-tw-mui-css-vars": "npm run call-script:dev -- scripts/generate-tw-mui-css-vars.ts",
     "generate-encryption-keys": "npm run call-script:dev -- scripts/generate-encryption-keys.ts",
+    "encryption-test": "npm run call-script:dev -- scripts/encryption-test.ts",
     "email-preview": "email dev --dir src/server/email/templates --port 3001",
     "test": "playwright test"
   },
