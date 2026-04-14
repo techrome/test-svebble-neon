@@ -225,7 +225,7 @@ export const messagesRouter = router({
       };
 
       if (cursor) {
-        if (cursor.direction && cursor.id) {
+        if (cursor.direction && typeof cursor.id === "bigint") {
           if (cursor.direction === "backward") {
             if (Math.random() < rate) throw new Error("Test error");
 

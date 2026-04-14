@@ -166,7 +166,7 @@ const messageQuerySelectors = {
         : null;
       const newCursorId =
         lastPage.items[lastPage.items.length - 1]?.id || lastPageParamId;
-      return newCursorId && newCursorId >= BigInt(0)
+      return typeof newCursorId === "bigint" && newCursorId >= BigInt(0)
         ? { id: newCursorId, direction: "forward" }
         : undefined;
     }
@@ -538,13 +538,15 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       const pagesCount = queryData?.pages.length;
       if (!queryData || !pagesCount) return queryData;
 
-      const itemToUpdateId = BigInt(message.id);
-      const firstPage = queryData.pages[0];
+      const firstNonEmptyPage = queryData.pages[0].items.length
+        ? queryData.pages[0]
+        : queryData.pages[1];
       const lastNonEmptyPage = queryData.pages[pagesCount - 1].items.length
         ? queryData.pages[pagesCount - 1]
         : queryData.pages[pagesCount - 2];
 
-      const lowestLoadedId = firstPage.items[0]?.id;
+      const itemToUpdateId = BigInt(message.id);
+      const lowestLoadedId = firstNonEmptyPage.items[0]?.id;
       const highestLoadedId =
         lastNonEmptyPage?.items?.[lastNonEmptyPage?.items?.length - 1]?.id;
 

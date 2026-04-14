@@ -7,8 +7,8 @@ export const zDayjs = z.custom<Dayjs>((v) => dayjs.isDayjs(v) && v.isValid(), {
   error: "Invalid date",
 });
 
-export const numericIdSchema = z.bigint().positive();
-export const numericIdQuerySchemaRaw = z.string().regex(/^[1-9]\d*$/);
+export const numericIdSchema = z.bigint().min(BigInt(0));
+export const numericIdQuerySchemaRaw = z.string().regex(/^[0-9]\d*$/);
 export const numericIdQuerySchema = numericIdQuerySchemaRaw.transform((val) =>
   BigInt(val)
 );
