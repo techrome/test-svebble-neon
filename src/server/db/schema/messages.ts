@@ -1,6 +1,7 @@
 import {
   bigint,
   index,
+  integer,
   pgTable,
   timestamp,
   uuid,
@@ -27,6 +28,8 @@ export const messages = pgTable(
       channel_id: bigint("channel_id", { mode: "bigint" })
         .notNull()
         .references(() => channels.id),
+      reply_to_message_id: bigint("reply_to_message_id", { mode: "bigint" }),
+      reply_count: integer("reply_count").notNull().default(0),
       deleted_at: timestamp({ withTimezone: true, precision: 3 }),
     },
     { id: false }
@@ -35,8 +38,8 @@ export const messages = pgTable(
     index("messages_active_messages_by_user_index")
       .on(table.user_id, table.id)
       .where(isNull(table.deleted_at)),
-    index("messages_active_messages_index")
-      .on(table.channel_id, table.id)
+    index("messages_active_messages_and_replies_index")
+      .on(table.channel_id, table.id, table.reply_to_message_id)
       .where(isNull(table.deleted_at)),
     index("messages_cleanup_index")
       .on(table.deleted_at, table.id)
