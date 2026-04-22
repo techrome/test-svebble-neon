@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useMemo } from "react";
 import NextLink, { type LinkProps as NextLinkProps } from "next/link";
 import {
   Link as MuiLink,
   type LinkProps as MuiLinksProps,
 } from "@mui/material";
+import { useRouter } from "next/router";
 
 import { AllRoutes, ANCHORS } from "@/utils/routes";
 
@@ -24,7 +25,17 @@ type Props = {
     href: AllRoutes | UrlObjectWithAllRoutes;
   };
 
-const Link = ({ children, disabled, ...props }: Props) => {
+const Link = ({ children, disabled, href, ...props }: Props) => {
+  const router = useRouter();
+
+  const resolvedHref = useMemo(
+    () =>
+      typeof href === "string" && (href.startsWith("?") || href.startsWith("#"))
+        ? `${router.asPath.split("?")[0]?.split("#")[0] ?? ""}${href}`
+        : href,
+    [href, router.asPath]
+  );
+
   if (disabled) {
     return (
       <MuiLink component="span" aria-disabled tabIndex={-1} {...props}>
@@ -33,7 +44,7 @@ const Link = ({ children, disabled, ...props }: Props) => {
     );
   }
   return (
-    <MuiLink component={NextLink} {...props}>
+    <MuiLink component={NextLink} href={resolvedHref} {...props}>
       {children}
     </MuiLink>
   );

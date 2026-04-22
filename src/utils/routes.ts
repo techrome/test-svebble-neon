@@ -1,4 +1,4 @@
-import { Route } from "next";
+import { type Route } from "next";
 
 type DynamicRoute = (...args: string[]) => Route;
 
@@ -37,4 +37,5 @@ export type RouteValues = (typeof ROUTES)[RouteKeys];
 type StaticRoutes = Extract<RouteValues, Route>;
 type DynamicRoutes = ReturnType<Extract<RouteValues, DynamicRoute>>;
 
-export type AllRoutes = StaticRoutes | DynamicRoutes;
+type SamePathHref = `?${string}` | `#${string}` | `?${string}#${string}`;
+export type AllRoutes = StaticRoutes | DynamicRoutes | SamePathHref;
