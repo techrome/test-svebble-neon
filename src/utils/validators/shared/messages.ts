@@ -32,10 +32,11 @@ export const messagesGetSchemaForm = z.object({
 export const messageCreateSchemaForm = z.object({
   content: z.string(),
   channelId: numericIdSchema,
+  reply_to_message_id: numericIdSchema.optional().nullable(),
 });
 
 export const messageUpdateSchemaForm = messageCreateSchemaForm
-  .omit({ channelId: true })
+  .pick({ content: true })
   .extend({
     id: numericIdSchema,
   });
