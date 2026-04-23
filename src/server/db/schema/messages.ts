@@ -31,6 +31,9 @@ export const messages = pgTable(
       reply_to_message_id: bigint("reply_to_message_id", { mode: "bigint" }),
       reply_count: integer("reply_count").notNull().default(0),
       deleted_at: timestamp({ withTimezone: true, precision: 3 }),
+      edited_at: timestamp({ withTimezone: true, precision: 3 })
+        .notNull()
+        .defaultNow(),
     },
     { id: false }
   ),
