@@ -35,7 +35,7 @@ export const messages = pgTable(
         .notNull()
         .defaultNow(),
     },
-    { id: false }
+    { id: false, updated_at: false }
   ),
   (table) => [
     index("messages_active_messages_by_user_index")
