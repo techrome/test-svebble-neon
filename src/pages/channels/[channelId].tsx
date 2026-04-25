@@ -65,8 +65,6 @@ import {
   type WebsocketItem,
   type MessageSerializable,
   type WebsocketEventsOriginal,
-  type MessageMutationResponse,
-  type MessageBase,
   type WebsocketEvents,
   WebsocketEventName,
 } from "@/trpc/helpers/websockets";
@@ -84,7 +82,7 @@ import { User } from "@/utils/validators/shared/user";
 
 type JSONIncompatibleMessageFields = Pick<
   MessageSerializable,
-  "created_at" | "updated_at" | "id" | "channel_id" | "reply_to_message_id"
+  "created_at" | "edited_at" | "id" | "channel_id" | "reply_to_message_id"
 >;
 
 type DeserializeMessage<T> = Omit<T, keyof JSONIncompatibleMessageFields> &
@@ -98,7 +96,7 @@ const deserializeMessage = <
   ({
     ...message,
     ...(message.created_at ? { created_at: new Date(message.created_at) } : {}),
-    ...(message.updated_at ? { updated_at: new Date(message.updated_at) } : {}),
+    ...(message.edited_at ? { edited_at: new Date(message.edited_at) } : {}),
     ...(message.id ? { id: BigInt(message.id) } : {}),
     ...(message.channel_id ? { channel_id: BigInt(message.channel_id) } : {}),
     ...(message.reply_to_message_id
@@ -368,7 +366,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const utils = trpc.useUtils();
   const router = useRouter();
 
-  const channelIdString = useMemo(() => String(channel.id), [channel.id]);
+  const channelIdString = String(channel.id);
 
   const messageCreateSchema = useMemo(
     () => makeMessageCreateSchemaForm(user.data?.user?.emailVerified),
@@ -948,7 +946,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           channel_id: variables.channelId,
           content: variables.content,
           created_at: new Date(),
-          updated_at: new Date(),
+          edited_at: new Date(),
           deleted_at: null,
           id: tempId,
           user_id: currentUser.id,

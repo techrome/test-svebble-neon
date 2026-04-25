@@ -8,7 +8,7 @@ export type MessageSerializable = ToSerializable<Message>;
 
 type BaseMessageKeys = keyof Pick<
   Message,
-  "id" | "reply_count" | "content" | "updated_at"
+  "id" | "reply_count" | "content" | "edited_at"
 >;
 
 export type MessageBase = Record<BaseMessageKeys, unknown>;
@@ -33,7 +33,7 @@ type WebsocketEventsOf<TFull extends MessageBase> = {
   "messages:create": MessageMutationResponse<TFull, TFull>;
   "messages:update": MessageMutationResponse<
     TFull,
-    Pick<TFull, "content" | "id" | "updated_at" | "reply_count">,
+    Pick<TFull, "content" | "id" | "edited_at" | "reply_count">,
     false
   >;
   "messages:delete": MessageMutationResponse<TFull, Pick<TFull, "id">>;

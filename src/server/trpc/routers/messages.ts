@@ -551,6 +551,15 @@ export const messagesRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       const newMessage = newData.message as JoinedMessage;
       newMessage.author = author;
+      newMessage.parentMessage =
+        newData.parent_message.author_name && newData.parent_message.content
+          ? {
+              author: {
+                name: newData.parent_message.author_name,
+              },
+              contentPreview: newData.parent_message.content,
+            }
+          : null;
 
       const parentMessageIdSerialized = newMessage.reply_to_message_id
         ? String(newMessage.reply_to_message_id)
@@ -564,16 +573,6 @@ export const messagesRouter = router({
               channel_id: String(newMessage.channel_id),
               id: String(newMessage.id),
               reply_to_message_id: parentMessageIdSerialized,
-              parentMessage:
-                newData.parent_message.author_name &&
-                newData.parent_message.content
-                  ? {
-                      author: {
-                        name: newData.parent_message.author_name,
-                      },
-                      contentPreview: newData.parent_message.content,
-                    }
-                  : null,
             },
             messagesVersion: String(newData.channel_messages_version),
             parentMessageUpdate:
@@ -615,12 +614,10 @@ export const messagesRouter = router({
       throwIfZodError(fullCheckResult);
       const input = fullCheckResult.data;
 
-      const author = pickMessageAuthor(ctx.user);
-
       const messageUpdate = db.$with("message").as(
         db
           .update(schema.messages)
-          .set({ content: input.content })
+          .set({ content: input.content, edited_at: sql`now()` })
           .from(schema.channels)
           .where(
             and(
@@ -660,8 +657,7 @@ export const messagesRouter = router({
         .innerJoin(channelUpdate, sql`true`);
       if (!updatedData.message) throw new TRPCError({ code: "NOT_FOUND" });
 
-      const updatedMessage = updatedData.message as JoinedMessage;
-      updatedMessage.author = author;
+      const updatedMessage = updatedData.message;
 
       waitUntil(
         publishChannelEvent({
@@ -670,7 +666,7 @@ export const messagesRouter = router({
               content: updatedMessage.content,
               id: String(updatedMessage.id),
               reply_count: updatedMessage.reply_count,
-              updated_at: updatedMessage.updated_at,
+              edited_at: updatedMessage.edited_at,
             },
             messagesVersion: String(updatedData.channel.messages_version),
           },
@@ -683,7 +679,7 @@ export const messagesRouter = router({
           content: updatedMessage.content,
           id: updatedMessage.id,
           reply_count: updatedMessage.reply_count,
-          updated_at: updatedMessage.updated_at,
+          edited_at: updatedMessage.edited_at,
         },
         messagesVersion: updatedData.channel.messages_version,
       };

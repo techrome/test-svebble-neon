@@ -25,7 +25,7 @@ const ReplyCountButton = ({ message }: Props) => {
         Replies: {message.reply_count}
         <KeyboardArrowDownIcon
           fontSize="small"
-          className={clsx("transition", popover.isOpen ? "" : "-rotate-90")}
+          className={clsx("transition", popover.isOpen ? "rotate-180" : "")}
         />
       </Typography>
       <popover.ReadyComponent>

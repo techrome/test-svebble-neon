@@ -232,9 +232,9 @@ const Message = ({
           : createdAt.format(dateTimeFormat);
       const createdAtFull = createdAt.format(dateTimeFormatFullDisplay);
       const hasEdited =
-        message.created_at.getTime() !== message.updated_at.getTime();
+        message.created_at.getTime() !== message.edited_at.getTime();
       const updatedAtFull = hasEdited
-        ? dayjs(message.updated_at).format(dateTimeFormatFullDisplay)
+        ? dayjs(message.edited_at).format(dateTimeFormatFullDisplay)
         : null;
       const dayDisplay = message.isFirstMessageOfTheDay
         ? createdAt.format(dateFormatDisplay)
@@ -249,7 +249,7 @@ const Message = ({
     }, [
       message.created_at,
       message.isCompact,
-      message.updated_at,
+      message.edited_at,
       message.isFirstMessageOfTheDay,
       totalItems,
     ]);
@@ -359,29 +359,42 @@ const Message = ({
         addClassName={`relative group hover:bg-mui-action-focus`}
         ref={ref}
       >
-        {!!message.reply_to_message_id && (
-          <Link href={`?messageId=${message.reply_to_message_id}`}>
+        {!!message.reply_to_message_id &&
+          (!message.isOptimistic && !message.parentMessage ? (
             <HorizontalStack
-              addClassName="pl-6 pr-1 items-center hover:cursor-pointer hover:bg-mui-action-selected"
+              addClassName="pl-6 pr-1 items-center"
               fullWidth
               spacing="xs"
             >
               <ReplyIcon fontSize="small" className="-scale-x-100" />
-              <Typography>
-                <Typography component={"span"} color="secondary">
-                  <strong>
-                    {message.parentMessage
-                      ? message.parentMessage.author.name
-                      : "Loading..."}
-                  </strong>
-                </Typography>
-              </Typography>
-              <Typography color="textSecondary">
-                {message.parentMessage?.contentPreview}
-              </Typography>
+              <Typography color="textSecondary">Message was deleted</Typography>
             </HorizontalStack>
-          </Link>
-        )}
+          ) : (
+            <Link
+              href={`?messageId=${message.reply_to_message_id}`}
+              className="no-underline"
+            >
+              <HorizontalStack
+                addClassName="pl-6 pr-1 items-center hover:cursor-pointer hover:bg-mui-action-selected text-mui-text-primary"
+                fullWidth
+                spacing="xs"
+              >
+                <ReplyIcon fontSize="small" className="-scale-x-100" />
+                <Typography>
+                  <Typography component={"span"} color="secondary">
+                    <strong>
+                      {message.parentMessage
+                        ? message.parentMessage.author.name
+                        : "Loading..."}
+                    </strong>
+                  </Typography>
+                </Typography>
+                <Typography color="textSecondary">
+                  {message.parentMessage?.contentPreview}
+                </Typography>
+              </HorizontalStack>
+            </Link>
+          ))}
         <div className={`px-1`}>
           <HorizontalStack
             addClassName="px-1 py-1 justify-between items-center"
