@@ -133,6 +133,7 @@ export const AuthWrapper = (props: WrapperProps) => {
       }
 
       const popup = oauthPopupRef.current;
+      console.log({ popup });
 
       if (!popup) {
         window.location.href = data.url;
