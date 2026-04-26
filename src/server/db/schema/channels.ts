@@ -27,7 +27,7 @@ export const channels = pgTable(
         mode: "bigint",
       })
         .notNull()
-        .default(sql`0`),
+        .default(sql`1`),
       deleted_at: timestamp({ withTimezone: true, precision: 3 }),
     },
     { id: false }

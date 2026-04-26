@@ -169,6 +169,27 @@
       "when": 1775639336457,
       "tag": "0023_gigantic_whistler",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1776387556777,
+      "tag": "0024_true_revanche",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1776944734199,
+      "tag": "0025_flaky_rattler",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1777004680011,
+      "tag": "0026_magenta_lady_vermin",
+      "breakpoints": true
     }
   ]
 }

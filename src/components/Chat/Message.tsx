@@ -56,6 +56,8 @@ import { copyToClipboard } from "@/utils/stringUtils";
 import MessageEditor from "@/components/Chat/MessageEditor";
 import { makeMessageUpdateSchemaForm } from "@/utils/validators/client/messages";
 import { useLatest } from "@/utils/hooks/useLatest";
+import ReplyCountButton from "@/components/Chat/ReplyCountButton";
+import Link from "@/components/Link/Link";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -103,6 +105,7 @@ type Props = {
   onOptimisticFailedRetry: React.MouseEventHandler<HTMLButtonElement>;
   onOptimisticFailedDelete: React.MouseEventHandler<HTMLButtonElement>;
   onReportClick: React.MouseEventHandler<HTMLElement>;
+  onReplyClick: React.MouseEventHandler<HTMLElement>;
 };
 
 type FormValues = z.infer<ReturnType<typeof makeMessageUpdateSchemaForm>>;
@@ -117,6 +120,7 @@ const Message = ({
   onOptimisticFailedRetry,
   onOptimisticFailedDelete,
   onReportClick,
+  onReplyClick,
 }: Props) => {
   const user = useUser();
   const menuPopover = useLocalPopover();
@@ -153,9 +157,9 @@ const Message = ({
   useLayoutEffect(() => {
     const el = ref.current;
     if (shouldHighlight && el) {
-      el.classList.remove("hash-flash");
+      el.classList.remove("hash-flash-inner");
       void el.offsetWidth;
-      el.classList.add("hash-flash");
+      el.classList.add("hash-flash-inner");
 
       onHighlightConsumed?.();
     }
@@ -218,37 +222,56 @@ const Message = ({
     form.reset();
   };
 
-  const { createdAtShort, createdAtFull, updatedAtFull, dayDisplay } =
-    useMemo(() => {
-      const createdAt = dayjs(message.created_at);
-      const isToday = createdAt.isSame(dayjs(), "day");
-      const createdAtShort =
-        message.isCompact || isToday
-          ? createdAt.format(timeFormat)
-          : createdAt.format(dateTimeFormat);
-      const createdAtFull = createdAt.format(dateTimeFormatFullDisplay);
-      const hasEdited =
-        message.created_at.getTime() !== message.updated_at.getTime();
-      const updatedAtFull = hasEdited
-        ? dayjs(message.updated_at).format(dateTimeFormatFullDisplay)
-        : null;
-      const dayDisplay = message.isFirstMessageOfTheDay
-        ? createdAt.format(dateFormatDisplay)
-        : null;
-      return {
-        createdAtShort,
-        createdAtFull,
-        updatedAtFull,
-        dayDisplay,
-      };
-      // eslint-disable-next-line
-    }, [
-      message.created_at,
-      message.isCompact,
-      message.updated_at,
-      message.isFirstMessageOfTheDay,
-      totalItems,
-    ]);
+  const {
+    createdAtShort,
+    createdAtFull,
+    updatedAtFull,
+    parentMessageUpdatedAtFull,
+    dayDisplay,
+  } = useMemo(() => {
+    const createdAt = dayjs(message.created_at);
+    const isToday = createdAt.isSame(dayjs(), "day");
+    const createdAtShort =
+      message.isCompact || isToday
+        ? createdAt.format(timeFormat)
+        : createdAt.format(dateTimeFormat);
+    const createdAtFull = createdAt.format(dateTimeFormatFullDisplay);
+    const hasEdited =
+      message.created_at.getTime() !== message.edited_at.getTime();
+
+    const updatedAtFull = hasEdited
+      ? dayjs(message.edited_at).format(dateTimeFormatFullDisplay)
+      : null;
+    let parentMessageUpdatedAtFull: string | null = null;
+    const parentMessage = message.parentMessage;
+    if (
+      parentMessage &&
+      parentMessage.created_at.getTime() !== parentMessage.edited_at.getTime()
+    ) {
+      parentMessageUpdatedAtFull = dayjs(parentMessage.edited_at).format(
+        dateTimeFormatFullDisplay
+      );
+    }
+
+    const dayDisplay = message.isFirstMessageOfTheDay
+      ? createdAt.format(dateFormatDisplay)
+      : null;
+    return {
+      createdAtShort,
+      createdAtFull,
+      updatedAtFull,
+      parentMessageUpdatedAtFull,
+      dayDisplay,
+    };
+    // eslint-disable-next-line
+  }, [
+    message.created_at,
+    message.isCompact,
+    message.edited_at,
+    message.isFirstMessageOfTheDay,
+    message.parentMessage,
+    totalItems,
+  ]);
 
   const shouldDisplayAvatar = Boolean(!message.isCompact);
 
@@ -318,14 +341,6 @@ const Message = ({
             />
             <HorizontalStack>
               <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                isLoading={messagesUpdateMutation.isPending}
-              >
-                Save
-              </Button>
-              <Button
                 type="button"
                 variant="contained"
                 color="inherit"
@@ -333,6 +348,14 @@ const Message = ({
                 disabled={messagesUpdateMutation.isPending}
               >
                 Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                isLoading={messagesUpdateMutation.isPending}
+              >
+                Save
               </Button>
             </HorizontalStack>
           </VerticalStack>
@@ -352,143 +375,199 @@ const Message = ({
       )}
       <VerticalStack
         spacing="none"
-        addClassName={`px-1 relative group hover:bg-mui-action-focus`}
+        addClassName={`relative group hover:bg-mui-action-focus`}
+        ref={ref}
       >
-        <HorizontalStack
-          ref={ref}
-          addClassName="px-1 py-1 justify-between items-center"
-          fullWidth
-          wrap={false}
-        >
-          <HorizontalStack wrap={false} spacing="xs" addClassName="flex-1">
-            <div
-              className={clsx(
-                "min-w-12 max-w-12 flex",
-                !shouldDisplayAvatar && isDesktop
-                  ? `justify-center ${hoverChildHiddenClass} ${hoverChildHoveredClass}`
-                  : `justify-center`
-              )}
+        {!!message.reply_to_message_id &&
+          (!message.isOptimistic && !message.parentMessage ? (
+            <HorizontalStack
+              addClassName="pl-6 pr-1 items-center"
+              fullWidth
+              spacing="xs"
             >
-              {shouldDisplayAvatar ? (
-                <div className="pt-1">
-                  <UserAvatar user={message.author} size="md" />
-                </div>
-              ) : !message.isOptimistic ? (
-                <Tooltip title={createdAtFull}>
+              <ReplyIcon fontSize="small" className="-scale-x-100" />
+              <Typography color="textSecondary">Message was deleted</Typography>
+            </HorizontalStack>
+          ) : (
+            <Link
+              href={`?messageId=${message.reply_to_message_id}`}
+              className="no-underline"
+            >
+              <HorizontalStack
+                addClassName="pl-6 pr-1 items-center hover:cursor-pointer hover:bg-mui-action-selected text-mui-text-primary"
+                fullWidth
+                spacing="xs"
+              >
+                <ReplyIcon fontSize="small" className="-scale-x-100" />
+                <Typography>
+                  <Typography component={"span"} color="secondary">
+                    <strong>
+                      {message.parentMessage
+                        ? message.parentMessage.author.name
+                        : "Loading..."}
+                    </strong>
+                  </Typography>
+                </Typography>
+                <div className="flex items-center gap-1 overflow-hidden">
                   <Typography
-                    variant="caption"
-                    className="text-xs/6"
-                    color="textDisabled"
+                    color="textSecondary"
+                    className="text-ellipsis whitespace-nowrap overflow-hidden"
                   >
-                    {createdAtShort}
+                    {message.parentMessage?.contentPreview}
                   </Typography>
-                </Tooltip>
-              ) : null}
-            </div>
-            <VerticalStack
-              spacing="none"
-              fullWidth={false}
-              addClassName="flex-1"
-            >
-              {!message.isCompact && (
-                <HorizontalStack addClassName="items-center" spacing="xs">
-                  <Typography>
-                    <strong>{message.author.name}</strong>
-                  </Typography>
+                  {parentMessageUpdatedAtFull ? (
+                    <Tooltip title={parentMessageUpdatedAtFull}>
+                      <Typography
+                        className="whitespace-nowrap"
+                        component="span"
+                        color="textDisabled"
+                        variant="caption"
+                      >
+                        (edited)
+                      </Typography>
+                    </Tooltip>
+                  ) : null}
+                </div>
+              </HorizontalStack>
+            </Link>
+          ))}
+        <div className={`px-1`}>
+          <HorizontalStack
+            addClassName="px-1 py-1 justify-between items-center"
+            fullWidth
+            wrap={false}
+          >
+            <HorizontalStack wrap={false} spacing="xs" addClassName="flex-1">
+              <div
+                className={clsx(
+                  "min-w-12 max-w-12 flex",
+                  !shouldDisplayAvatar && isDesktop
+                    ? `justify-center ${hoverChildHiddenClass} ${hoverChildHoveredClass}`
+                    : `justify-center`
+                )}
+              >
+                {shouldDisplayAvatar ? (
+                  <div className="pt-1">
+                    <UserAvatar user={message.author} size="md" />
+                  </div>
+                ) : !message.isOptimistic ? (
                   <Tooltip title={createdAtFull}>
-                    <Typography variant="caption" color="textDisabled">
+                    <Typography
+                      variant="caption"
+                      className="text-xs/6"
+                      color="textDisabled"
+                    >
                       {createdAtShort}
                     </Typography>
                   </Tooltip>
-                </HorizontalStack>
-              )}
-              <Typography
-                color={message.isOptimistic ? "textDisabled" : "textPrimary"}
-                component={"div"}
-                className="message-content"
-              >
-                {messageHTMLContent}
-                {updatedAtFull ? (
-                  <Tooltip title={updatedAtFull}>
-                    <Typography
-                      component="span"
-                      color="textDisabled"
-                      variant="caption"
-                    >
-                      {" "}
-                      (edited)
-                    </Typography>
-                  </Tooltip>
                 ) : null}
-              </Typography>
-            </VerticalStack>
-          </HorizontalStack>
-          {message.isOptimistic ? null : isDesktop ? (
-            <Paper
-              elevation={4}
-              className={clsx(
-                "absolute -top-6 right-2 flex",
-                !menuPopover.isOpen && hoverChildHiddenClass,
-                hoverChildHoveredClass
-              )}
-            >
-              <HorizontalStack addClassName="p-1" spacing="none">
-                <Tooltip title="Add reaction">
-                  <IconButton size="small">
-                    <AddReactionIcon />
-                  </IconButton>
-                </Tooltip>
-                {isOwnMessage && (
-                  <Tooltip title="Edit message">
-                    <IconButton
-                      size="small"
-                      onClick={() => {
-                        setIsEdit(true);
-                      }}
-                    >
-                      <EditIcon />
+              </div>
+              <VerticalStack
+                spacing="none"
+                fullWidth={false}
+                addClassName="flex-1"
+              >
+                {!message.isCompact && (
+                  <HorizontalStack addClassName="items-center" spacing="xs">
+                    <Typography>
+                      <strong>{message.author.name}</strong>
+                    </Typography>
+                    <Tooltip title={createdAtFull}>
+                      <Typography variant="caption" color="textDisabled">
+                        {createdAtShort}
+                      </Typography>
+                    </Tooltip>
+                  </HorizontalStack>
+                )}
+                <Typography
+                  color={message.isOptimistic ? "textDisabled" : "textPrimary"}
+                  component={"div"}
+                  className="message-content"
+                >
+                  {messageHTMLContent}
+                  {updatedAtFull ? (
+                    <Tooltip title={updatedAtFull}>
+                      <Typography
+                        component="span"
+                        color="textDisabled"
+                        variant="caption"
+                      >
+                        {" "}
+                        (edited)
+                      </Typography>
+                    </Tooltip>
+                  ) : null}
+                </Typography>
+              </VerticalStack>
+            </HorizontalStack>
+            {message.isOptimistic ? null : isDesktop ? (
+              <Paper
+                elevation={4}
+                className={clsx(
+                  "absolute -top-6 right-2 flex",
+                  !menuPopover.isOpen && hoverChildHiddenClass,
+                  hoverChildHoveredClass
+                )}
+              >
+                <HorizontalStack addClassName="p-1" spacing="none">
+                  <Tooltip title="Add reaction">
+                    <IconButton size="small">
+                      <AddReactionIcon />
                     </IconButton>
                   </Tooltip>
-                )}
-                <Tooltip title="Reply">
-                  <IconButton size="small">
-                    <ReplyIcon />
-                  </IconButton>
-                </Tooltip>
-                {MoreButton}
+                  {isOwnMessage && (
+                    <Tooltip title="Edit message">
+                      <IconButton
+                        size="small"
+                        onClick={() => {
+                          setIsEdit(true);
+                        }}
+                      >
+                        <EditIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  <Tooltip title="Reply">
+                    <IconButton size="small" onClick={onReplyClick}>
+                      <ReplyIcon />
+                    </IconButton>
+                  </Tooltip>
+                  {MoreButton}
+                </HorizontalStack>
+              </Paper>
+            ) : (
+              MoreButton
+            )}
+          </HorizontalStack>
+          {message.isOptimistic && message.isFailed && (
+            <VerticalStack spacing="xs" addClassName="pl-[3.75rem] pr-2 pb-2">
+              <Typography color="warning" variant="body2">
+                Failed to send message. Retry?
+              </Typography>
+              <HorizontalStack>
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={onOptimisticFailedDelete}
+                  className="w-fit"
+                >
+                  Delete
+                </Button>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<ReplayIcon />}
+                  onClick={onOptimisticFailedRetry}
+                  className="w-fit"
+                >
+                  Retry
+                </Button>
               </HorizontalStack>
-            </Paper>
-          ) : (
-            MoreButton
+            </VerticalStack>
           )}
-        </HorizontalStack>
-        {message.isOptimistic && message.isFailed && (
-          <VerticalStack spacing="xs" addClassName="pl-[3.75rem] pr-2 pb-2">
-            <Typography color="warning" variant="body2">
-              Failed to send message. Retry?
-            </Typography>
-            <HorizontalStack>
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<ReplayIcon />}
-                onClick={onOptimisticFailedRetry}
-                className="w-fit"
-              >
-                Retry
-              </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteIcon />}
-                onClick={onOptimisticFailedDelete}
-                className="w-fit"
-              >
-                Delete
-              </Button>
-            </HorizontalStack>
-          </VerticalStack>
-        )}
+        </div>
+        {!!message.reply_count && <ReplyCountButton message={message} />}
       </VerticalStack>
       <menuPopover.ReadyComponent>
         <Paper>
@@ -499,7 +578,7 @@ const Message = ({
               </ListItemIcon>
               <ListItemText>Add Reaction</ListItemText>
             </MenuItem>
-            <MenuItem>
+            <MenuItem onClick={onReplyClick}>
               <ListItemIcon>
                 <ReplyIcon />
               </ListItemIcon>

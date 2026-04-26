@@ -13,6 +13,8 @@ import { Paper, Typography } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import ReplayIcon from "@mui/icons-material/Replay";
+import ReplyIcon from "@mui/icons-material/Reply";
+import ClearIcon from "@mui/icons-material/Clear";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import debounce from "lodash/debounce";
 import z from "@/utils/zod";
@@ -62,6 +64,9 @@ import {
   type WebsocketPayload,
   type WebsocketItem,
   type MessageSerializable,
+  type WebsocketEventsOriginal,
+  type WebsocketEvents,
+  WebsocketEventName,
 } from "@/trpc/helpers/websockets";
 import ChannelListWrapper from "@/components/Chat/ChannelList";
 import { numericIdQuerySchemaRaw } from "@/utils/validators/helpers/custom";
@@ -73,16 +78,51 @@ import ReportMessageForm from "@/components/Chat/ReportMessageForm";
 import ChannelHeader from "@/components/Chat/ChannelHeader";
 import type { AppRouter } from "@/server";
 import MessageEditor from "@/components/Chat/MessageEditor";
+import { User } from "@/utils/validators/shared/user";
+import { messageContentPreviewMaxLength } from "@/utils/validators/shared/messages";
 
-const deserializeMessage = (
-  serializedMessage: MessageSerializable
-): Message => ({
-  ...serializedMessage,
-  created_at: new Date(serializedMessage.created_at),
-  updated_at: new Date(serializedMessage.updated_at),
-  id: BigInt(serializedMessage.id),
-  channel_id: BigInt(serializedMessage.channel_id),
-});
+type JSONIncompatibleMessageFields = Pick<
+  MessageSerializable,
+  "created_at" | "edited_at" | "id" | "channel_id" | "reply_to_message_id"
+>;
+
+type DeserializeMessage<T> = Omit<T, keyof JSONIncompatibleMessageFields> &
+  Pick<Message, Extract<keyof T, keyof JSONIncompatibleMessageFields>>;
+
+const deserializeMessage = <
+  T extends object & Partial<JSONIncompatibleMessageFields>,
+>(
+  message: T
+) =>
+  ({
+    ...message,
+    ...(message.created_at ? { created_at: new Date(message.created_at) } : {}),
+    ...(message.edited_at ? { edited_at: new Date(message.edited_at) } : {}),
+    ...(message.id ? { id: BigInt(message.id) } : {}),
+    ...(message.channel_id ? { channel_id: BigInt(message.channel_id) } : {}),
+    ...(message.reply_to_message_id
+      ? {
+          reply_to_message_id: BigInt(message.reply_to_message_id),
+        }
+      : {}),
+  }) as DeserializeMessage<T>;
+
+const deserializeMessageData = <K extends WebsocketEventName>(
+  payload: WebsocketEvents[K]
+) =>
+  ({
+    message: {
+      ...deserializeMessage(payload.message),
+      parentMessage:
+        "parentMessage" in payload.message && payload.message.parentMessage
+          ? deserializeMessage(payload.message.parentMessage)
+          : null,
+    },
+    messagesVersion: BigInt(payload.messagesVersion),
+    parentMessageUpdate: payload.parentMessageUpdate
+      ? deserializeMessage(payload.parentMessageUpdate)
+      : null,
+  }) as WebsocketEventsOriginal[K];
 
 const BASE_INDEX = 1_000_000_000;
 const PER_PAGE = 50;
@@ -105,7 +145,8 @@ const checkShouldCollapseMessage = (
   return Boolean(
     prevMessage &&
       prevMessage.user_id === message.user_id &&
-      isWithinMs(message.created_at, prevMessage.created_at, minutes(5))
+      !message.reply_to_message_id &&
+      isWithinMs(message.created_at, prevMessage.created_at, COMPACT_GAP_MS)
   );
 };
 
@@ -197,6 +238,7 @@ const messageQuerySelectors = {
           !isFirstMessageOfTheDay &&
           !!prevMessage &&
           prevMessage.user_id === message.user_id &&
+          !message.reply_to_message_id &&
           isWithinMs(
             message.created_at,
             prevMessage.created_at,
@@ -269,6 +311,31 @@ const useMessagesGet = (
   });
 };
 
+const getLoadedMessagesIdBounds = (
+  queryData: InfiniteData<MessagesGetOutput> | undefined
+): { lowestId: bigint; highestId: bigint } | null => {
+  const pagesCount = queryData?.pages.length;
+  if (!pagesCount) return null;
+
+  const firstNonEmptyPage = queryData.pages[0].items.length
+    ? queryData.pages[0]
+    : queryData.pages[1];
+  const lastNonEmptyPage = queryData.pages[pagesCount - 1].items.length
+    ? queryData.pages[pagesCount - 1]
+    : queryData.pages[pagesCount - 2];
+
+  const lowestId = firstNonEmptyPage.items[0]?.id;
+  const highestId =
+    lastNonEmptyPage?.items?.[lastNonEmptyPage?.items?.length - 1]?.id;
+
+  if (!lowestId || !highestId) return null;
+
+  return {
+    lowestId,
+    highestId,
+  };
+};
+
 const baseIntervalMs = Number(seconds(5));
 const maxIntervalMs = Number(seconds(30));
 
@@ -306,7 +373,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const utils = trpc.useUtils();
   const router = useRouter();
 
-  const channelIdString = useMemo(() => String(channel.id), [channel.id]);
+  const channelIdString = String(channel.id);
 
   const messageCreateSchema = useMemo(
     () => makeMessageCreateSchemaForm(user.data?.user?.emailVerified),
@@ -333,6 +400,9 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const wasRefetching = useRef<boolean>(false);
   const userInteractedRef = useRef(false);
 
+  const [messageToReply, setMessageToReply] = useState<
+    (Pick<Message, "id"> & { author: Pick<User, "name"> }) | null
+  >(null);
   const [isIdleTrigger, setIsIdleTrigger] = useState(0);
   const [isInitialScrollHandled, setIsInitialScrollHandled] =
     useState<boolean>(true);
@@ -494,12 +564,59 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const websocketsMessageQueue = useRef<WebsocketItem[]>([]);
 
-  const appendMessage = (message: Message, newMessagesVersion: bigint) => {
+  const appendMessage = (
+    data: WebsocketEventsOriginal["messages:create"],
+    newMessagesVersion: bigint
+  ) => {
     utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-      if (!queryData || !queryData.pages.length || messages.hasNextPage) {
+      if (
+        !queryData ||
+        !queryData.pages.length ||
+        (!data.parentMessageUpdate && messages.hasNextPage)
+      ) {
         return queryData;
       }
+
+      const message = data.message;
       let updatedPages = [...queryData.pages];
+      let anythingChanged = false;
+
+      if (data.parentMessageUpdate) {
+        const idBounds = getLoadedMessagesIdBounds(queryData);
+        const parentItemToUpdateId = data.parentMessageUpdate.id;
+        if (
+          idBounds &&
+          parentItemToUpdateId >= idBounds.lowestId &&
+          parentItemToUpdateId <= idBounds.highestId
+        ) {
+          for (let i = 0; i < updatedPages.length; i++) {
+            const page = updatedPages[i];
+            const foundItemIndex = page.items.findIndex(
+              (m) => m.id === parentItemToUpdateId
+            );
+            if (foundItemIndex >= 0) {
+              let updatedItems = [...page.items];
+              updatedItems[foundItemIndex] = {
+                ...updatedItems[foundItemIndex],
+                reply_count: data.parentMessageUpdate.reply_count,
+              };
+
+              anythingChanged = true;
+              updatedPages[i] = {
+                ...updatedPages[i],
+                items: updatedItems,
+                messages_version: newMessagesVersion,
+              };
+            }
+          }
+        }
+      }
+
+      if (messages.hasNextPage) {
+        return anythingChanged
+          ? { ...queryData, pages: updatedPages }
+          : queryData;
+      }
 
       updatedPages[updatedPages.length - 1] = {
         ...updatedPages[updatedPages.length - 1],
@@ -533,128 +650,184 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     });
   };
 
-  const editMessage = (message: Message, newMessagesVersion: bigint) => {
-    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-      const pagesCount = queryData?.pages.length;
-      if (!queryData || !pagesCount) return queryData;
-
-      const firstNonEmptyPage = queryData.pages[0].items.length
-        ? queryData.pages[0]
-        : queryData.pages[1];
-      const lastNonEmptyPage = queryData.pages[pagesCount - 1].items.length
-        ? queryData.pages[pagesCount - 1]
-        : queryData.pages[pagesCount - 2];
-
-      const itemToUpdateId = BigInt(message.id);
-      const lowestLoadedId = firstNonEmptyPage.items[0]?.id;
-      const highestLoadedId =
-        lastNonEmptyPage?.items?.[lastNonEmptyPage?.items?.length - 1]?.id;
-
-      if (
-        !lowestLoadedId ||
-        !highestLoadedId ||
-        itemToUpdateId < lowestLoadedId ||
-        itemToUpdateId > highestLoadedId
-      ) {
-        return queryData;
-      }
-
-      let updatedPages = [...queryData.pages];
-      for (let i = 0; i < updatedPages.length; i++) {
-        const page = updatedPages[i];
-        const foundItemIndex = page.items.findIndex(
-          (m) => m.id === itemToUpdateId
-        );
-        if (foundItemIndex >= 0) {
-          let updatedItems = [...page.items];
-          updatedItems[foundItemIndex] = {
-            ...message,
-            id: itemToUpdateId,
-          };
-
-          updatedPages[i] = {
-            ...updatedPages[i],
-            items: updatedItems,
-            messages_version: newMessagesVersion,
-          };
-          return { ...queryData, pages: updatedPages };
-        }
-      }
-      return queryData;
-    });
-  };
-
-  const deleteMessage = (
-    itemToDeleteId: bigint,
+  const editMessage = (
+    data: WebsocketEventsOriginal["messages:update"],
     newMessagesVersion: bigint
   ) => {
     utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
       const pagesCount = queryData?.pages.length;
       if (!queryData || !pagesCount) return queryData;
-
-      const firstNonEmptyPage = queryData.pages[0].items.length
-        ? queryData.pages[0]
-        : queryData.pages[1];
-      const lastNonEmptyPage = queryData.pages[pagesCount - 1].items.length
-        ? queryData.pages[pagesCount - 1]
-        : queryData.pages[pagesCount - 2];
-
-      const lowestLoadedId = firstNonEmptyPage?.items[0]?.id;
-      const highestLoadedId =
-        lastNonEmptyPage?.items?.[lastNonEmptyPage?.items?.length - 1]?.id;
-
-      if (
-        !lowestLoadedId ||
-        !highestLoadedId ||
-        itemToDeleteId < lowestLoadedId ||
-        itemToDeleteId > highestLoadedId
-      ) {
-        return queryData;
-      }
-
+      const message = data.message;
+      const itemToUpdateId = BigInt(message.id);
+      let anythingChanged = false;
       let updatedPages = [...queryData.pages];
-      let updatedPageParams = [...queryData.pageParams];
 
-      let targetMessageGlobalIndex = firstItemIndex || 0;
       for (let i = 0; i < updatedPages.length; i++) {
         const page = updatedPages[i];
-        const foundItemIndex = page.items.findIndex(
-          (m) => m.id === itemToDeleteId
-        );
-        if (foundItemIndex < 0) {
-          targetMessageGlobalIndex += page.items.length;
+        let replyMessagesToUpdateIndexes: number[] = [];
+        let foundItemToUpdateIndex = -1;
+        for (let j = 0; j < page.items.length; j++) {
+          const item = page.items[j];
+
+          if (item.id === itemToUpdateId) {
+            foundItemToUpdateIndex = j;
+          }
+          if (item.reply_to_message_id === itemToUpdateId) {
+            replyMessagesToUpdateIndexes.push(j);
+          }
+        }
+
+        if (
+          foundItemToUpdateIndex === -1 &&
+          !replyMessagesToUpdateIndexes.length
+        ) {
           continue;
         }
 
-        targetMessageGlobalIndex += foundItemIndex;
+        let updatedItems = [...page.items];
+        if (foundItemToUpdateIndex >= 0) {
+          updatedItems[foundItemToUpdateIndex] = {
+            ...updatedItems[foundItemToUpdateIndex],
+            ...message,
+          };
+        }
+        if (replyMessagesToUpdateIndexes.length) {
+          replyMessagesToUpdateIndexes.forEach((index) => {
+            updatedItems[index] = {
+              ...updatedItems[index],
+              parentMessage: updatedItems[index].parentMessage
+                ? {
+                    ...updatedItems[index].parentMessage,
+                    edited_at: message.edited_at,
+                    contentPreview: message.content.slice(
+                      0,
+                      messageContentPreviewMaxLength
+                    ),
+                  }
+                : null,
+            };
+          });
+        }
+
+        anythingChanged = true;
+        updatedPages[i] = {
+          ...updatedPages[i],
+          items: updatedItems,
+          messages_version: newMessagesVersion,
+        };
+      }
+      return anythingChanged
+        ? { ...queryData, pages: updatedPages }
+        : queryData;
+    });
+  };
+
+  const deleteMessage = (
+    data: WebsocketEventsOriginal["messages:delete"],
+    newMessagesVersion: bigint
+  ) => {
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      const pagesCount = queryData?.pages.length;
+      if (!queryData || !pagesCount) return queryData;
+      const itemToDeleteId = data.message.id;
+      const parentItemToUpdateId = data.parentMessageUpdate?.id;
+      let anythingChanged = false;
+
+      let updatedPages = [...queryData.pages];
+      let updatedPageParams = [...queryData.pageParams];
+      let targetMessageGlobalIndex = firstItemIndex || 0;
+      let foundItemToDeletePageIndex = -1;
+      let foundItemToDeleteIndex = -1;
+      for (let i = 0; i < updatedPages.length; i++) {
+        const page = updatedPages[i];
+        let foundParentItemToUpdateIndex = -1;
+        let replyMessagesToUpdateIndexes: number[] = [];
+
+        for (let j = 0; j < page.items.length; j++) {
+          const item = page.items[j];
+
+          if (item.id === itemToDeleteId) {
+            foundItemToDeletePageIndex = i;
+            foundItemToDeleteIndex = j;
+          }
+          if (parentItemToUpdateId && item.id === parentItemToUpdateId) {
+            foundParentItemToUpdateIndex = j;
+          }
+          if (item.reply_to_message_id === itemToDeleteId) {
+            replyMessagesToUpdateIndexes.push(j);
+          }
+        }
+
+        if (foundItemToDeleteIndex === -1) {
+          targetMessageGlobalIndex += page.items.length;
+        }
+
+        if (
+          foundParentItemToUpdateIndex === -1 &&
+          !replyMessagesToUpdateIndexes.length
+        ) {
+          continue;
+        }
+
+        let updatedItems = [...page.items];
+        if (data.parentMessageUpdate && foundParentItemToUpdateIndex >= 0) {
+          updatedItems[foundParentItemToUpdateIndex] = {
+            ...updatedItems[foundParentItemToUpdateIndex],
+            reply_count: data.parentMessageUpdate.reply_count,
+          };
+        }
+
+        if (replyMessagesToUpdateIndexes.length) {
+          replyMessagesToUpdateIndexes.forEach((index) => {
+            updatedItems[index] = {
+              ...updatedItems[index],
+              parentMessage: null,
+            };
+          });
+        }
+
+        anythingChanged = true;
+        updatedPages[i] = {
+          ...updatedPages[i],
+          items: updatedItems,
+          messages_version: newMessagesVersion,
+        };
+      }
+      if (foundItemToDeleteIndex >= 0 && foundItemToDeletePageIndex >= 0) {
+        targetMessageGlobalIndex += foundItemToDeleteIndex;
         const visibleGlobalStartIndex =
           visibleRangeRef.current?.visibleStartIndex || 0;
         const isTargetMessageAboveViewport =
           targetMessageGlobalIndex < visibleGlobalStartIndex;
 
-        let updatedItems = [...page.items];
-        updatedItems.splice(foundItemIndex, 1);
-        if (!updatedItems.length && i !== updatedPages.length - 1) {
-          updatedPages.splice(i, 1);
-          updatedPageParams.splice(i, 1);
-        } else {
-          updatedPages[i] = {
-            ...updatedPages[i],
-            items: updatedItems,
-            messages_version: newMessagesVersion,
-          };
+        let updatedItems = [...updatedPages[foundItemToDeletePageIndex].items];
+
+        anythingChanged = true;
+        updatedItems.splice(foundItemToDeleteIndex, 1);
+        updatedPages[foundItemToDeletePageIndex] = {
+          ...updatedPages[foundItemToDeletePageIndex],
+          items: updatedItems,
+          messages_version: newMessagesVersion,
+        };
+
+        if (
+          !updatedItems.length &&
+          foundItemToDeletePageIndex !== updatedPages.length - 1
+        ) {
+          updatedPages.splice(foundItemToDeletePageIndex, 1);
+          updatedPageParams.splice(foundItemToDeletePageIndex, 1);
         }
         if (isTargetMessageAboveViewport) {
           setFirstItemIndex((prev) => (prev !== null ? prev + 1 : prev));
         }
-
-        break;
       }
-      return {
-        ...queryData,
-        pages: updatedPages,
-        pageParams: updatedPageParams,
-      };
+      return anythingChanged
+        ? {
+            ...queryData,
+            pages: updatedPages,
+            pageParams: updatedPageParams,
+          }
+        : queryData;
     });
   };
 
@@ -725,18 +898,19 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         }
       }
 
-      appendMessage(deserializeMessage(message), newMessagesVersion);
+      appendMessage(
+        deserializeMessageData<"messages:create">(data),
+        newMessagesVersion
+      );
     },
     []
   );
 
   const wsMessageUpdateHandler = useCallback(
     (
-      data: WebsocketPayload<"messages:update">,
+      data: WebsocketEvents["messages:update"],
       isApplyingBufferedEvents?: boolean
     ) => {
-      const message = data.message;
-
       const { isWsSyncing, isPolling, handleNewMessagesVersion, editMessage } =
         dependencies.current;
       const newMessagesVersion = BigInt(data.messagesVersion);
@@ -753,8 +927,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       ) {
         return;
       }
-
-      editMessage(deserializeMessage(message), newMessagesVersion);
+      editMessage(
+        deserializeMessageData<"messages:update">(data),
+        newMessagesVersion
+      );
     },
     []
   );
@@ -787,7 +963,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         return;
       }
 
-      deleteMessage(itemToDeleteId, newMessagesVersion);
+      deleteMessage(
+        deserializeMessageData<"messages:delete">(data),
+        newMessagesVersion
+      );
     },
     []
   );
@@ -821,14 +1000,17 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           channel_id: variables.channelId,
           content: variables.content,
           created_at: new Date(),
-          updated_at: new Date(),
+          edited_at: new Date(),
           deleted_at: null,
           id: tempId,
           user_id: currentUser.id,
+          reply_count: 0,
+          reply_to_message_id: variables.reply_to_message_id || null,
           author: {
             ...currentUser,
           },
           isOptimistic: true,
+          parentMessage: null,
         },
       ]);
       return {
@@ -839,8 +1021,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       if (onMutateResult?.tempId) {
         deleteOptimisticMessage(onMutateResult.tempId);
       }
-      if (handleNewMessagesVersion(data.channel.messages_version)) {
-        appendMessage(data.message, appliedMessagesVersion.current);
+      if (handleNewMessagesVersion(data.messagesVersion)) {
+        appendMessage(data, appliedMessagesVersion.current);
       }
       onOwnMessageActionSuccess();
     },
@@ -886,7 +1068,11 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const onSubmit: SubmitHandler<MessageCreateFormValues> = (values) => {
     form.reset();
-    messageCreateMutation.mutate(values);
+    messageCreateMutation.mutate({
+      ...values,
+      reply_to_message_id: messageToReply?.id,
+    });
+    setMessageToReply(null);
   };
   const onSearchSubmit: SubmitHandler<SearchFormValues> = (values) => {
     setUrlMessageId(values.text);
@@ -1893,24 +2079,14 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                       setIsMessageHighlightConsumed(true);
                     }}
                     onUpdateSuccess={(data) => {
-                      if (
-                        handleNewMessagesVersion(data.channel.messages_version)
-                      ) {
-                        editMessage(
-                          data.message,
-                          appliedMessagesVersion.current
-                        );
+                      if (handleNewMessagesVersion(data.messagesVersion)) {
+                        editMessage(data, appliedMessagesVersion.current);
                       }
                       onOwnMessageActionSuccess();
                     }}
                     onDeleteSuccess={(data) => {
-                      if (
-                        handleNewMessagesVersion(data.channel.messages_version)
-                      ) {
-                        deleteMessage(
-                          data.message.id,
-                          appliedMessagesVersion.current
-                        );
+                      if (handleNewMessagesVersion(data.messagesVersion)) {
+                        deleteMessage(data, appliedMessagesVersion.current);
                       }
                       onOwnMessageActionSuccess();
                     }}
@@ -1919,10 +2095,18 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                       messageCreateMutation.mutate({
                         channelId: message.channel_id,
                         content: message.content,
+                        reply_to_message_id: message.reply_to_message_id,
                       });
                     }}
                     onOptimisticFailedDelete={() => {
                       deleteOptimisticMessage(message.id);
+                    }}
+                    onReplyClick={() => {
+                      setMessageToReply({
+                        id: message.id,
+                        author: { name: message.author.name },
+                      });
+                      form.setFocus("content");
                     }}
                     onReportClick={() => {
                       globalModal.openModal({
@@ -1969,20 +2153,46 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         </div>
 
         {user.data?.user?.id ? (
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="message-form"
-            noValidate
-          >
-            <HorizontalStack addClassName="items-start">
+          <>
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="message-form"
+              noValidate
+            >
+              {!!messageToReply && (
+                <HorizontalStack
+                  addClassName="justify-between items-center pb-2"
+                  fullWidth
+                >
+                  <HorizontalStack addClassName="items-center" spacing="xs">
+                    <ReplyIcon fontSize="small" className="-scale-x-100" />
+                    <Typography>
+                      Replying to{" "}
+                      <Typography component={"span"} color="secondary">
+                        <strong>{messageToReply.author.name}</strong>
+                      </Typography>
+                    </Typography>
+                  </HorizontalStack>
+                  <Tooltip title="Cancel replying">
+                    <IconButton
+                      size="small"
+                      onClick={() => {
+                        setMessageToReply(null);
+                      }}
+                    >
+                      <ClearIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </HorizontalStack>
+              )}
               <MessageEditor
                 control={form.control}
                 name="content"
                 placeholder={`Message #${channel.name}`}
                 hideError
               />
-            </HorizontalStack>
-          </form>
+            </form>
+          </>
         ) : (
           <VerticalStack
             spacing="xs"

@@ -1,22 +1,46 @@
-import type { RealtimeChannel, Message } from "ably";
+import type { RealtimeChannel, Message as AblyMessage } from "ably";
 
-import type { RouterOutput } from "@/trpc";
 import type { ToSerializable } from "@/utils/types";
+import { MessagesGetOutput } from "../../server/trpc/routers/messages";
 
-export type MessageSerializable = ToSerializable<
-  RouterOutput["messages"]["get"]["items"][number]
+type Message = MessagesGetOutput["items"][number];
+export type MessageSerializable = ToSerializable<Message>;
+
+type BaseMessageKeys = keyof Pick<
+  Message,
+  "id" | "reply_count" | "content" | "edited_at"
 >;
 
-type Payload<T> = {
-  message: T;
-  messagesVersion: string;
+export type MessageBase = Record<BaseMessageKeys, unknown>;
+
+type ParentMessage<TFull extends MessageBase> = Pick<
+  TFull,
+  "id" | "reply_count"
+>;
+
+export type MessageMutationResponse<
+  TFull extends MessageBase,
+  TMessage,
+  THasParentUpdate extends boolean = true,
+> = {
+  message: TMessage;
+  messagesVersion: TFull["id"]; // numeric id
+} & (THasParentUpdate extends true
+  ? { parentMessageUpdate: ParentMessage<TFull> | null }
+  : { parentMessageUpdate?: never });
+
+type WebsocketEventsOf<TFull extends MessageBase> = {
+  "messages:create": MessageMutationResponse<TFull, TFull>;
+  "messages:update": MessageMutationResponse<
+    TFull,
+    Pick<TFull, "content" | "id" | "edited_at" | "reply_count">,
+    false
+  >;
+  "messages:delete": MessageMutationResponse<TFull, Pick<TFull, "id">>;
 };
 
-export type WebsocketEvents = {
-  "messages:create": Payload<MessageSerializable>;
-  "messages:update": Payload<MessageSerializable>;
-  "messages:delete": Payload<{ id: MessageSerializable["id"] }>;
-};
+export type WebsocketEventsOriginal = WebsocketEventsOf<Message>;
+export type WebsocketEvents = WebsocketEventsOf<MessageSerializable>;
 
 export type WebsocketEventName = keyof WebsocketEvents;
 export type WebsocketPayload<EventName extends WebsocketEventName> =
@@ -33,9 +57,9 @@ export const getChannelId = (id: string) => `publicChannels:${id}`;
 export const subscribeWs = <EventName extends WebsocketEventName>(
   channel: RealtimeChannel,
   eventName: EventName,
-  handler: (data: WebsocketPayload<EventName>, msg: Message) => void
+  handler: (data: WebsocketPayload<EventName>, msg: AblyMessage) => void
 ) => {
-  const listener = (msg: Message) => {
+  const listener = (msg: AblyMessage) => {
     handler(msg.data as WebsocketPayload<EventName>, msg);
   };
 
