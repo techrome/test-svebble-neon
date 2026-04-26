@@ -119,6 +119,8 @@ type JoinedMessage = Message & {
   parentMessage: {
     author: Pick<MessageAuthor, "name">;
     contentPreview: Message["content"];
+    created_at: Message["created_at"];
+    edited_at: Message["edited_at"];
   } | null;
 };
 
@@ -145,8 +147,11 @@ const toMessagesPayload = (
     messages_version: bigint;
     message: NullableFields<Message> | null;
     author: NullableFields<MessageAuthor> | null;
-    reply_content: Message["content"] | null;
-    reply_author_name: MessageAuthor["name"] | null;
+    parent_message: NullableFields<
+      Pick<Message, "content" | "created_at" | "edited_at"> & {
+        author_name: MessageAuthor["name"];
+      }
+    >;
   }>
 ) => {
   if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
@@ -159,13 +164,20 @@ const toMessagesPayload = (
 
       newItem.parentMessage =
         row.message.reply_to_message_id &&
-        row.reply_content &&
-        row.reply_author_name
+        row.parent_message.content &&
+        row.parent_message.created_at &&
+        row.parent_message.edited_at &&
+        row.parent_message.author_name
           ? {
               author: {
-                name: row.reply_author_name,
+                name: row.parent_message.author_name,
               },
-              contentPreview: row.reply_content,
+              contentPreview: row.parent_message.content.slice(
+                0,
+                sharedMessagesValidations.messageContentPreviewMaxLength
+              ),
+              created_at: row.parent_message.created_at,
+              edited_at: row.parent_message.edited_at,
             }
           : null;
 
@@ -242,8 +254,12 @@ export const messagesRouter = router({
             messages_version: schema.channels.messages_version,
             message: pickFromShape(messagesSubquery, messageColumns),
             author: messageAuthorColumns,
-            reply_content: parentMessage.content,
-            reply_author_name: parentAuthor.name,
+            parent_message: {
+              content: parentMessage.content,
+              created_at: parentMessage.created_at,
+              edited_at: parentMessage.edited_at,
+              author_name: parentAuthor.name,
+            },
           })
           .from(schema.channels)
           .leftJoinLateral(messagesSubquery, sql`true`)
@@ -347,8 +363,12 @@ export const messagesRouter = router({
             messages_version: schema.channels.messages_version,
             message: messageColumns,
             author: messageAuthorColumns,
-            reply_content: parentMessage.content,
-            reply_author_name: parentAuthor.name,
+            parent_message: {
+              content: parentMessage.content,
+              created_at: parentMessage.created_at,
+              edited_at: parentMessage.edited_at,
+              author_name: parentAuthor.name,
+            },
           })
           .from(aroundIds)
           .innerJoin(schema.messages, eq(schema.messages.id, aroundIds.id))
@@ -443,6 +463,8 @@ export const messagesRouter = router({
             id: replyParentMessage.id,
             author_name: replyParentAuthor.name,
             content: replyParentMessage.content,
+            created_at: replyParentMessage.created_at,
+            edited_at: replyParentMessage.edited_at,
           })
           .from(replyParentMessage)
           .innerJoin(
@@ -536,6 +558,8 @@ export const messagesRouter = router({
             id: validatedParentMessage.id,
             author_name: validatedParentMessage.author_name,
             content: validatedParentMessage.content,
+            created_at: validatedParentMessage.created_at,
+            edited_at: validatedParentMessage.edited_at,
             reply_count: parentMessageUpdate.reply_count,
           },
         })
@@ -552,12 +576,20 @@ export const messagesRouter = router({
       const newMessage = newData.message as JoinedMessage;
       newMessage.author = author;
       newMessage.parentMessage =
-        newData.parent_message.author_name && newData.parent_message.content
+        newData.parent_message.author_name &&
+        newData.parent_message.content &&
+        newData.parent_message.created_at &&
+        newData.parent_message.edited_at
           ? {
               author: {
                 name: newData.parent_message.author_name,
               },
-              contentPreview: newData.parent_message.content,
+              contentPreview: newData.parent_message.content.slice(
+                0,
+                sharedMessagesValidations.messageContentPreviewMaxLength
+              ),
+              created_at: newData.parent_message.created_at,
+              edited_at: newData.parent_message.edited_at,
             }
           : null;
 

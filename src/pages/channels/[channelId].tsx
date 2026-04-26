@@ -79,6 +79,7 @@ import ChannelHeader from "@/components/Chat/ChannelHeader";
 import type { AppRouter } from "@/server";
 import MessageEditor from "@/components/Chat/MessageEditor";
 import { User } from "@/utils/validators/shared/user";
+import { messageContentPreviewMaxLength } from "@/utils/validators/shared/messages";
 
 type JSONIncompatibleMessageFields = Pick<
   MessageSerializable,
@@ -110,7 +111,13 @@ const deserializeMessageData = <K extends WebsocketEventName>(
   payload: WebsocketEvents[K]
 ) =>
   ({
-    message: deserializeMessage(payload.message),
+    message: {
+      ...deserializeMessage(payload.message),
+      parentMessage:
+        "parentMessage" in payload.message && payload.message.parentMessage
+          ? deserializeMessage(payload.message.parentMessage)
+          : null,
+    },
     messagesVersion: BigInt(payload.messagesVersion),
     parentMessageUpdate: payload.parentMessageUpdate
       ? deserializeMessage(payload.parentMessageUpdate)
@@ -572,12 +579,13 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
       const message = data.message;
       let updatedPages = [...queryData.pages];
-      const idBounds = getLoadedMessagesIdBounds(queryData);
-      if (!idBounds) return queryData;
+      let anythingChanged = false;
 
       if (data.parentMessageUpdate) {
+        const idBounds = getLoadedMessagesIdBounds(queryData);
         const parentItemToUpdateId = data.parentMessageUpdate.id;
         if (
+          idBounds &&
           parentItemToUpdateId >= idBounds.lowestId &&
           parentItemToUpdateId <= idBounds.highestId
         ) {
@@ -593,6 +601,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 reply_count: data.parentMessageUpdate.reply_count,
               };
 
+              anythingChanged = true;
               updatedPages[i] = {
                 ...updatedPages[i],
                 items: updatedItems,
@@ -603,7 +612,11 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         }
       }
 
-      if (messages.hasNextPage) return { ...queryData, pages: updatedPages };
+      if (messages.hasNextPage) {
+        return anythingChanged
+          ? { ...queryData, pages: updatedPages }
+          : queryData;
+      }
 
       updatedPages[updatedPages.length - 1] = {
         ...updatedPages[updatedPages.length - 1],
@@ -646,38 +659,66 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       if (!queryData || !pagesCount) return queryData;
       const message = data.message;
       const itemToUpdateId = BigInt(message.id);
-      const idBounds = getLoadedMessagesIdBounds(queryData);
-
-      if (
-        !idBounds ||
-        itemToUpdateId < idBounds.lowestId ||
-        itemToUpdateId > idBounds.highestId
-      ) {
-        return queryData;
-      }
-
+      let anythingChanged = false;
       let updatedPages = [...queryData.pages];
+
       for (let i = 0; i < updatedPages.length; i++) {
         const page = updatedPages[i];
-        const foundItemIndex = page.items.findIndex(
-          (m) => m.id === itemToUpdateId
-        );
-        if (foundItemIndex >= 0) {
-          let updatedItems = [...page.items];
-          updatedItems[foundItemIndex] = {
-            ...updatedItems[foundItemIndex],
+        let replyMessagesToUpdateIndexes: number[] = [];
+        let foundItemToUpdateIndex = -1;
+        for (let j = 0; j < page.items.length; j++) {
+          const item = page.items[j];
+
+          if (item.id === itemToUpdateId) {
+            foundItemToUpdateIndex = j;
+          }
+          if (item.reply_to_message_id === itemToUpdateId) {
+            replyMessagesToUpdateIndexes.push(j);
+          }
+        }
+
+        if (
+          foundItemToUpdateIndex === -1 &&
+          !replyMessagesToUpdateIndexes.length
+        ) {
+          continue;
+        }
+
+        let updatedItems = [...page.items];
+        if (foundItemToUpdateIndex >= 0) {
+          updatedItems[foundItemToUpdateIndex] = {
+            ...updatedItems[foundItemToUpdateIndex],
             ...message,
           };
-
-          updatedPages[i] = {
-            ...updatedPages[i],
-            items: updatedItems,
-            messages_version: newMessagesVersion,
-          };
-          return { ...queryData, pages: updatedPages };
         }
+        if (replyMessagesToUpdateIndexes.length) {
+          replyMessagesToUpdateIndexes.forEach((index) => {
+            updatedItems[index] = {
+              ...updatedItems[index],
+              parentMessage: updatedItems[index].parentMessage
+                ? {
+                    ...updatedItems[index].parentMessage,
+                    edited_at: message.edited_at,
+                    contentPreview: message.content.slice(
+                      0,
+                      messageContentPreviewMaxLength
+                    ),
+                  }
+                : null,
+            };
+          });
+        }
+
+        anythingChanged = true;
+        updatedPages[i] = {
+          ...updatedPages[i],
+          items: updatedItems,
+          messages_version: newMessagesVersion,
+        };
       }
-      return queryData;
+      return anythingChanged
+        ? { ...queryData, pages: updatedPages }
+        : queryData;
     });
   };
 
@@ -689,91 +730,104 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       const pagesCount = queryData?.pages.length;
       if (!queryData || !pagesCount) return queryData;
       const itemToDeleteId = data.message.id;
-      const idBounds = getLoadedMessagesIdBounds(queryData);
-
-      if (!idBounds) {
-        return queryData;
-      }
+      const parentItemToUpdateId = data.parentMessageUpdate?.id;
+      let anythingChanged = false;
 
       let updatedPages = [...queryData.pages];
-      if (data.parentMessageUpdate) {
-        const parentItemToUpdateId = data.parentMessageUpdate.id;
-
-        if (
-          parentItemToUpdateId >= idBounds.lowestId &&
-          parentItemToUpdateId <= idBounds.highestId
-        ) {
-          for (let i = 0; i < updatedPages.length; i++) {
-            const page = updatedPages[i];
-            const foundItemIndex = page.items.findIndex(
-              (m) => m.id === parentItemToUpdateId
-            );
-            if (foundItemIndex >= 0) {
-              let updatedItems = [...page.items];
-              updatedItems[foundItemIndex] = {
-                ...updatedItems[foundItemIndex],
-                reply_count: data.parentMessageUpdate.reply_count,
-              };
-
-              updatedPages[i] = {
-                ...updatedPages[i],
-                items: updatedItems,
-                messages_version: newMessagesVersion,
-              };
-            }
-          }
-        }
-      }
-
-      if (
-        itemToDeleteId < idBounds.lowestId ||
-        itemToDeleteId > idBounds.highestId
-      ) {
-        return { ...queryData, pages: updatedPages };
-      }
-
       let updatedPageParams = [...queryData.pageParams];
-
       let targetMessageGlobalIndex = firstItemIndex || 0;
+      let foundItemToDeletePageIndex = -1;
+      let foundItemToDeleteIndex = -1;
       for (let i = 0; i < updatedPages.length; i++) {
         const page = updatedPages[i];
-        const foundItemIndex = page.items.findIndex(
-          (m) => m.id === itemToDeleteId
-        );
-        if (foundItemIndex < 0) {
+        let foundParentItemToUpdateIndex = -1;
+        let replyMessagesToUpdateIndexes: number[] = [];
+
+        for (let j = 0; j < page.items.length; j++) {
+          const item = page.items[j];
+
+          if (item.id === itemToDeleteId) {
+            foundItemToDeletePageIndex = i;
+            foundItemToDeleteIndex = j;
+          }
+          if (parentItemToUpdateId && item.id === parentItemToUpdateId) {
+            foundParentItemToUpdateIndex = j;
+          }
+          if (item.reply_to_message_id === itemToDeleteId) {
+            replyMessagesToUpdateIndexes.push(j);
+          }
+        }
+
+        if (foundItemToDeleteIndex === -1) {
           targetMessageGlobalIndex += page.items.length;
+        }
+
+        if (
+          foundParentItemToUpdateIndex === -1 &&
+          !replyMessagesToUpdateIndexes.length
+        ) {
           continue;
         }
 
-        targetMessageGlobalIndex += foundItemIndex;
+        let updatedItems = [...page.items];
+        if (data.parentMessageUpdate && foundParentItemToUpdateIndex >= 0) {
+          updatedItems[foundParentItemToUpdateIndex] = {
+            ...updatedItems[foundParentItemToUpdateIndex],
+            reply_count: data.parentMessageUpdate.reply_count,
+          };
+        }
+
+        if (replyMessagesToUpdateIndexes.length) {
+          replyMessagesToUpdateIndexes.forEach((index) => {
+            updatedItems[index] = {
+              ...updatedItems[index],
+              parentMessage: null,
+            };
+          });
+        }
+
+        anythingChanged = true;
+        updatedPages[i] = {
+          ...updatedPages[i],
+          items: updatedItems,
+          messages_version: newMessagesVersion,
+        };
+      }
+      if (foundItemToDeleteIndex >= 0 && foundItemToDeletePageIndex >= 0) {
+        targetMessageGlobalIndex += foundItemToDeleteIndex;
         const visibleGlobalStartIndex =
           visibleRangeRef.current?.visibleStartIndex || 0;
         const isTargetMessageAboveViewport =
           targetMessageGlobalIndex < visibleGlobalStartIndex;
 
-        let updatedItems = [...page.items];
-        updatedItems.splice(foundItemIndex, 1);
-        if (!updatedItems.length && i !== updatedPages.length - 1) {
-          updatedPages.splice(i, 1);
-          updatedPageParams.splice(i, 1);
-        } else {
-          updatedPages[i] = {
-            ...updatedPages[i],
-            items: updatedItems,
-            messages_version: newMessagesVersion,
-          };
+        let updatedItems = [...updatedPages[foundItemToDeletePageIndex].items];
+
+        anythingChanged = true;
+        updatedItems.splice(foundItemToDeleteIndex, 1);
+        updatedPages[foundItemToDeletePageIndex] = {
+          ...updatedPages[foundItemToDeletePageIndex],
+          items: updatedItems,
+          messages_version: newMessagesVersion,
+        };
+
+        if (
+          !updatedItems.length &&
+          foundItemToDeletePageIndex !== updatedPages.length - 1
+        ) {
+          updatedPages.splice(foundItemToDeletePageIndex, 1);
+          updatedPageParams.splice(foundItemToDeletePageIndex, 1);
         }
         if (isTargetMessageAboveViewport) {
           setFirstItemIndex((prev) => (prev !== null ? prev + 1 : prev));
         }
-
-        break;
       }
-      return {
-        ...queryData,
-        pages: updatedPages,
-        pageParams: updatedPageParams,
-      };
+      return anythingChanged
+        ? {
+            ...queryData,
+            pages: updatedPages,
+            pageParams: updatedPageParams,
+          }
+        : queryData;
     });
   };
 

@@ -222,37 +222,56 @@ const Message = ({
     form.reset();
   };
 
-  const { createdAtShort, createdAtFull, updatedAtFull, dayDisplay } =
-    useMemo(() => {
-      const createdAt = dayjs(message.created_at);
-      const isToday = createdAt.isSame(dayjs(), "day");
-      const createdAtShort =
-        message.isCompact || isToday
-          ? createdAt.format(timeFormat)
-          : createdAt.format(dateTimeFormat);
-      const createdAtFull = createdAt.format(dateTimeFormatFullDisplay);
-      const hasEdited =
-        message.created_at.getTime() !== message.edited_at.getTime();
-      const updatedAtFull = hasEdited
-        ? dayjs(message.edited_at).format(dateTimeFormatFullDisplay)
-        : null;
-      const dayDisplay = message.isFirstMessageOfTheDay
-        ? createdAt.format(dateFormatDisplay)
-        : null;
-      return {
-        createdAtShort,
-        createdAtFull,
-        updatedAtFull,
-        dayDisplay,
-      };
-      // eslint-disable-next-line
-    }, [
-      message.created_at,
-      message.isCompact,
-      message.edited_at,
-      message.isFirstMessageOfTheDay,
-      totalItems,
-    ]);
+  const {
+    createdAtShort,
+    createdAtFull,
+    updatedAtFull,
+    parentMessageUpdatedAtFull,
+    dayDisplay,
+  } = useMemo(() => {
+    const createdAt = dayjs(message.created_at);
+    const isToday = createdAt.isSame(dayjs(), "day");
+    const createdAtShort =
+      message.isCompact || isToday
+        ? createdAt.format(timeFormat)
+        : createdAt.format(dateTimeFormat);
+    const createdAtFull = createdAt.format(dateTimeFormatFullDisplay);
+    const hasEdited =
+      message.created_at.getTime() !== message.edited_at.getTime();
+
+    const updatedAtFull = hasEdited
+      ? dayjs(message.edited_at).format(dateTimeFormatFullDisplay)
+      : null;
+    let parentMessageUpdatedAtFull: string | null = null;
+    const parentMessage = message.parentMessage;
+    if (
+      parentMessage &&
+      parentMessage.created_at.getTime() !== parentMessage.edited_at.getTime()
+    ) {
+      parentMessageUpdatedAtFull = dayjs(parentMessage.edited_at).format(
+        dateTimeFormatFullDisplay
+      );
+    }
+
+    const dayDisplay = message.isFirstMessageOfTheDay
+      ? createdAt.format(dateFormatDisplay)
+      : null;
+    return {
+      createdAtShort,
+      createdAtFull,
+      updatedAtFull,
+      parentMessageUpdatedAtFull,
+      dayDisplay,
+    };
+    // eslint-disable-next-line
+  }, [
+    message.created_at,
+    message.isCompact,
+    message.edited_at,
+    message.isFirstMessageOfTheDay,
+    message.parentMessage,
+    totalItems,
+  ]);
 
   const shouldDisplayAvatar = Boolean(!message.isCompact);
 
@@ -389,9 +408,26 @@ const Message = ({
                     </strong>
                   </Typography>
                 </Typography>
-                <Typography color="textSecondary">
-                  {message.parentMessage?.contentPreview}
-                </Typography>
+                <div className="flex items-center gap-1 overflow-hidden">
+                  <Typography
+                    color="textSecondary"
+                    className="text-ellipsis whitespace-nowrap overflow-hidden"
+                  >
+                    {message.parentMessage?.contentPreview}
+                  </Typography>
+                  {parentMessageUpdatedAtFull ? (
+                    <Tooltip title={parentMessageUpdatedAtFull}>
+                      <Typography
+                        className="whitespace-nowrap"
+                        component="span"
+                        color="textDisabled"
+                        variant="caption"
+                      >
+                        (edited)
+                      </Typography>
+                    </Tooltip>
+                  ) : null}
+                </div>
               </HorizontalStack>
             </Link>
           ))}
