@@ -188,19 +188,19 @@ const toMessagesPayload = (
 };
 
 export const messagesRouter = router({
-  ablyTokenRequest: publicProcedure
-    .use(rateLimitMiddlewares.websockets_token)
-    .mutation(async ({ ctx }) => {
-      const user = await ctx.getCachedAuth();
-      const clientId =
-        user && user?.response?.user?.id
-          ? user.response?.user.id
-          : `tmp-${randomUUID()}`;
-      return createChannelSubscribeTokenRequest({
-        clientId,
-      });
-    }),
-  get: publicProcedure
+  ablyTokenRequest: publicProcedure(
+    rateLimitMiddlewares.websockets_token
+  ).mutation(async ({ ctx }) => {
+    const user = await ctx.getCachedAuth();
+    const clientId =
+      user && user?.response?.user?.id
+        ? user.response?.user.id
+        : `tmp-${randomUUID()}`;
+    return createChannelSubscribeTokenRequest({
+      clientId,
+    });
+  }),
+  get: publicProcedure()
     .input(sharedMessagesValidations.messagesGetSchemaForm)
     .output(messagesGetOutputSchema)
     .query(async ({ ctx, input }) => {
@@ -825,4 +825,5 @@ export const messagesRouter = router({
         .set({ deleted_at: sql`now()` })
         .where(eq(schema.messages.channel_id, input.channelId));
     }),
+  // getReplies:
 });

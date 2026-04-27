@@ -56,8 +56,7 @@ export const authRouter = router({
       };
     }
   ),
-  signUpCredentials: publicProcedure
-    .use(rateLimitMiddlewares.auth_signUp)
+  signUpCredentials: publicProcedure(rateLimitMiddlewares.auth_signUp)
     .input(signupSchemaForm)
     .mutation(async ({ ctx, input }) => {
       return getCookieForwarder(ctx)((opts) =>
@@ -75,13 +74,12 @@ export const authRouter = router({
         })
       );
     }),
-  loginAnonymous: publicProcedure
-    .use(rateLimitMiddlewares.auth_signUp)
-    .mutation(async ({ ctx }) => {
+  loginAnonymous: publicProcedure(rateLimitMiddlewares.auth_signUp).mutation(
+    async ({ ctx }) => {
       return getCookieForwarder(ctx)((opts) => auth.api.signInAnonymous(opts));
-    }),
-  loginCredentials: publicProcedure
-    .use(rateLimitMiddlewares.auth_login)
+    }
+  ),
+  loginCredentials: publicProcedure(rateLimitMiddlewares.auth_login)
     .input(loginSchemaForm)
     .mutation(async ({ ctx, input }) => {
       const cookieForwarder = getCookieForwarder(ctx);
@@ -116,9 +114,8 @@ export const authRouter = router({
       })
     );
   }),
-  googleLogin: publicProcedure
-    .use(rateLimitMiddlewares.auth_login)
-    .mutation(async ({ ctx }) => {
+  googleLogin: publicProcedure(rateLimitMiddlewares.auth_login).mutation(
+    async ({ ctx }) => {
       return getCookieForwarder(ctx)((opts) =>
         auth.api.signInSocial({
           body: {
@@ -130,9 +127,11 @@ export const authRouter = router({
           ...opts,
         })
       );
-    }),
-  requestPasswordReset: publicProcedure
-    .use(rateLimitMiddlewares.auth_requestPasswordReset)
+    }
+  ),
+  requestPasswordReset: publicProcedure(
+    rateLimitMiddlewares.auth_requestPasswordReset
+  )
     .input(forgotPasswordSchemaForm)
     .mutation(async ({ input }) => {
       try {
@@ -149,8 +148,7 @@ export const authRouter = router({
         status: true,
       };
     }),
-  resetPassword: publicProcedure
-    .use(rateLimitMiddlewares.auth_resetPassword)
+  resetPassword: publicProcedure(rateLimitMiddlewares.auth_resetPassword)
     .input(resetPasswordSchemaForm)
     .mutation(async ({ input }) => {
       const res = await auth.api.resetPassword({

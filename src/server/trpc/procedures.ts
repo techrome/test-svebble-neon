@@ -98,32 +98,29 @@ export const publicProcedureSSRDefaultRateLimit = publicProcedureSSR.use(
   rateLimitMiddlewares.default
 );
 
-export const publicProcedure = publicProcedureSSR.use(withReqRes);
-export const publicProcedureDefaultRateLimit = publicProcedure.use(
-  rateLimitMiddlewares.default
-);
+export const publicProcedure = (
+  ratelimiter?: (typeof rateLimitMiddlewares)[keyof typeof rateLimitMiddlewares]
+) =>
+  publicProcedureSSR
+    .use(ratelimiter || rateLimitMiddlewares.default)
+    .use(withReqRes);
+export const publicProcedureDefaultRateLimit = publicProcedure();
 
 export const privateCachedProcedure = (
   neededPerms: RolePermissions,
   ratelimiter?: (typeof rateLimitMiddlewares)[keyof typeof rateLimitMiddlewares]
 ) =>
-  publicProcedure
-    .use(ratelimiter || rateLimitMiddlewares.default)
+  publicProcedure(ratelimiter)
     .use(withCachedAuth)
     .use(withPermissionCheck(neededPerms));
 export const privateProcedure = (
   neededPerms: RolePermissions,
   ratelimiter?: (typeof rateLimitMiddlewares)[keyof typeof rateLimitMiddlewares]
 ) =>
-  publicProcedure
-    .use(ratelimiter || rateLimitMiddlewares.default)
+  publicProcedure(ratelimiter)
     .use(withAuth)
     .use(withPermissionCheck(neededPerms));
 
 export const adminProcedure = (
   ratelimiter?: (typeof rateLimitMiddlewares)[keyof typeof rateLimitMiddlewares]
-) =>
-  publicProcedure
-    .use(ratelimiter || rateLimitMiddlewares.default)
-    .use(withAuth)
-    .use(withAdminAuth);
+) => publicProcedure(ratelimiter).use(withAuth).use(withAdminAuth);
