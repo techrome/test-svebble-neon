@@ -1992,21 +1992,22 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         </Tooltip>
         <Typography>Some text</Typography>
         {/* TODO */}
-        {/* <Button
+        <Button
           variant="outlined"
           onClick={() => {
             // setSyncMode(isPolling ? "ws-syncing" : "polling");
             // if (!isPolling) {
             //   setInitialGateOpenedReason("default");
             // }
-            // messagesCreateSpamMutation.mutate({
-            //   channelId: channel.id,
-            //   isBulk: true,
-            // });
+            messagesCreateSpamMutation.mutate({
+              channelId: channel.id,
+              reply_to_message_id: messageToReply?.id,
+              isBulk: false,
+            });
           }}
         >
-          Current polling - {syncModeInfo.label}
-        </Button> */}
+          Spam messages
+        </Button>
 
         <form onSubmit={searchForm.handleSubmit(onSearchSubmit)} noValidate>
           <Input

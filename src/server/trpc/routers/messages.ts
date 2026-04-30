@@ -406,7 +406,7 @@ export const messagesRouter = router({
     .input(
       z.object({
         isBulk: z.boolean(),
-        count: z.number().min(1).max(500000).default(500000),
+        count: z.number().min(1).max(20000).default(20000),
         channelId: numericIdSchema,
         reply_to_message_id: numericIdSchema.optional(),
       })
