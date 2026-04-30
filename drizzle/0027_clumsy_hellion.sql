@@ -1,0 +1,3 @@
+DROP INDEX "messages_active_messages_and_replies_index";--> statement-breakpoint
+CREATE INDEX "messages_active_messages_index" ON "messages" USING btree ("channel_id","id") WHERE "messages"."deleted_at" is null;--> statement-breakpoint
+CREATE INDEX "messages_active_replies_by_parent_index" ON "messages" USING btree ("reply_to_message_id","id") WHERE ("messages"."deleted_at" is null and "messages"."reply_to_message_id" is not null);
