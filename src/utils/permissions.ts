@@ -50,6 +50,7 @@ const basePermissions = {
     create: true,
     update: true,
     delete: true,
+    createSpam: true,
   },
   messageAttachments: {
     create: true,
