@@ -65,8 +65,7 @@ const DefaultAvatar = (props: Props) => {
     const el = ref.current;
     if (!el) return;
     const updateAvatarSize = () => {
-      const rect = el.getBoundingClientRect();
-      const size = Math.min(rect.width, rect.height);
+      const size = Math.min(el.offsetWidth, el.offsetHeight);
       setAvatarSizePx(size);
     };
 

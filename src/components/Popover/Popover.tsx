@@ -63,7 +63,7 @@ const Popover = ({
       transition
       anchorEl={anchorEl}
       {...props}
-      className="z-10"
+      className="z-10 max-w-full"
     >
       {({ TransitionProps }) => (
         <Grow
