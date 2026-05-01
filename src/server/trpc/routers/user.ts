@@ -87,8 +87,9 @@ const avatarDimensionsSchema = avatarUploadUrlSchema.omit({
 });
 
 export const userRouter = router({
-  checkUsernameAvailability: publicProcedure
-    .use(rateLimitMiddlewares.auth_usernameCheck)
+  checkUsernameAvailability: publicProcedure(
+    rateLimitMiddlewares.auth_usernameCheck
+  )
     .input(
       z.object({
         username: zUsername,

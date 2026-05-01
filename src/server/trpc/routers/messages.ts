@@ -9,6 +9,7 @@ import {
   getTableColumns,
   type SQL,
   isNotNull,
+  gt,
 } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 import { alias, unionAll } from "drizzle-orm/pg-core";
@@ -35,10 +36,7 @@ import {
 } from "@/utils/validators/helpers/custom";
 import { PartialFor, type NullableFields } from "@/utils/types";
 import { AuthSession } from "../context";
-import type {
-  WebsocketEvents,
-  WebsocketEventsOriginal,
-} from "@/trpc/helpers/websockets";
+import type { WebsocketEventsOriginal } from "@/trpc/helpers/websockets";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -188,19 +186,19 @@ const toMessagesPayload = (
 };
 
 export const messagesRouter = router({
-  ablyTokenRequest: publicProcedure
-    .use(rateLimitMiddlewares.websockets_token)
-    .mutation(async ({ ctx }) => {
-      const user = await ctx.getCachedAuth();
-      const clientId =
-        user && user?.response?.user?.id
-          ? user.response?.user.id
-          : `tmp-${randomUUID()}`;
-      return createChannelSubscribeTokenRequest({
-        clientId,
-      });
-    }),
-  get: publicProcedure
+  ablyTokenRequest: publicProcedure(
+    rateLimitMiddlewares.websockets_token
+  ).mutation(async ({ ctx }) => {
+    const user = await ctx.getCachedAuth();
+    const clientId =
+      user && user?.response?.user?.id
+        ? user.response?.user.id
+        : `tmp-${randomUUID()}`;
+    return createChannelSubscribeTokenRequest({
+      clientId,
+    });
+  }),
+  get: publicProcedure()
     .input(sharedMessagesValidations.messagesGetSchemaForm)
     .output(messagesGetOutputSchema)
     .query(async ({ ctx, input }) => {
@@ -404,12 +402,13 @@ export const messagesRouter = router({
         isLatest: true,
       };
     }),
-  createSpam: privateProcedure([P.messages.create])
+  createSpam: privateProcedure([P.messages.createSpam])
     .input(
       z.object({
         isBulk: z.boolean(),
-        count: z.number().min(1).max(200).default(200),
+        count: z.number().min(1).max(20000).default(20000),
         channelId: numericIdSchema,
+        reply_to_message_id: numericIdSchema.optional(),
       })
     )
     .mutation(async ({ input, ctx }) => {
@@ -426,13 +425,22 @@ export const messagesRouter = router({
       } else {
         const seed = generateRandomText(minLength, maxLength, alphanumeric);
         for (let i = 0; i < input.count; i++) {
-          const randomText = `${i + 1} - ${seed}`;
+          const randomText = `<p>${i + 1} - ${seed}</p>`;
 
           await db.insert(schema.messages).values({
             content: randomText,
             user_id: ctx.user.id,
             channel_id: input.channelId,
+            reply_to_message_id: input.reply_to_message_id,
           });
+        }
+        if (input.reply_to_message_id) {
+          await db
+            .update(schema.messages)
+            .set({
+              reply_count: sql`${schema.messages.reply_count} + ${input.count}`,
+            })
+            .where(eq(schema.messages.id, input.reply_to_message_id));
         }
       }
     }),
@@ -452,7 +460,7 @@ export const messagesRouter = router({
       // if (Math.random() < 0.7) throw new Error("Test error");
 
       const author = pickMessageAuthor(ctx.user);
-      const hasReply = Boolean(input.reply_to_message_id);
+      const isReply = Boolean(input.reply_to_message_id);
 
       const replyParentMessage = alias(schema.messages, "reply_parent_message");
       const replyParentAuthor = alias(schema.user, "reply_parent_author");
@@ -472,7 +480,7 @@ export const messagesRouter = router({
             eq(replyParentAuthor.id, replyParentMessage.user_id)
           )
           .where(
-            hasReply
+            isReply
               ? and(
                   eq(replyParentMessage.id, input.reply_to_message_id!),
                   eq(replyParentMessage.channel_id, input.channelId),
@@ -493,7 +501,7 @@ export const messagesRouter = router({
             and(
               eq(schema.channels.id, input.channelId),
               isNull(schema.channels.deleted_at),
-              hasReply ? isNotNull(validatedParentMessage.id) : undefined
+              isReply ? isNotNull(validatedParentMessage.id) : undefined
             )
           )
       );
@@ -505,7 +513,7 @@ export const messagesRouter = router({
             content: input.content,
             user_id: ctx.user.id,
             channel_id: sql`(select ${validatedChannel.id} from ${validatedChannel})`, // the whole validation relies on this check
-            reply_to_message_id: hasReply
+            reply_to_message_id: isReply
               ? sql`(select ${validatedParentMessage.id} from ${validatedParentMessage})`
               : null,
           })
@@ -571,8 +579,9 @@ export const messagesRouter = router({
           eq(validatedParentMessage.id, messageInsert.reply_to_message_id)
         );
 
-      if (!newData?.message || !newData.channel_messages_version)
+      if (!newData?.message || !newData.channel_messages_version) {
         throw new TRPCError({ code: "NOT_FOUND" });
+      }
       const newMessage = newData.message as JoinedMessage;
       newMessage.author = author;
       newMessage.parentMessage =
@@ -824,5 +833,89 @@ export const messagesRouter = router({
         .update(schema.messages)
         .set({ deleted_at: sql`now()` })
         .where(eq(schema.messages.channel_id, input.channelId));
+    }),
+  getReplies: publicProcedure()
+    .input(sharedMessagesValidations.messagesGetRepliesSchemaForm)
+    .output(
+      z.object({
+        items: z.custom<JoinedMessage[]>(),
+        totalItems: z.number(),
+        page: z.number(),
+      })
+    )
+    .query(async ({ input }) => {
+      const page = input.page;
+      const pageSize = input.pageSize;
+      const offset = (page - 1) * pageSize;
+
+      const parentMessage = alias(schema.messages, "parent_message");
+      const replyScan = alias(schema.messages, "reply_scan");
+
+      const replyIds = db
+        .select({
+          id: replyScan.id,
+        })
+        .from(replyScan)
+        .where(
+          and(
+            eq(replyScan.reply_to_message_id, parentMessage.id),
+            isNull(replyScan.deleted_at),
+            gt(parentMessage.reply_count, offset)
+          )
+        )
+        .orderBy(asc(replyScan.id))
+        .limit(pageSize)
+        .offset(offset)
+        .as("reply_page");
+
+      const rows = await db
+        .select({
+          totalItems: parentMessage.reply_count,
+          message: pickFromShape(schema.messages, messageColumns),
+          author: messageAuthorColumns,
+        })
+        .from(parentMessage)
+        .leftJoinLateral(replyIds, sql`true`)
+        .leftJoin(schema.messages, eq(schema.messages.id, replyIds.id))
+        .leftJoin(schema.user, eq(schema.user.id, schema.messages.user_id))
+        .innerJoin(
+          schema.channels,
+          eq(schema.channels.id, parentMessage.channel_id)
+        )
+        .where(
+          and(
+            eq(parentMessage.id, input.messageId),
+            isNull(parentMessage.deleted_at),
+            isNull(schema.channels.deleted_at)
+          )
+        )
+        .orderBy(asc(schema.messages.id));
+
+      if (!rows.length) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Parent message not found.",
+        });
+      }
+
+      const totalItems = rows[0].totalItems;
+
+      const items: JoinedMessage[] = [];
+
+      for (const row of rows) {
+        if (!row.message?.id || !row.author?.id) continue;
+
+        let newItem = row.message as JoinedMessage;
+        newItem.author = row.author as JoinedMessage["author"];
+        newItem.parentMessage = null;
+
+        items.push(newItem);
+      }
+
+      return {
+        items,
+        totalItems,
+        page,
+      };
     }),
 });

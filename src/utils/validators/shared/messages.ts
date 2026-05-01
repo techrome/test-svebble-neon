@@ -5,6 +5,7 @@ import {
 import z from "@/utils/zod";
 
 export const messageContentPreviewMaxLength = 50;
+export const messageRepliesPageMaxSize = 20;
 
 export const messagesGetWebsocketsToken = z.object({
   channelId: numericIdQuerySchema,
@@ -49,4 +50,14 @@ export const messageDeleteSchemaForm = messageUpdateSchemaForm.pick({
 
 export const messageBulkDeleteSchemaForm = messageCreateSchemaForm.pick({
   channelId: true,
+});
+
+export const messagesGetRepliesSchemaForm = z.object({
+  messageId: numericIdQuerySchema,
+  page: z.int().positive(),
+  pageSize: z
+    .int()
+    .positive()
+    .max(messageRepliesPageMaxSize)
+    .default(messageRepliesPageMaxSize),
 });

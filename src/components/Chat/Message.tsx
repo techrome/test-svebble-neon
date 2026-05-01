@@ -129,6 +129,7 @@ const Message = ({
   const isDesktop = useIsDesktop();
   const ref = useRef<HTMLDivElement | null>(null);
   const editFormRef = useRef<HTMLFormElement | null>(null);
+  const utils = trpc.useUtils();
   const { addAppSnackbar } = useAppSnackbar();
 
   const schema = useMemo(
@@ -192,6 +193,10 @@ const Message = ({
       cancelAnimationFrame(raf2);
     };
   }, [isEdit]);
+
+  useEffect(() => {
+    utils.messages.getReplies.invalidate({ messageId: String(message.id) });
+  }, [message.reply_count]);
 
   const MoreButton = (
     <Tooltip title="More">
