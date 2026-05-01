@@ -80,6 +80,7 @@ import type { AppRouter } from "@/server";
 import MessageEditor from "@/components/Chat/MessageEditor";
 import { User } from "@/utils/validators/shared/user";
 import { messageContentPreviewMaxLength } from "@/utils/validators/shared/messages";
+import { hasPermissions } from "@/utils/hasPermissions";
 
 type JSONIncompatibleMessageFields = Pick<
   MessageSerializable,
@@ -1992,22 +1993,25 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         </Tooltip>
         <Typography>Some text</Typography>
         {/* TODO */}
-        <Button
-          variant="outlined"
-          onClick={() => {
-            // setSyncMode(isPolling ? "ws-syncing" : "polling");
-            // if (!isPolling) {
-            //   setInitialGateOpenedReason("default");
-            // }
-            messagesCreateSpamMutation.mutate({
-              channelId: channel.id,
-              reply_to_message_id: messageToReply?.id,
-              isBulk: false,
-            });
-          }}
-        >
-          Spam messages
-        </Button>
+        {user.data?.user &&
+          hasPermissions(user.data.user, ["messages.createSpam"]) && (
+            <Button
+              variant="outlined"
+              onClick={() => {
+                // setSyncMode(isPolling ? "ws-syncing" : "polling");
+                // if (!isPolling) {
+                //   setInitialGateOpenedReason("default");
+                // }
+                messagesCreateSpamMutation.mutate({
+                  channelId: channel.id,
+                  reply_to_message_id: messageToReply?.id,
+                  isBulk: false,
+                });
+              }}
+            >
+              Spam messages
+            </Button>
+          )}
 
         <form onSubmit={searchForm.handleSubmit(onSearchSubmit)} noValidate>
           <Input
