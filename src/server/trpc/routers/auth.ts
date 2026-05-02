@@ -14,13 +14,11 @@ import {
   loginSchemaForm,
   signupSchemaForm,
 } from "@/utils/validators/shared/auth";
-import z from "@/utils/zod";
 import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
 import { mergeSetCookiesToNextRes } from "../helpers/cookies";
 import { generatePlaceholderEmail } from "../helpers/email";
 import { oauthDoneStatus } from "@/components/AuthForm/Helpers";
-import { TRPCError } from "@trpc/server";
 import { resetPasswordSchemaForm } from "@/pages/auth/reset-password";
 
 type HttpCtx = { req: NextApiRequest; res: NextApiResponse };

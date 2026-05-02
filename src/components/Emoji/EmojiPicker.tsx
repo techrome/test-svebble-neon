@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import "emoji-picker-element";
 
 import { useLatest } from "@/utils/hooks/useLatest";
-import { alpha, useColorScheme, useMediaQuery, useTheme } from "@mui/material";
+import { useColorScheme, useMediaQuery, useTheme } from "@mui/material";
 
 type Props = {
   onSelect: (emoji: string) => void;

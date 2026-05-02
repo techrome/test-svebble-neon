@@ -1,5 +1,5 @@
 import { htmlToText } from "@/utils/htmlToText";
-import { Text, TEXT_LIMITS } from "@/utils/validators/helpers/text";
+import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import {
   messageCreateSchemaForm,
   messageUpdateSchemaForm,

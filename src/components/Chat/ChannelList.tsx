@@ -10,7 +10,6 @@ import {
   Paper,
   Typography,
 } from "@mui/material";
-import DeleteIcon from "@mui/icons-material/Delete";
 import { useRouter } from "next/router";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import TagIcon from "@mui/icons-material/Tag";
@@ -164,7 +163,6 @@ const AddOrEditChannelForm = (props: AddOrEditChannelFormProps) => {
 
 const ChannelList = () => {
   const { closeModal, openModal } = useGlobalModal();
-  const { addAppSnackbar } = useAppSnackbar();
   const channels = useAppQuery(
     trpc.channels.get.useQuery(undefined, {
       staleTime: CACHE_TIME_MS.NORMAL,

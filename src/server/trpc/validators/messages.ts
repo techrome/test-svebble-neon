@@ -1,7 +1,7 @@
 import * as htmlparser2 from "htmlparser2";
 
 import { sanitizeMessageHtml, trimHtml } from "../../utils/sanitizeHtml";
-import { Text, TEXT_LIMITS } from "@/utils/validators/helpers/text";
+import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import { numericIdSchema } from "@/utils/validators/helpers/custom";
 import { messageCreateSchemaForm } from "@/utils/validators/shared/messages";
 import { z } from "@/utils/zod";

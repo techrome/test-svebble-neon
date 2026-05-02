@@ -1,7 +1,6 @@
 import React, {
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -199,6 +198,7 @@ const Message = ({
 
   useEffect(() => {
     utils.messages.getReplies.invalidate({ messageId: String(message.id) });
+    // eslint-disable-next-line
   }, [message.reply_count]);
 
   const MoreButton = (
