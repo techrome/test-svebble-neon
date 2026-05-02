@@ -30,20 +30,24 @@ import Pagination from "@/components/Pagination/Pagination";
 import Skeleton from "@/components/Skeleton/Skeleton";
 import Button from "@/components/Button/Button";
 import Tooltip from "@/components/Tooltip/Tooltip";
+import ButtonBase from "@/components/Button/ButtonBase";
+import Link from "@/components/Link/Link";
 
 type ReplyMessageProps = {
   message: Message;
+  onReplyClick: () => void;
 };
 
 type ReplyListProps = {
   message: RenderedMessage;
+  onReplyClick: () => void;
 };
 
 type Props = {
   message: RenderedMessage;
 };
 
-const ReplyMessage = ({ message }: ReplyMessageProps) => {
+const ReplyMessage = ({ message, onReplyClick }: ReplyMessageProps) => {
   const { createdAtShort, createdAtFull } = useMemo(() => {
     const createdAt = dayjs(message.created_at);
     const isToday = createdAt.isSame(dayjs(), "day");
@@ -55,44 +59,52 @@ const ReplyMessage = ({ message }: ReplyMessageProps) => {
     return { createdAtShort, createdAtFull };
   }, [message.created_at]);
   return (
-    <HorizontalStack
-      wrap={false}
-      addClassName="w-full md:w-1/2 p-2 hover:cursor-pointer hover:bg-mui-action-focus items-center"
+    <Link
+      href={`?messageId=${message.id}`}
+      className="md:w-1/2 no-underline text-mui-text-primary"
+      onClick={onReplyClick}
     >
-      <UserAvatar user={message.author} size="sm" />
-      <div className="flex flex-col overflow-hidden">
-        <HorizontalStack wrap={false} spacing="xs">
-          <Typography
-            variant="subtitle2"
-            className="text-ellipsis whitespace-nowrap overflow-hidden"
-          >
-            <strong>{message.author.name}</strong>
-          </Typography>
-          <Tooltip title={createdAtFull}>
+      <ButtonBase
+        focusRipple
+        className="w-full p-2 hover:cursor-pointer hover:bg-mui-action-focus text-left"
+      >
+        <HorizontalStack wrap={false} addClassName="w-full items-center">
+          <UserAvatar user={message.author} size="sm" />
+          <div className="flex flex-col overflow-hidden">
+            <HorizontalStack wrap={false} spacing="xs">
+              <Typography
+                variant="subtitle2"
+                className="text-ellipsis whitespace-nowrap overflow-hidden"
+              >
+                <strong>{message.author.name}</strong>
+              </Typography>
+              <Tooltip title={createdAtFull}>
+                <Typography
+                  variant="caption"
+                  color="textSecondary"
+                  className="whitespace-nowrap"
+                >
+                  {createdAtShort}
+                </Typography>
+              </Tooltip>
+            </HorizontalStack>
             <Typography
               variant="caption"
-              color="textSecondary"
-              className="whitespace-nowrap"
+              className="text-ellipsis whitespace-nowrap overflow-hidden"
             >
-              {createdAtShort}
+              {message.content.slice(0, messageContentPreviewMaxLength)}
             </Typography>
-          </Tooltip>
+          </div>
         </HorizontalStack>
-        <Typography
-          variant="caption"
-          className="text-ellipsis whitespace-nowrap overflow-hidden"
-        >
-          {message.content.slice(0, messageContentPreviewMaxLength)}
-        </Typography>
-      </div>
-    </HorizontalStack>
+      </ButtonBase>
+    </Link>
   );
 };
 
 const calculateTotalPages = (totalItems: number, pageSize: number) =>
   Math.max(1, Math.ceil(totalItems / pageSize));
 
-const ReplyList = ({ message }: ReplyListProps) => {
+const ReplyList = ({ message, onReplyClick }: ReplyListProps) => {
   const [pagination, setPagination] = useState({
     page: 1,
     totalPages: calculateTotalPages(
@@ -185,7 +197,11 @@ const ReplyList = ({ message }: ReplyListProps) => {
                 addClassName="max-h-[300px] overflow-y-auto"
               >
                 {replies.data.items.map((reply) => (
-                  <ReplyMessage key={reply.id} message={reply} />
+                  <ReplyMessage
+                    key={reply.id}
+                    message={reply}
+                    onReplyClick={onReplyClick}
+                  />
                 ))}
               </HorizontalStack>
             ) : null}
@@ -226,7 +242,7 @@ const ReplyCountButton = ({ message }: Props) => {
       </HorizontalStack>
       <popover.ReadyComponent>
         <LoadingBoundary>
-          <ReplyList message={message} />
+          <ReplyList message={message} onReplyClick={popover.closePopover} />
         </LoadingBoundary>
       </popover.ReadyComponent>
     </>

@@ -99,6 +99,8 @@ type Props = {
   message: RenderedMessage;
   totalItems: number;
   shouldHighlight?: boolean;
+  isIdleRef?: React.RefObject<boolean>;
+  isIdleTrigger?: number;
   onHighlightConsumed?: () => void;
   onUpdateSuccess: MessageUpdateMutationOptions["onSuccess"];
   onDeleteSuccess: MessageDeleteMutationOptions["onSuccess"];
@@ -114,6 +116,8 @@ const Message = ({
   message,
   totalItems,
   shouldHighlight,
+  isIdleTrigger,
+  isIdleRef,
   onHighlightConsumed,
   onUpdateSuccess,
   onDeleteSuccess,
@@ -155,18 +159,17 @@ const Message = ({
     onSuccess: onDeleteSuccess,
   });
 
-  useLayoutEffect(() => {
+  useEffect(() => {
+    if (!shouldHighlight || !isIdleRef?.current || !ref.current) return;
     const el = ref.current;
-    if (shouldHighlight && el) {
-      el.classList.remove("hash-flash-inner");
-      void el.offsetWidth;
-      el.classList.add("hash-flash-inner");
 
-      onHighlightConsumed?.();
-    }
+    el.classList.remove("hash-flash-inner");
+    void el.offsetWidth;
+    el.classList.add("hash-flash-inner");
+    onHighlightConsumed?.();
 
     // eslint-disable-next-line
-  }, [shouldHighlight]);
+  }, [shouldHighlight, isIdleTrigger]);
 
   useEffect(() => {
     if (!isEdit) {
