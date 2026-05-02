@@ -1337,6 +1337,20 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   );
 
   useEffect(() => {
+    const onNavigation = (newPath: string) => {
+      const currentPath = router.asPath;
+      if (currentPath === newPath) {
+        resetMessagesList();
+      }
+    };
+    router.events.on("routeChangeStart", onNavigation);
+    return () => {
+      router.events.off("routeChangeStart", onNavigation);
+    };
+    // eslint-disable-next-line
+  }, [router.events, router.asPath]);
+
+  useEffect(() => {
     return () => {
       debouncedMakeIdle.cancel();
     };
