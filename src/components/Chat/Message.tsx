@@ -57,6 +57,7 @@ import { makeMessageUpdateSchemaForm } from "@/utils/validators/client/messages"
 import { useLatest } from "@/utils/hooks/useLatest";
 import ReplyCountButton from "@/components/Chat/ReplyCountButton";
 import Link from "@/components/Link/Link";
+import ButtonBase from "@/components/Button/ButtonBase";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -389,54 +390,56 @@ const Message = ({
         {!!message.reply_to_message_id &&
           (!message.isOptimistic && !message.parentMessage ? (
             <HorizontalStack
-              addClassName="pl-6 pr-1 items-center"
+              addClassName="pl-6 pr-1 items-center text-mui-text-secondary"
               fullWidth
               spacing="xs"
             >
               <ReplyIcon fontSize="small" className="-scale-x-100" />
-              <Typography color="textSecondary">Message was deleted</Typography>
+              <Typography>Message was deleted</Typography>
             </HorizontalStack>
           ) : (
             <Link
               href={`?messageId=${message.reply_to_message_id}`}
               className="no-underline"
             >
-              <HorizontalStack
-                addClassName="pl-6 pr-1 items-center hover:cursor-pointer hover:bg-mui-action-selected text-mui-text-primary"
-                fullWidth
-                spacing="xs"
+              <ButtonBase
+                focusRipple
+                className="w-full hover:cursor-pointer hover:bg-mui-action-selected text-mui-text-secondary"
               >
-                <ReplyIcon fontSize="small" className="-scale-x-100" />
-                <Typography>
-                  <Typography component={"span"} color="secondary">
-                    <strong>
-                      {message.parentMessage
-                        ? message.parentMessage.author.name
-                        : "Loading..."}
-                    </strong>
+                <HorizontalStack
+                  addClassName="pl-6 pr-1 items-center"
+                  fullWidth
+                  spacing="xs"
+                >
+                  <ReplyIcon fontSize="small" className="-scale-x-100" />
+                  <Typography>
+                    <Typography component={"span"}>
+                      <strong>
+                        {message.parentMessage
+                          ? message.parentMessage.author.name
+                          : "Loading..."}
+                      </strong>
+                    </Typography>
                   </Typography>
-                </Typography>
-                <div className="flex items-center gap-1 overflow-hidden">
-                  <Typography
-                    color="textSecondary"
-                    className="text-ellipsis whitespace-nowrap overflow-hidden"
-                  >
-                    {message.parentMessage?.contentPreview}
-                  </Typography>
-                  {parentMessageUpdatedAtFull ? (
-                    <Tooltip title={parentMessageUpdatedAtFull}>
-                      <Typography
-                        className="whitespace-nowrap"
-                        component="span"
-                        color="textDisabled"
-                        variant="caption"
-                      >
-                        (edited)
-                      </Typography>
-                    </Tooltip>
-                  ) : null}
-                </div>
-              </HorizontalStack>
+                  <div className="flex items-center gap-1 overflow-hidden">
+                    <Typography className="text-ellipsis whitespace-nowrap overflow-hidden">
+                      {message.parentMessage?.contentPreview}
+                    </Typography>
+                    {parentMessageUpdatedAtFull ? (
+                      <Tooltip title={parentMessageUpdatedAtFull}>
+                        <Typography
+                          className="whitespace-nowrap"
+                          component="span"
+                          color="textDisabled"
+                          variant="caption"
+                        >
+                          (edited)
+                        </Typography>
+                      </Tooltip>
+                    ) : null}
+                  </div>
+                </HorizontalStack>
+              </ButtonBase>
             </Link>
           ))}
         <div className={`px-1`}>
