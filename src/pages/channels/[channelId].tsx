@@ -1731,7 +1731,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         virtuosoRef.current?.scrollToIndex({
           index: foundMessageIndex,
           align: "center",
-          behavior: "smooth",
+          behavior: "auto",
         });
       }
       setIsInitialScrollHandled(true);
@@ -2080,6 +2080,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                       isInitialScrollHandled &&
                       urlMessageId === String(message.id)
                     }
+                    isIdleTrigger={isIdleTrigger}
+                    isIdleRef={isIdleRef}
                     onHighlightConsumed={() => {
                       setIsMessageHighlightConsumed(true);
                     }}
