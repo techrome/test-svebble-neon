@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ADD COLUMN "content_text" varchar(2000);

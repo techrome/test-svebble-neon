@@ -10,9 +10,10 @@ import {
 import { and, isNotNull, isNull } from "drizzle-orm";
 
 import { withDefaultColumns } from "../helpers/withDefaultColumns";
-import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import { user } from "./auth";
 import { channels } from "./channels";
+import { messageContentHtmlMaxLength } from "../../trpc/validators/messages";
+import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 
 export const messages = pgTable(
   "messages",
@@ -24,7 +25,8 @@ export const messages = pgTable(
       user_id: uuid()
         .notNull()
         .references(() => user.id),
-      content: varchar({ length: TEXT_LIMITS.long * 4 }).notNull(),
+      content: varchar({ length: messageContentHtmlMaxLength }).notNull(),
+      content_text: varchar({ length: TEXT_LIMITS.long }),
       channel_id: bigint("channel_id", { mode: "bigint" })
         .notNull()
         .references(() => channels.id),
