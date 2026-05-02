@@ -201,7 +201,7 @@ export const messagesRouter = router({
   get: publicProcedure()
     .input(sharedMessagesValidations.messagesGetSchemaForm)
     .output(messagesGetOutputSchema)
-    .query(async ({ ctx, input }) => {
+    .query(async ({ input }) => {
       const rate = 0;
       const cursor = input.cursor;
       //await new Promise((r) => setTimeout(r, 500));

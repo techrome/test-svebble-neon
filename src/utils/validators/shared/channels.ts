@@ -1,13 +1,11 @@
-import {
-  numericIdQuerySchema,
-  numericIdSchema,
-} from "@/utils/validators/helpers/custom";
+import { numericIdSchema } from "@/utils/validators/helpers/custom";
 import { Text } from "@/utils/validators/helpers/text";
 import z from "@/utils/zod";
 
 export const channelCreateSchemaForm = z.object({
   name: Text.Title({ required: true }),
 });
+// eslint-disable-next-line
 export const makeChannelCreateSchemaForm = (isVerifiedUser?: boolean) =>
   channelCreateSchemaForm;
 

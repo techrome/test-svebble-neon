@@ -1,13 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Avatar,
-  Chip,
-  CircularProgress,
-  Paper,
-  Typography,
-} from "@mui/material";
+import { Chip, CircularProgress, Paper, Typography } from "@mui/material";
 import NextImage from "next/image";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteIcon from "@mui/icons-material/Delete";

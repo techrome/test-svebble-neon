@@ -226,20 +226,25 @@ const ReplyCountButton = ({ message }: Props) => {
 
   return (
     <>
-      <HorizontalStack
-        addClassName="pl-3 pr-1 items-center hover:cursor-pointer hover:bg-mui-action-selected"
-        fullWidth
-        spacing="xs"
-        onClick={popover.openPopover}
+      <ButtonBase
+        focusRipple
+        className="w-full hover:cursor-pointer hover:bg-mui-action-selected text-left"
       >
-        <Typography color="textSecondary" className="flex items-center">
-          Replies: {message.reply_count}
-          <KeyboardArrowDownIcon
-            fontSize="small"
-            className={clsx("transition", popover.isOpen ? "rotate-180" : "")}
-          />
-        </Typography>
-      </HorizontalStack>
+        <HorizontalStack
+          addClassName="pl-3 pr-1 items-center"
+          fullWidth
+          spacing="xs"
+          onClick={popover.openPopover}
+        >
+          <Typography color="textSecondary" className="flex items-center">
+            Replies: {message.reply_count}
+            <KeyboardArrowDownIcon
+              fontSize="small"
+              className={clsx("transition", popover.isOpen ? "rotate-180" : "")}
+            />
+          </Typography>
+        </HorizontalStack>
+      </ButtonBase>
       <popover.ReadyComponent>
         <LoadingBoundary>
           <ReplyList message={message} onReplyClick={popover.closePopover} />

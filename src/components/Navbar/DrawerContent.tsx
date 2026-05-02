@@ -71,7 +71,6 @@ import { useUser } from "@/trpc/hooks/useUser";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
 import { useQueryClient } from "@tanstack/react-query";
 import { userLogoutLifecycle } from "@/trpc/helpers/userLifecycle";
-import { env } from "@/utils/env";
 import { useAuthModal } from "@/utils/hooks/useAuthModal";
 import UserAvatar from "@/components/Avatar/UserAvatar";
 

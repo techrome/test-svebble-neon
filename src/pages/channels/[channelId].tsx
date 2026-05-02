@@ -10,8 +10,6 @@ import Button from "@/components/Button/Button";
 import clsx from "clsx";
 import PersonIcon from "@mui/icons-material/Person";
 import { Paper, Typography } from "@mui/material";
-import SendIcon from "@mui/icons-material/Send";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
 import ReplayIcon from "@mui/icons-material/Replay";
 import ReplyIcon from "@mui/icons-material/Reply";
 import ClearIcon from "@mui/icons-material/Clear";
@@ -29,12 +27,7 @@ import MessageComponent, {
   type Message,
 } from "@/components/Chat/Message";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
-import {
-  useGlobalDrawer,
-  useGlobalModal,
-  useLocalDrawer,
-  useLocalModal,
-} from "@/utils/hooks/useOverlay";
+import { useGlobalModal } from "@/utils/hooks/useOverlay";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { CACHE_TIME_MS, minutes, seconds } from "@/utils/cacheTime";
@@ -48,7 +41,7 @@ import {
 } from "@tanstack/react-query";
 import { Text } from "@/utils/validators/helpers/text";
 import { useUser } from "@/trpc/hooks/useUser";
-import { Controller, SubmitHandler, useForm } from "react-hook-form";
+import { SubmitHandler, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Input from "@/components/Fields/Input";
 import { type AppPage } from "@/pages/_app";
@@ -362,11 +355,8 @@ type Props = {
 };
 
 const MessageListOrchestrator = ({ channel }: Props) => {
-  const localModal = useLocalModal();
   const globalModal = useGlobalModal();
-  const localDrawer = useLocalDrawer();
-  const { openDrawer, closeDrawer } = useGlobalDrawer();
-  const { addAppSnackbar, dismissAllAppSnackbars } = useAppSnackbar();
+  const { addAppSnackbar } = useAppSnackbar();
 
   const user = useUser();
   const authModal = useAuthModal();
@@ -941,8 +931,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       data: WebsocketPayload<"messages:delete">,
       isApplyingBufferedEvents?: boolean
     ) => {
-      const message = data.message;
-      const itemToDeleteId = BigInt(message.id);
       const {
         isWsSyncing,
         isPolling,
@@ -1039,11 +1027,11 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     meta: { keepDefaultErrorHandling: true },
   });
 
-  const commentDeleteAllMutation = trpc.messages.deleteAll.useMutation({
-    onSuccess: () => {
-      utils.messages.get.invalidate();
-    },
-  });
+  // const commentDeleteAllMutation = trpc.messages.deleteAll.useMutation({
+  //   onSuccess: () => {
+  //     utils.messages.get.invalidate();
+  //   },
+  // });
 
   const guestLoginMutation = trpc.auth.loginAnonymous.useMutation({
     onSuccess() {
@@ -1337,6 +1325,20 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   );
 
   useEffect(() => {
+    const onNavigation = (newPath: string) => {
+      const currentPath = router.asPath;
+      if (currentPath === newPath) {
+        resetMessagesList();
+      }
+    };
+    router.events.on("routeChangeStart", onNavigation);
+    return () => {
+      router.events.off("routeChangeStart", onNavigation);
+    };
+    // eslint-disable-next-line
+  }, [router.events, router.asPath]);
+
+  useEffect(() => {
     return () => {
       debouncedMakeIdle.cancel();
     };
@@ -1556,6 +1558,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       hasStartedWsSyncRefetch.current = true;
       messages.refetch();
     }
+    // eslint-disable-next-line
   }, [shouldStartWsSyncRefetch]);
 
   useEffect(() => {
@@ -1574,6 +1577,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       }
       repairEmptyPageParams();
     }
+    // eslint-disable-next-line
   }, [messages.dataUpdatedAt]);
 
   useEffect(() => {
@@ -1602,6 +1606,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         highestMessagesVersion: highestRefetchedMessagesVersion,
       });
     }
+    // eslint-disable-next-line
   }, [messages.isRefetching]);
 
   useEffect(() => {
@@ -1636,6 +1641,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       setWsSyncFailedCount(0);
       setSyncMode("ws-syncing");
     }
+    // eslint-disable-next-line
   }, [messagesVersion.isRefetching]);
 
   const resetMessagesList = () => {
@@ -1691,6 +1697,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     if (!router.isReady) return;
 
     resetMessagesList();
+    // eslint-disable-next-line
   }, [urlMessageId]);
 
   useEffect(() => {
@@ -1944,6 +1951,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       Header: MessagesHeader,
       Footer: MessagesFooter,
     }),
+    // eslint-disable-next-line
     []
   );
 

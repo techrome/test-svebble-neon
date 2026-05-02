@@ -1,5 +1,4 @@
 import React from "react";
-import { Typography } from "@mui/material";
 import z from "@/utils/zod";
 
 import Button from "@/components/Button/Button";
