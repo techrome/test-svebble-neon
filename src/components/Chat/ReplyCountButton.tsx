@@ -61,7 +61,7 @@ const ReplyMessage = ({ message, onReplyClick }: ReplyMessageProps) => {
   return (
     <Link
       href={`?messageId=${message.id}`}
-      className="md:w-1/2 no-underline text-mui-text-primary"
+      className="w-full md:w-1/2 no-underline text-mui-text-primary"
       onClick={onReplyClick}
     >
       <ButtonBase
