@@ -7,7 +7,7 @@ import { after, before, nowMinus } from "../../db/helpers/time";
 import { pruneFiles } from "./pruneFiles";
 import { pruneMessages } from "./pruneMessages";
 import { formatBigArray } from "../../../utils/formatBigArray";
-import { runConcurrently } from "@/utils/concurrency";
+import { runConcurrently } from "../../utils/concurrency";
 
 type PruneResult = {
   usersToPruneCount: number;
