@@ -151,6 +151,7 @@ type MessagesError = TRPCClientErrorLike<AppRouter>;
 type MessagesQueryKey = ReturnType<typeof getQueryKey>;
 type MessagesSelectedData = InfiniteData<MessagesGetOutput, MessagesCursor> & {
   items: RenderedMessage[];
+  heightEstimates: number[];
 };
 
 type MessagesInfiniteQueryOptionsInitial = UseInfiniteQueryOptions<
@@ -170,6 +171,35 @@ type MessagesInfiniteQueryOptions = Omit<
   | "getNextPageParam"
   | "select"
 >;
+
+const estimateMessageHeight = (message: RenderedMessage): number => {
+  const charsPerLine = 100;
+  const lineHeight = 20;
+
+  const firstMessageOfTheDay = message.isFirstMessageOfTheDay ? 40 : 0;
+  const paddingTop =
+    !message.isFirstMessageOfTheDay && !message.isCompact ? 8 : 0;
+  const replyPreview = message.reply_to_message_id ? 24 : 0;
+  const base = message.isCompact ? 32 : 56;
+  const additionalTextLines = Math.ceil(
+    Math.max(0, message.content.length - charsPerLine) / charsPerLine
+  );
+  const replyCount = message.reply_count ? 24 : 0;
+
+  return Math.max(
+    32,
+    Math.min(
+      700,
+      firstMessageOfTheDay +
+        paddingTop +
+        base +
+        replyPreview +
+        additionalTextLines * lineHeight +
+        replyCount
+    )
+  );
+};
+
 const messageQuerySelectors = {
   getPreviousPageParam: (firstPage, _, firstPageParam) => {
     if (firstPage.returnedDirection === "backward") {
@@ -207,8 +237,8 @@ const messageQuerySelectors = {
     }
   },
   select: (data) => {
-    let items: (Message &
-      Pick<RenderedMessage, "isCompact" | "isFirstMessageOfTheDay">)[] = [];
+    let items: MessagesSelectedData["items"] = [];
+    let heightEstimates: MessagesSelectedData["heightEstimates"] = [];
 
     // collapsing messages by the same user within a short period of time
     // while having sane limits on how many messages can be collapsed consecutively
@@ -246,24 +276,30 @@ const messageQuerySelectors = {
           ) &&
           groupMessageCount < MAX_GROUP_MESSAGES;
 
+        let newItem: RenderedMessage;
         if (continuesPreviousGroup) {
           groupMessageCount += 1;
-          items.push({ ...message, isCompact: true });
+          newItem = { ...message, isCompact: true };
         } else {
           groupStartCreatedAt = message.created_at;
           groupMessageCount = 1;
           if (isFirstMessageOfTheDay) {
-            items.push({ ...message, isFirstMessageOfTheDay: true });
+            newItem = { ...message, isFirstMessageOfTheDay: true };
           } else {
-            items.push(message);
+            newItem = message;
           }
         }
+        const estimatedHeight = estimateMessageHeight(newItem);
+
+        items.push(newItem);
+        heightEstimates.push(estimatedHeight);
       }
     }
 
     return {
       ...data,
       items,
+      heightEstimates,
     };
   },
 } satisfies Pick<
@@ -988,6 +1024,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         {
           channel_id: variables.channelId,
           content: variables.content,
+          content_text: null,
           created_at: new Date(),
           edited_at: new Date(),
           deleted_at: null,
@@ -2047,8 +2084,12 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 align: "center",
               }}
               increaseViewportBy={{
-                bottom: 1000,
-                top: 1000,
+                bottom: 300,
+                top: 300,
+              }}
+              overscan={{
+                main: 500,
+                reverse: 500,
               }}
               alignToBottom
               followOutput={
@@ -2078,6 +2119,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
               atBottomThreshold={50}
               data={renderedMessages}
               computeItemKey={(_, item) => item.id}
+              heightEstimates={messages.data?.heightEstimates}
               itemContent={(_, message) => {
                 return (
                   <MessageComponent
