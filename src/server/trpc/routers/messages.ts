@@ -417,6 +417,7 @@ export const messagesRouter = router({
         for (let i = 0; i < input.count; i++) {
           rows.push({
             content: `${i + 1} - ${generateRandomText(minLength, maxLength, alphanumeric)}`,
+            content_text: `${i + 1} - ${generateRandomText(minLength, maxLength, alphanumeric)}`,
             user_id: ctx.user.id,
             channel_id: input.channelId,
           });
@@ -425,10 +426,12 @@ export const messagesRouter = router({
       } else {
         const seed = generateRandomText(minLength, maxLength, alphanumeric);
         for (let i = 0; i < input.count; i++) {
-          const randomText = `<p>${i + 1} - ${seed}</p>`;
+          const randomText = `${i + 1} - ${seed}`;
+          const randomTextHtml = `<p>${randomText}</p>`;
 
           await db.insert(schema.messages).values({
-            content: randomText,
+            content: randomTextHtml,
+            content_text: randomText,
             user_id: ctx.user.id,
             channel_id: input.channelId,
             reply_to_message_id: input.reply_to_message_id,
@@ -510,7 +513,8 @@ export const messagesRouter = router({
         db
           .insert(schema.messages)
           .values({
-            content: input.content,
+            content: input.content.html,
+            content_text: input.content.text,
             user_id: ctx.user.id,
             channel_id: sql`(select ${validatedChannel.id} from ${validatedChannel})`, // the whole validation relies on this check
             reply_to_message_id: isReply
@@ -658,7 +662,11 @@ export const messagesRouter = router({
       const messageUpdate = db.$with("message").as(
         db
           .update(schema.messages)
-          .set({ content: input.content, edited_at: sql`now()` })
+          .set({
+            content: input.content.html,
+            content_text: input.content.text,
+            edited_at: sql`now()`,
+          })
           .from(schema.channels)
           .where(
             and(
