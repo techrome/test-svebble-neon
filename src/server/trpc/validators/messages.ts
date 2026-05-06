@@ -1,11 +1,17 @@
 import * as htmlparser2 from "htmlparser2";
 
-import { sanitizeMessageHtml, trimHtml } from "../../utils/sanitizeHtml";
+import {
+  htmlToText,
+  sanitizeMessageHtml,
+  trimHtml,
+} from "../../utils/sanitizeHtml";
 import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import { numericIdSchema } from "@/utils/validators/helpers/custom";
 import { messageCreateSchemaForm } from "@/utils/validators/shared/messages";
 import { z } from "@/utils/zod";
 import { getMessageContentMaxLength } from "@/utils/validators/client/messages";
+
+export const messageContentHtmlMaxLength = TEXT_LIMITS.long * 4;
 
 const contentSchema = (isVerifiedUser?: boolean) =>
   z
@@ -14,51 +20,50 @@ const contentSchema = (isVerifiedUser?: boolean) =>
     .transform((v) => {
       const sanitizedHtml = sanitizeMessageHtml(v);
       const parsedDocument = htmlparser2.parseDocument(sanitizedHtml);
-      const htmlText = htmlparser2.DomUtils.textContent(parsedDocument).trim();
-      const trimmedHtml = trimHtml(parsedDocument).trim();
+      const text = htmlToText(sanitizedHtml);
+      const html = trimHtml(parsedDocument).trim();
 
-      return { htmlText, trimmedHtml };
+      return { text, html };
     })
-    .superRefine(({ htmlText, trimmedHtml }, ctx) => {
+    .superRefine(({ text, html }, ctx) => {
       const textMaxLength = getMessageContentMaxLength(isVerifiedUser);
-      const htmlMaxLength = TEXT_LIMITS.long * 4;
+      const htmlMaxLength = messageContentHtmlMaxLength;
 
-      if (!htmlText || !trimmedHtml) {
+      if (!text || !html) {
         ctx.addIssue({
           code: "custom",
           message: "Message content is required",
         });
         return;
       }
-      if (htmlText.length > textMaxLength) {
+      if (text.length > textMaxLength) {
         ctx.addIssue({
           code: "custom",
           message: `Message content must not be greater than ${textMaxLength} characters`,
         });
         return;
       }
-      if (trimmedHtml.length > htmlMaxLength) {
+      if (html.length > htmlMaxLength) {
         ctx.addIssue({
           code: "custom",
           message: `Message content total HTML must not be greater than ${htmlMaxLength} characters`,
         });
         return;
       }
-    })
-    .transform((v) => v.trimmedHtml);
+    });
 
 export const makeMessageCreateSchema = (isVerifiedUser?: boolean) =>
-  messageCreateSchemaForm.safeExtend({
+  messageCreateSchemaForm.extend({
     content: contentSchema(isVerifiedUser),
   });
 
 export const messageUpdateSchema = messageCreateSchemaForm
-  .omit({ channelId: true })
+  .pick({ content: true })
   .extend({
     id: numericIdSchema,
   });
 
 export const makeMessageUpdateSchema = (isVerifiedUser?: boolean) =>
-  messageUpdateSchema.safeExtend({
+  messageUpdateSchema.extend({
     content: contentSchema(isVerifiedUser),
   });

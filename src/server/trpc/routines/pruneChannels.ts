@@ -6,7 +6,7 @@ import { channels } from "../../db/schema/channels";
 import { before, nowMinus } from "../../db/helpers/time";
 import { pruneMessages } from "./pruneMessages";
 import { formatBigArray } from "../../../utils/formatBigArray";
-import { runConcurrently } from "@/utils/concurrency";
+import { runConcurrently } from "../../utils/concurrency";
 
 type PruneResult = {
   channelsToPruneCount: number;
