@@ -74,6 +74,7 @@ import MessageEditor from "@/components/Chat/MessageEditor";
 import { User } from "@/utils/validators/shared/user";
 import { messageContentPreviewMaxLength } from "@/utils/validators/shared/messages";
 import { hasPermissions } from "@/utils/hasPermissions";
+import { useLatest } from "@/utils/hooks/useLatest";
 
 type JSONIncompatibleMessageFields = Pick<
   MessageSerializable,
@@ -726,7 +727,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 ? {
                     ...updatedItems[index].parentMessage,
                     edited_at: message.edited_at,
-                    contentPreview: message.content.slice(
+                    contentPreview: message.content_text.slice(
                       0,
                       messageContentPreviewMaxLength
                     ),
@@ -1362,20 +1363,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   );
 
   useEffect(() => {
-    const onNavigation = (newPath: string) => {
-      const currentPath = router.asPath;
-      if (currentPath === newPath) {
-        resetMessagesList();
-      }
-    };
-    router.events.on("routeChangeStart", onNavigation);
-    return () => {
-      router.events.off("routeChangeStart", onNavigation);
-    };
-    // eslint-disable-next-line
-  }, [router.events, router.asPath]);
-
-  useEffect(() => {
     return () => {
       debouncedMakeIdle.cancel();
     };
@@ -1717,6 +1704,22 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       hasCompletedFirstInit.current = true;
     }
   };
+
+  const sameRouteChangeDeps = useLatest({ resetMessagesList });
+  useEffect(() => {
+    const onNavigation = (newPath: string) => {
+      const { resetMessagesList } = sameRouteChangeDeps.current;
+      const currentPath = router.asPath;
+      if (currentPath === newPath) {
+        resetMessagesList();
+      }
+    };
+    router.events.on("routeChangeStart", onNavigation);
+    return () => {
+      router.events.off("routeChangeStart", onNavigation);
+    };
+    // eslint-disable-next-line
+  }, [router.events, router.asPath]);
 
   const retryInvalidate = () => {
     if (!messages.isError || messages.isFetching) {

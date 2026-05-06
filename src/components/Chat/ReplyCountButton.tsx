@@ -4,14 +4,14 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import ReplayIcon from "@mui/icons-material/Replay";
 import clsx from "clsx";
 
-import { type Message, type RenderedMessage } from "@/components/Chat/Message";
+import { type RenderedMessage } from "@/components/Chat/Message";
 import {
   HorizontalStack,
   Section,
   VerticalStack,
 } from "@/components/Layout/Containers";
 import { useLocalPopover } from "@/utils/hooks/useOverlay";
-import { trpc } from "@/trpc";
+import { type RouterOutput, trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
 import {
   messageContentPreviewMaxLength,
@@ -33,8 +33,10 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import ButtonBase from "@/components/Button/ButtonBase";
 import Link from "@/components/Link/Link";
 
+type ReplyMessage = RouterOutput["messages"]["getReplies"]["items"][number];
+
 type ReplyMessageProps = {
-  message: Message;
+  message: ReplyMessage;
   onReplyClick: () => void;
 };
 
@@ -92,7 +94,7 @@ const ReplyMessage = ({ message, onReplyClick }: ReplyMessageProps) => {
               variant="caption"
               className="text-ellipsis whitespace-nowrap overflow-hidden"
             >
-              {message.content.slice(0, messageContentPreviewMaxLength)}
+              {message.content_text.slice(0, messageContentPreviewMaxLength)}
             </Typography>
           </div>
         </HorizontalStack>
