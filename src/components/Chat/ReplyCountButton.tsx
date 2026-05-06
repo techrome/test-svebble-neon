@@ -4,14 +4,14 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import ReplayIcon from "@mui/icons-material/Replay";
 import clsx from "clsx";
 
-import { type Message, type RenderedMessage } from "@/components/Chat/Message";
+import { type RenderedMessage } from "@/components/Chat/Message";
 import {
   HorizontalStack,
   Section,
   VerticalStack,
 } from "@/components/Layout/Containers";
 import { useLocalPopover } from "@/utils/hooks/useOverlay";
-import { trpc } from "@/trpc";
+import { type RouterOutput, trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
 import {
   messageContentPreviewMaxLength,
@@ -33,8 +33,10 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import ButtonBase from "@/components/Button/ButtonBase";
 import Link from "@/components/Link/Link";
 
+type ReplyMessage = RouterOutput["messages"]["getReplies"]["items"][number];
+
 type ReplyMessageProps = {
-  message: Message;
+  message: ReplyMessage;
   onReplyClick: () => void;
 };
 
@@ -48,16 +50,21 @@ type Props = {
 };
 
 const ReplyMessage = ({ message, onReplyClick }: ReplyMessageProps) => {
-  const { createdAtShort, createdAtFull } = useMemo(() => {
+  const { createdAtShort, createdAtFull, updatedAtFull } = useMemo(() => {
     const createdAt = dayjs(message.created_at);
     const isToday = createdAt.isSame(dayjs(), "day");
     const createdAtShort = isToday
       ? createdAt.format(timeFormat)
       : createdAt.format(dateTimeFormat);
     const createdAtFull = createdAt.format(dateTimeFormatFullDisplay);
+    const hasEdited =
+      message.created_at.getTime() !== message.edited_at.getTime();
+    const updatedAtFull = hasEdited
+      ? dayjs(message.edited_at).format(dateTimeFormatFullDisplay)
+      : null;
 
-    return { createdAtShort, createdAtFull };
-  }, [message.created_at]);
+    return { createdAtShort, createdAtFull, updatedAtFull };
+  }, [message.created_at, message.edited_at]);
   return (
     <Link
       href={`?messageId=${message.id}`}
@@ -88,12 +95,26 @@ const ReplyMessage = ({ message, onReplyClick }: ReplyMessageProps) => {
                 </Typography>
               </Tooltip>
             </HorizontalStack>
-            <Typography
-              variant="caption"
-              className="text-ellipsis whitespace-nowrap overflow-hidden"
-            >
-              {message.content.slice(0, messageContentPreviewMaxLength)}
-            </Typography>
+            <HorizontalStack wrap={false} spacing="xs">
+              <Typography
+                variant="caption"
+                className="text-ellipsis whitespace-nowrap overflow-hidden"
+              >
+                {message.contentPreview}
+              </Typography>
+              {updatedAtFull ? (
+                <Tooltip title={updatedAtFull}>
+                  <Typography
+                    className="whitespace-nowrap"
+                    component="span"
+                    color="textDisabled"
+                    variant="caption"
+                  >
+                    (edited)
+                  </Typography>
+                </Tooltip>
+              ) : null}
+            </HorizontalStack>
           </div>
         </HorizontalStack>
       </ButtonBase>
@@ -145,7 +166,7 @@ const ReplyList = ({ message, onReplyClick }: ReplyListProps) => {
 
   return (
     <Paper elevation={5}>
-      <Section addClassName="w-xl max-w-full">
+      <Section fullWidth={false} addClassName="w-2xl max-w-full">
         <VerticalStack>
           <VerticalStack>
             {pagination.totalPages > 1 && (

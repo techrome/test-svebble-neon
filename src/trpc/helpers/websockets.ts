@@ -1,17 +1,24 @@
 import type { RealtimeChannel, Message as AblyMessage } from "ably";
 
 import type { ToSerializable } from "@/utils/types";
-import { MessagesGetOutput } from "../../server/trpc/routers/messages";
+import {
+  FullMessage,
+  MessagesGetOutput,
+} from "../../server/trpc/routers/messages";
 
-type Message = MessagesGetOutput["items"][number];
+type Message = MessagesGetOutput["items"][number] & {
+  contentPreview?: FullMessage["content_text"];
+};
 export type MessageSerializable = ToSerializable<Message>;
 
 type BaseMessageKeys = keyof Pick<
   Message,
   "id" | "reply_count" | "content" | "edited_at"
 >;
+type BaseMessageAdditionalKeys = keyof Pick<Message, "contentPreview">;
 
-export type MessageBase = Record<BaseMessageKeys, unknown>;
+export type MessageBase = Record<BaseMessageKeys, unknown> &
+  Partial<Record<BaseMessageAdditionalKeys, unknown>>;
 
 type ParentMessage<TFull extends MessageBase> = Pick<
   TFull,
@@ -33,7 +40,9 @@ type WebsocketEventsOf<TFull extends MessageBase> = {
   "messages:create": MessageMutationResponse<TFull, TFull>;
   "messages:update": MessageMutationResponse<
     TFull,
-    Pick<TFull, "content" | "id" | "edited_at" | "reply_count">,
+    Pick<TFull, "content" | "id" | "edited_at" | "reply_count"> & {
+      contentPreview: NonNullable<TFull["contentPreview"]>;
+    },
     false
   >;
   "messages:delete": MessageMutationResponse<TFull, Pick<TFull, "id">>;

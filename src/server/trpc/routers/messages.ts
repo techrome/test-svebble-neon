@@ -37,6 +37,7 @@ import {
 import { PartialFor, type NullableFields } from "@/utils/types";
 import { AuthSession } from "../context";
 import type { WebsocketEventsOriginal } from "@/trpc/helpers/websockets";
+import { leftText } from "../../db/helpers/stringUtils";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -93,9 +94,11 @@ const pickFromShape = <
   return result;
 };
 
-const { deleted_at: _deleted_at, ...messageColumns } = getTableColumns(
-  schema.messages
-);
+const {
+  deleted_at: _deleted_at,
+  content_text: _content_text,
+  ...messageColumns
+} = getTableColumns(schema.messages);
 
 const messageAuthorColumns = {
   id: schema.user.id,
@@ -106,7 +109,7 @@ const messageAuthorColumns = {
   role: schema.user.role,
 };
 
-type FullMessage = typeof schema.messages.$inferSelect;
+export type FullMessage = typeof schema.messages.$inferSelect;
 type FullUser = typeof schema.user.$inferSelect;
 
 type Message = Pick<FullMessage, keyof typeof messageColumns>;
@@ -115,11 +118,14 @@ type MessageAuthor = Pick<FullUser, keyof typeof messageAuthorColumns>;
 type JoinedMessage = Message & {
   author: PartialFor<MessageAuthor, "username" | "displayUsername" | "image">;
   parentMessage: {
+    contentPreview: FullMessage["content_text"];
+    created_at: FullMessage["created_at"];
+    edited_at: FullMessage["edited_at"];
     author: Pick<MessageAuthor, "name">;
-    contentPreview: Message["content"];
-    created_at: Message["created_at"];
-    edited_at: Message["edited_at"];
   } | null;
+};
+type ReplyMessage = Omit<JoinedMessage, "content"> & {
+  contentPreview: FullMessage["content_text"];
 };
 
 const pickMessageAuthor = (
@@ -146,8 +152,9 @@ const toMessagesPayload = (
     message: NullableFields<Message> | null;
     author: NullableFields<MessageAuthor> | null;
     parent_message: NullableFields<
-      Pick<Message, "content" | "created_at" | "edited_at"> & {
+      Pick<FullMessage, "created_at" | "edited_at"> & {
         author_name: MessageAuthor["name"];
+        contentPreview: FullMessage["content_text"];
       }
     >;
   }>
@@ -162,7 +169,7 @@ const toMessagesPayload = (
 
       newItem.parentMessage =
         row.message.reply_to_message_id &&
-        row.parent_message.content &&
+        row.parent_message.contentPreview &&
         row.parent_message.created_at &&
         row.parent_message.edited_at &&
         row.parent_message.author_name
@@ -170,10 +177,7 @@ const toMessagesPayload = (
               author: {
                 name: row.parent_message.author_name,
               },
-              contentPreview: row.parent_message.content.slice(
-                0,
-                sharedMessagesValidations.messageContentPreviewMaxLength
-              ),
+              contentPreview: row.parent_message.contentPreview,
               created_at: row.parent_message.created_at,
               edited_at: row.parent_message.edited_at,
             }
@@ -253,7 +257,10 @@ export const messagesRouter = router({
             message: pickFromShape(messagesSubquery, messageColumns),
             author: messageAuthorColumns,
             parent_message: {
-              content: parentMessage.content,
+              contentPreview: leftText(
+                parentMessage.content_text,
+                sharedMessagesValidations.messageContentPreviewMaxLength
+              ),
               created_at: parentMessage.created_at,
               edited_at: parentMessage.edited_at,
               author_name: parentAuthor.name,
@@ -362,7 +369,10 @@ export const messagesRouter = router({
             message: messageColumns,
             author: messageAuthorColumns,
             parent_message: {
-              content: parentMessage.content,
+              contentPreview: leftText(
+                parentMessage.content_text,
+                sharedMessagesValidations.messageContentPreviewMaxLength
+              ),
               created_at: parentMessage.created_at,
               edited_at: parentMessage.edited_at,
               author_name: parentAuthor.name,
@@ -473,7 +483,7 @@ export const messagesRouter = router({
           .select({
             id: replyParentMessage.id,
             author_name: replyParentAuthor.name,
-            content: replyParentMessage.content,
+            content_text: replyParentMessage.content_text,
             created_at: replyParentMessage.created_at,
             edited_at: replyParentMessage.edited_at,
           })
@@ -569,7 +579,10 @@ export const messagesRouter = router({
           parent_message: {
             id: validatedParentMessage.id,
             author_name: validatedParentMessage.author_name,
-            content: validatedParentMessage.content,
+            contentPreview: leftText(
+              validatedParentMessage.content_text,
+              sharedMessagesValidations.messageContentPreviewMaxLength
+            ),
             created_at: validatedParentMessage.created_at,
             edited_at: validatedParentMessage.edited_at,
             reply_count: parentMessageUpdate.reply_count,
@@ -590,17 +603,14 @@ export const messagesRouter = router({
       newMessage.author = author;
       newMessage.parentMessage =
         newData.parent_message.author_name &&
-        newData.parent_message.content &&
+        newData.parent_message.contentPreview &&
         newData.parent_message.created_at &&
         newData.parent_message.edited_at
           ? {
               author: {
                 name: newData.parent_message.author_name,
               },
-              contentPreview: newData.parent_message.content.slice(
-                0,
-                sharedMessagesValidations.messageContentPreviewMaxLength
-              ),
+              contentPreview: newData.parent_message.contentPreview,
               created_at: newData.parent_message.created_at,
               edited_at: newData.parent_message.edited_at,
             }
@@ -677,7 +687,13 @@ export const messagesRouter = router({
               eq(schema.messages.channel_id, schema.channels.id)
             )
           )
-          .returning(messageColumns)
+          .returning({
+            ...messageColumns,
+            contentPreview: leftText(
+              schema.messages.content_text,
+              sharedMessagesValidations.messageContentPreviewMaxLength
+            ).as("contentPreview"),
+          })
       );
       const channelUpdate = db.$with("channel").as(
         db
@@ -704,7 +720,7 @@ export const messagesRouter = router({
         .select()
         .from(messageUpdate)
         .innerJoin(channelUpdate, sql`true`);
-      if (!updatedData.message) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!updatedData?.message) throw new TRPCError({ code: "NOT_FOUND" });
 
       const updatedMessage = updatedData.message;
 
@@ -713,6 +729,7 @@ export const messagesRouter = router({
           data: {
             message: {
               content: updatedMessage.content,
+              contentPreview: updatedMessage.contentPreview,
               id: String(updatedMessage.id),
               reply_count: updatedMessage.reply_count,
               edited_at: updatedMessage.edited_at,
@@ -726,6 +743,7 @@ export const messagesRouter = router({
       return {
         message: {
           content: updatedMessage.content,
+          contentPreview: updatedMessage.contentPreview,
           id: updatedMessage.id,
           reply_count: updatedMessage.reply_count,
           edited_at: updatedMessage.edited_at,
@@ -754,7 +772,7 @@ export const messagesRouter = router({
               eq(schema.messages.channel_id, schema.channels.id)
             )
           )
-          .returning(pickFromShape(schema.messages, messageColumns))
+          .returning(messageColumns)
       );
 
       const channelUpdate = db.$with("channel").as(
@@ -846,7 +864,7 @@ export const messagesRouter = router({
     .input(sharedMessagesValidations.messagesGetRepliesSchemaForm)
     .output(
       z.object({
-        items: z.custom<JoinedMessage[]>(),
+        items: z.custom<ReplyMessage[]>(),
         totalItems: z.number(),
         page: z.number(),
       })
@@ -876,10 +894,18 @@ export const messagesRouter = router({
         .offset(offset)
         .as("reply_page");
 
+      const { content: _content, ...replyMessageColumnsBase } = messageColumns;
+
       const rows = await db
         .select({
           totalItems: parentMessage.reply_count,
-          message: pickFromShape(schema.messages, messageColumns),
+          message: {
+            ...replyMessageColumnsBase,
+            contentPreview: leftText(
+              schema.messages.content_text,
+              sharedMessagesValidations.messageContentPreviewMaxLength
+            ),
+          },
           author: messageAuthorColumns,
         })
         .from(parentMessage)
@@ -907,14 +933,13 @@ export const messagesRouter = router({
       }
 
       const totalItems = rows[0].totalItems;
-
-      const items: JoinedMessage[] = [];
+      const items: ReplyMessage[] = [];
 
       for (const row of rows) {
         if (!row.message?.id || !row.author?.id) continue;
 
-        let newItem = row.message as JoinedMessage;
-        newItem.author = row.author as JoinedMessage["author"];
+        let newItem = row.message as ReplyMessage;
+        newItem.author = row.author as ReplyMessage["author"];
         newItem.parentMessage = null;
 
         items.push(newItem);
