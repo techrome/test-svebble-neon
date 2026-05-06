@@ -1,0 +1,1 @@
+ALTER TABLE "messages" ALTER COLUMN "content_text" SET NOT NULL;

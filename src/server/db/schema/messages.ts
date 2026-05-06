@@ -26,7 +26,7 @@ export const messages = pgTable(
         .notNull()
         .references(() => user.id),
       content: varchar({ length: messageContentHtmlMaxLength }).notNull(),
-      content_text: varchar({ length: TEXT_LIMITS.long }),
+      content_text: varchar({ length: TEXT_LIMITS.long }).notNull(),
       channel_id: bigint("channel_id", { mode: "bigint" })
         .notNull()
         .references(() => channels.id),
@@ -51,6 +51,9 @@ export const messages = pgTable(
       .where(
         and(isNull(table.deleted_at), isNotNull(table.reply_to_message_id))!
       ),
+    // index("messages_active_content_text_trgm_index")
+    //   .using("gin", table.content_text.op("gin_trgm_ops"))
+    //   .where(isNull(table.deleted_at)),
     index("messages_cleanup_index")
       .on(table.deleted_at, table.id)
       .where(isNotNull(table.deleted_at)),
