@@ -7,12 +7,7 @@ import { runChunksConcurrently } from "../src/server/utils/concurrency";
   const rows = await db
     .select()
     .from(schema.messages)
-    .where(
-      and(
-        isNull(schema.messages.content_text),
-        isNull(schema.messages.deleted_at)
-      )
-    )
+    .where(and(isNull(schema.messages.content_text)))
     .orderBy(desc(schema.messages.id))
     .limit(1000);
 
