@@ -1024,7 +1024,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         {
           channel_id: variables.channelId,
           content: variables.content,
-          content_text: null,
+          content_text: variables.content,
           created_at: new Date(),
           edited_at: new Date(),
           deleted_at: null,
