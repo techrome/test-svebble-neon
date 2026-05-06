@@ -37,6 +37,7 @@ import {
 import { PartialFor, type NullableFields } from "@/utils/types";
 import { AuthSession } from "../context";
 import type { WebsocketEventsOriginal } from "@/trpc/helpers/websockets";
+import { leftText } from "../../db/helpers/stringUtils";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -123,8 +124,9 @@ type JoinedMessage = Message & {
     author: Pick<MessageAuthor, "name">;
   } | null;
 };
-type ReplyMessage = Omit<JoinedMessage, "content"> &
-  Pick<FullMessage, "content_text">;
+type ReplyMessage = Omit<JoinedMessage, "content"> & {
+  contentPreview: FullMessage["content_text"];
+};
 
 const pickMessageAuthor = (
   user: NonNullable<AuthSession>["user"]
@@ -150,8 +152,9 @@ const toMessagesPayload = (
     message: NullableFields<Message> | null;
     author: NullableFields<MessageAuthor> | null;
     parent_message: NullableFields<
-      Pick<FullMessage, "content_text" | "created_at" | "edited_at"> & {
+      Pick<FullMessage, "created_at" | "edited_at"> & {
         author_name: MessageAuthor["name"];
+        contentPreview: FullMessage["content_text"];
       }
     >;
   }>
@@ -166,7 +169,7 @@ const toMessagesPayload = (
 
       newItem.parentMessage =
         row.message.reply_to_message_id &&
-        row.parent_message.content_text &&
+        row.parent_message.contentPreview &&
         row.parent_message.created_at &&
         row.parent_message.edited_at &&
         row.parent_message.author_name
@@ -174,10 +177,7 @@ const toMessagesPayload = (
               author: {
                 name: row.parent_message.author_name,
               },
-              contentPreview: row.parent_message.content_text.slice(
-                0,
-                sharedMessagesValidations.messageContentPreviewMaxLength
-              ),
+              contentPreview: row.parent_message.contentPreview,
               created_at: row.parent_message.created_at,
               edited_at: row.parent_message.edited_at,
             }
@@ -257,7 +257,10 @@ export const messagesRouter = router({
             message: pickFromShape(messagesSubquery, messageColumns),
             author: messageAuthorColumns,
             parent_message: {
-              content_text: parentMessage.content_text,
+              contentPreview: leftText(
+                parentMessage.content_text,
+                sharedMessagesValidations.messageContentPreviewMaxLength
+              ),
               created_at: parentMessage.created_at,
               edited_at: parentMessage.edited_at,
               author_name: parentAuthor.name,
@@ -366,7 +369,10 @@ export const messagesRouter = router({
             message: messageColumns,
             author: messageAuthorColumns,
             parent_message: {
-              content_text: parentMessage.content_text,
+              contentPreview: leftText(
+                parentMessage.content_text,
+                sharedMessagesValidations.messageContentPreviewMaxLength
+              ),
               created_at: parentMessage.created_at,
               edited_at: parentMessage.edited_at,
               author_name: parentAuthor.name,
@@ -573,7 +579,10 @@ export const messagesRouter = router({
           parent_message: {
             id: validatedParentMessage.id,
             author_name: validatedParentMessage.author_name,
-            content_text: validatedParentMessage.content_text,
+            contentPreview: leftText(
+              validatedParentMessage.content_text,
+              sharedMessagesValidations.messageContentPreviewMaxLength
+            ),
             created_at: validatedParentMessage.created_at,
             edited_at: validatedParentMessage.edited_at,
             reply_count: parentMessageUpdate.reply_count,
@@ -594,17 +603,14 @@ export const messagesRouter = router({
       newMessage.author = author;
       newMessage.parentMessage =
         newData.parent_message.author_name &&
-        newData.parent_message.content_text &&
+        newData.parent_message.contentPreview &&
         newData.parent_message.created_at &&
         newData.parent_message.edited_at
           ? {
               author: {
                 name: newData.parent_message.author_name,
               },
-              contentPreview: newData.parent_message.content_text.slice(
-                0,
-                sharedMessagesValidations.messageContentPreviewMaxLength
-              ),
+              contentPreview: newData.parent_message.contentPreview,
               created_at: newData.parent_message.created_at,
               edited_at: newData.parent_message.edited_at,
             }
@@ -683,7 +689,10 @@ export const messagesRouter = router({
           )
           .returning({
             ...messageColumns,
-            content_text: schema.messages.content_text,
+            contentPreview: leftText(
+              schema.messages.content_text,
+              sharedMessagesValidations.messageContentPreviewMaxLength
+            ).as("contentPreview"),
           })
       );
       const channelUpdate = db.$with("channel").as(
@@ -711,7 +720,7 @@ export const messagesRouter = router({
         .select()
         .from(messageUpdate)
         .innerJoin(channelUpdate, sql`true`);
-      if (!updatedData.message) throw new TRPCError({ code: "NOT_FOUND" });
+      if (!updatedData?.message) throw new TRPCError({ code: "NOT_FOUND" });
 
       const updatedMessage = updatedData.message;
 
@@ -720,7 +729,7 @@ export const messagesRouter = router({
           data: {
             message: {
               content: updatedMessage.content,
-              content_text: updatedMessage.content_text,
+              contentPreview: updatedMessage.contentPreview,
               id: String(updatedMessage.id),
               reply_count: updatedMessage.reply_count,
               edited_at: updatedMessage.edited_at,
@@ -734,7 +743,7 @@ export const messagesRouter = router({
       return {
         message: {
           content: updatedMessage.content,
-          content_text: updatedMessage.content_text,
+          contentPreview: updatedMessage.contentPreview,
           id: updatedMessage.id,
           reply_count: updatedMessage.reply_count,
           edited_at: updatedMessage.edited_at,
@@ -892,7 +901,10 @@ export const messagesRouter = router({
           totalItems: parentMessage.reply_count,
           message: {
             ...replyMessageColumnsBase,
-            content_text: schema.messages.content_text,
+            contentPreview: leftText(
+              schema.messages.content_text,
+              sharedMessagesValidations.messageContentPreviewMaxLength
+            ),
           },
           author: messageAuthorColumns,
         })

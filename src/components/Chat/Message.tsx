@@ -410,16 +410,18 @@ const Message = ({
                   addClassName="pl-6 pr-1 items-center"
                   fullWidth
                   spacing="xs"
+                  wrap={false}
                 >
                   <ReplyIcon fontSize="small" className="-scale-x-100" />
-                  <Typography>
-                    <Typography component={"span"}>
-                      <strong>
-                        {message.parentMessage
-                          ? message.parentMessage.author.name
-                          : "Loading..."}
-                      </strong>
-                    </Typography>
+                  <Typography
+                    component={"span"}
+                    className="text-ellipsis whitespace-nowrap overflow-hidden"
+                  >
+                    <strong>
+                      {message.parentMessage
+                        ? message.parentMessage.author.name
+                        : "Loading..."}
+                    </strong>
                   </Typography>
                   <div className="flex items-center gap-1 overflow-hidden">
                     <Typography className="text-ellipsis whitespace-nowrap overflow-hidden">

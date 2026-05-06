@@ -6,15 +6,16 @@ import {
   MessagesGetOutput,
 } from "../../server/trpc/routers/messages";
 
-type Message = MessagesGetOutput["items"][number] &
-  Partial<Pick<FullMessage, "content_text">>;
+type Message = MessagesGetOutput["items"][number] & {
+  contentPreview?: FullMessage["content_text"];
+};
 export type MessageSerializable = ToSerializable<Message>;
 
 type BaseMessageKeys = keyof Pick<
   Message,
   "id" | "reply_count" | "content" | "edited_at"
 >;
-type BaseMessageAdditionalKeys = keyof Pick<Message, "content_text">;
+type BaseMessageAdditionalKeys = keyof Pick<Message, "contentPreview">;
 
 export type MessageBase = Record<BaseMessageKeys, unknown> &
   Partial<Record<BaseMessageAdditionalKeys, unknown>>;
@@ -39,14 +40,8 @@ type WebsocketEventsOf<TFull extends MessageBase> = {
   "messages:create": MessageMutationResponse<TFull, TFull>;
   "messages:update": MessageMutationResponse<
     TFull,
-    Omit<
-      Pick<
-        TFull,
-        "content_text" | "content" | "id" | "edited_at" | "reply_count"
-      >,
-      "content_text"
-    > & {
-      content_text: NonNullable<TFull["content_text"]>;
+    Pick<TFull, "content" | "id" | "edited_at" | "reply_count"> & {
+      contentPreview: NonNullable<TFull["contentPreview"]>;
     },
     false
   >;

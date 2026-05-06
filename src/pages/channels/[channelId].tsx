@@ -727,10 +727,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 ? {
                     ...updatedItems[index].parentMessage,
                     edited_at: message.edited_at,
-                    contentPreview: message.content_text.slice(
-                      0,
-                      messageContentPreviewMaxLength
-                    ),
+                    contentPreview: message.contentPreview,
                   }
                 : null,
             };
