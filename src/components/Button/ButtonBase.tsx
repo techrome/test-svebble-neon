@@ -1,13 +1,10 @@
 import React from "react";
-import {
-  ButtonBase as MuiButtonBase,
-  type ButtonBaseProps as MuiButtonBaseProps,
-} from "@mui/material";
+import MuiButtonBase from "@mui/material/ButtonBase";
 
-type Props = MuiButtonBaseProps;
+// doing this to preserve MUI typing properly
 
-const ButtonBase = ({ children, ...props }: Props) => {
-  return <MuiButtonBase {...props}>{children}</MuiButtonBase>;
-};
+const ButtonBase = React.forwardRef((props, ref) => {
+  return <MuiButtonBase ref={ref} {...props} />;
+}) as typeof MuiButtonBase;
 
 export default ButtonBase;

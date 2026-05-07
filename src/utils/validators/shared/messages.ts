@@ -4,7 +4,7 @@ import {
 } from "@/utils/validators/helpers/custom";
 import z from "@/utils/zod";
 
-export const messageContentPreviewMaxLength = 50;
+export const messageContentPreviewMaxLength = 100;
 export const messageRepliesPageMaxSize = 20;
 
 export const messagesGetWebsocketsToken = z.object({

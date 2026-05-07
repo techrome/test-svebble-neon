@@ -11,10 +11,11 @@ type Props = {
     NonNullable<NonNullable<ReturnType<typeof useUser>["data"]>["user"]>,
     "displayUsername" | "id" | "image"
   >;
-  size?: "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg";
 };
 
 export const sizesMap = {
+  xs: "min-w-4 size-4",
   sm: "min-w-8 size-8",
   md: "min-w-10 size-10",
   lg: "min-w-16 size-16",
