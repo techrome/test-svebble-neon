@@ -59,11 +59,12 @@ const ParentMessagePreview = ({
         wrap={false}
       >
         <ReplyIcon fontSize="small" className="-scale-x-100" />
-        <UserAvatar user={message.author} size="xs" />
+        <UserAvatar user={message.parentMessage?.author} size="xs" />
         <Typography
           component={"span"}
-          className="text-ellipsis whitespace-nowrap overflow-hidden"
+          className="text-ellipsis opacity-80 whitespace-nowrap overflow-hidden"
           variant="subtitle2"
+          color="secondary"
         >
           <strong>
             {message.parentMessage
