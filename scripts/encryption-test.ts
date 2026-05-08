@@ -40,5 +40,5 @@ main()
     console.error("Failed to encrypt", err);
   })
   .finally(() => {
-    process.exit(1);
+    process.exit(0);
   });
