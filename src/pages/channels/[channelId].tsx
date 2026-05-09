@@ -13,6 +13,7 @@ import { Paper, Typography } from "@mui/material";
 import ReplayIcon from "@mui/icons-material/Replay";
 import ReplyIcon from "@mui/icons-material/Reply";
 import ClearIcon from "@mui/icons-material/Clear";
+import ViewListIcon from "@mui/icons-material/ViewList";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import debounce from "lodash/debounce";
 import z from "@/utils/zod";
@@ -27,7 +28,7 @@ import MessageComponent, {
   type Message,
 } from "@/components/Chat/Message";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
-import { useGlobalModal } from "@/utils/hooks/useOverlay";
+import { useGlobalDrawer, useGlobalModal } from "@/utils/hooks/useOverlay";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
 import { useAppSnackbar } from "@/utils/snackbar";
 import { CACHE_TIME_MS, minutes, seconds } from "@/utils/cacheTime";
@@ -394,6 +395,7 @@ type Props = {
 const MessageListOrchestrator = ({ channel }: Props) => {
   const globalModal = useGlobalModal();
   const { addAppSnackbar } = useAppSnackbar();
+  const globalDrawer = useGlobalDrawer();
 
   const user = useUser();
   const authModal = useAuthModal();
@@ -2036,9 +2038,29 @@ const MessageListOrchestrator = ({ channel }: Props) => {
             ></div>
           </div>
         </Tooltip>
-        <Typography>Some text</Typography>
+        <HorizontalStack addClassName="items-center">
+          <Tooltip title="List of channels">
+            <IconButton
+              onClick={() => {
+                globalDrawer.openDrawer({
+                  content: <ChannelListWrapper isDrawer />,
+                  props: {
+                    title: "Channels",
+                    muiDrawerProps: {
+                      anchor: "left",
+                    },
+                  },
+                });
+              }}
+              className="md:hidden"
+            >
+              <ViewListIcon />
+            </IconButton>
+          </Tooltip>
+          <Typography>Some text</Typography>
+        </HorizontalStack>
         {/* TODO */}
-        {user.data?.user &&
+        {/* {user.data?.user &&
           hasPermissions(user.data.user, ["messages.createSpam"]) && (
             <Button
               variant="outlined"
@@ -2056,7 +2078,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
             >
               Spam messages
             </Button>
-          )}
+          )} */}
 
         <form onSubmit={searchForm.handleSubmit(onSearchSubmit)} noValidate>
           <Input
