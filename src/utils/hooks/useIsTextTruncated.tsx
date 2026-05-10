@@ -11,17 +11,8 @@ const getTextOnlyWidth = (el: HTMLElement, text: string) => {
 };
 
 const isTextTruncatedByCSS = (el: HTMLElement, textWithoutDots: string) => {
-  const originalFullWidth = el.scrollWidth;
-  const originalVisibleWidth = el.clientWidth;
   const textOnlyFullWidth = getTextOnlyWidth(el, textWithoutDots);
   const visibleWidth = el.clientWidth;
-
-  console.log({
-    visibleWidth,
-    originalFullWidth,
-    originalVisibleWidth,
-    textOnlyFullWidth,
-  });
 
   return visibleWidth < textOnlyFullWidth;
 };

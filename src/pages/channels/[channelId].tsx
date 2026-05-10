@@ -14,6 +14,7 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import ReplyIcon from "@mui/icons-material/Reply";
 import ClearIcon from "@mui/icons-material/Clear";
 import ViewListIcon from "@mui/icons-material/ViewList";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import debounce from "lodash/debounce";
 import z from "@/utils/zod";
@@ -127,6 +128,7 @@ const COMPACT_GAP_MS = minutes(5);
 const MAX_GROUP_AGE_MS = minutes(20);
 const MAX_GROUP_MESSAGES = 15;
 const FETCH_MORE_THRESHOLD = 1;
+const JUMP_TO_BOTTOM_THRESHOLD_ITEMS = 10;
 
 const searchSchemaForm = z.object({
   text: Text.Long(),
@@ -579,7 +581,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     return messages.data.items.findIndex((m) => m.id === targetId);
   }, [messages.data?.items, urlMessageId]);
 
-  const initialTopMostItemIndex = useMemo(() => {
+  const initialBottomMostItemIndex = useMemo(() => {
     let result = -1;
     if (totalItems && firstItemIndex !== null) {
       result = foundMessageIndex >= 0 ? foundMessageIndex : totalItems - 1;
@@ -590,7 +592,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const shouldRenderList =
     Boolean(totalItems) &&
     firstItemIndex !== null &&
-    initialTopMostItemIndex !== -1;
+    initialBottomMostItemIndex !== -1;
 
   const websocketsMessageQueue = useRef<WebsocketItem[]>([]);
 
@@ -1588,7 +1590,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     const data = messages.data;
     if (!data?.pages.length) return;
 
-    if (!hasQueryLoadedInitialData.current) {
+    if (!hasQueryLoadedInitialData.current && isInitialScrollHandled) {
       hasQueryLoadedInitialData.current = true;
       const messagesVersion = data.pages[0].messages_version;
       appliedMessagesVersion.current = messagesVersion;
@@ -1601,7 +1603,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       repairEmptyPageParams();
     }
     // eslint-disable-next-line
-  }, [messages.dataUpdatedAt]);
+  }, [messages.dataUpdatedAt, isInitialScrollHandled]);
 
   useEffect(() => {
     const data = messages.data;
@@ -1742,16 +1744,14 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   useEffect(() => {
     if (!isPreparingQuery) return;
 
-    if (foundMessageIndex === -1) {
-      qc.removeQueries({
-        queryKey: getQueryKey(trpc.messages.get, messagesQueryKey, "infinite"),
-        exact: true,
-      });
+    if (
+      (urlMessageId && foundMessageIndex === -1) ||
+      (!messages.isPending && !messages.isFetching && messages.hasNextPage)
+    )
       setMessagesQueryKey((prev) => ({
         ...prev,
         around: urlMessageId || undefined,
       }));
-    }
 
     setIsPreparingQuery(false);
 
@@ -1759,14 +1759,15 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   }, [isPreparingQuery]);
 
   useEffect(() => {
-    if (
-      isPreparingQuery !== false ||
-      isInitialScrollHandled ||
-      !messages.data?.items.length ||
-      !isIdleRef.current
-    ) {
-      return;
-    }
+    const hasItems = Boolean(messages.data?.items.length);
+    const isEmptySuccess = messages.isSuccess && !hasItems;
+    const canContinue =
+      isPreparingQuery === false &&
+      !isInitialScrollHandled &&
+      (isEmptySuccess || (hasItems && isIdleRef.current));
+
+    if (!canContinue) return;
+
     if (urlMessageId) {
       if (foundMessageIndex === -1) {
         addAppSnackbar({
@@ -1784,7 +1785,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     } else if (!userInteractedRef.current) {
       if (!messages.hasNextPage) {
         virtuosoRef.current?.scrollToIndex({
-          index: initialTopMostItemIndex,
+          index: initialBottomMostItemIndex,
           align: "end",
           behavior: "auto",
         });
@@ -2014,6 +2015,34 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     } else return messages.data?.items;
   }, [messages.data?.items, optimisticMessages]);
 
+  const shouldShowJumpToBottomButton = useMemo(() => {
+    if (
+      !shouldRenderList ||
+      !renderedMessages?.length ||
+      !visibleRangeRef.current
+    ) {
+      return false;
+    }
+    if (messages.hasNextPage) return true;
+
+    const localVisibleEndIndex = Math.max(
+      0,
+      visibleRangeRef.current.visibleEndIndex - firstItemIndex
+    );
+
+    return localVisibleEndIndex < Math.max(0, totalItems - 10);
+    // eslint-disable-next-line
+  }, [
+    shouldRenderList,
+    renderedMessages,
+    messages.hasNextPage,
+    firstItemIndex,
+    totalItems,
+    isIdleTrigger,
+  ]);
+
+  //console.log({ shouldShowJumpToBottomButton });
+
   const syncModeInfo = syncModeMapping[syncMode];
 
   return (
@@ -2094,117 +2123,135 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         </form>
       </HorizontalStack>
       <div className="w-full min-h-0 flex flex-col flex-1">
-        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col">
+        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col relative">
           {shouldRenderList ? (
-            <Virtuoso
-              key={messagesQueryKey.around || "default"}
-              ref={virtuosoRef}
-              className="h-full"
-              firstItemIndex={firstItemIndex}
-              initialTopMostItemIndex={{
-                index: initialTopMostItemIndex,
-                align: "center",
-              }}
-              increaseViewportBy={{
-                bottom: 300,
-                top: 300,
-              }}
-              overscan={{
-                main: 500,
-                reverse: 500,
-              }}
-              alignToBottom
-              followOutput={
-                messages.data?.items.length && !messages.hasNextPage
-                  ? (isAtBottom) => {
-                      return isAtBottom ? "smooth" : false;
-                    }
-                  : undefined
-              }
-              rangeChanged={(range) => {
-                visibleRangeRef.current = {
-                  visibleStartIndex: range.startIndex,
-                  visibleEndIndex: range.endIndex,
-                };
-                isIdleRef.current = false;
-                debouncedMakeIdle();
-              }}
-              scrollerRef={(el) => {
-                if (el instanceof HTMLElement) {
-                  scrollerElRef.current = el;
+            <>
+              <Virtuoso
+                key={messagesQueryKey.around || "default"}
+                ref={virtuosoRef}
+                className="h-full"
+                firstItemIndex={firstItemIndex}
+                initialTopMostItemIndex={{
+                  index: initialBottomMostItemIndex,
+                  align: "center",
+                }}
+                increaseViewportBy={{
+                  bottom: 300,
+                  top: 300,
+                }}
+                overscan={{
+                  main: 500,
+                  reverse: 500,
+                }}
+                alignToBottom
+                followOutput={
+                  messages.data?.items.length && !messages.hasNextPage
+                    ? (isAtBottom) => {
+                        return isAtBottom ? "smooth" : false;
+                      }
+                    : undefined
                 }
-              }}
-              totalListHeightChanged={() => {
-                isIdleRef.current = false;
-                debouncedMakeIdle();
-              }}
-              atBottomThreshold={50}
-              data={renderedMessages}
-              computeItemKey={(_, item) => item.id}
-              heightEstimates={messages.data?.heightEstimates}
-              itemContent={(_, message) => {
-                return (
-                  <MessageComponent
-                    message={message}
-                    totalItems={totalItems}
-                    shouldHighlight={
-                      !isMessageHighlightConsumed &&
-                      isInitialScrollHandled &&
-                      urlMessageId === String(message.id)
-                    }
-                    isIdleTrigger={isIdleTrigger}
-                    isIdleRef={isIdleRef}
-                    onHighlightConsumed={() => {
-                      setIsMessageHighlightConsumed(true);
-                    }}
-                    onUpdateSuccess={(data) => {
-                      if (handleNewMessagesVersion(data.messagesVersion)) {
-                        editMessage(data, appliedMessagesVersion.current);
+                rangeChanged={(range) => {
+                  visibleRangeRef.current = {
+                    visibleStartIndex: range.startIndex,
+                    visibleEndIndex: range.endIndex,
+                  };
+                  isIdleRef.current = false;
+                  debouncedMakeIdle();
+                }}
+                scrollerRef={(el) => {
+                  if (el instanceof HTMLElement) {
+                    scrollerElRef.current = el;
+                  }
+                }}
+                totalListHeightChanged={() => {
+                  isIdleRef.current = false;
+                  debouncedMakeIdle();
+                }}
+                atBottomThreshold={50}
+                data={renderedMessages}
+                computeItemKey={(_, item) => item.id}
+                heightEstimates={messages.data?.heightEstimates}
+                itemContent={(_, message) => {
+                  return (
+                    <MessageComponent
+                      message={message}
+                      totalItems={totalItems}
+                      shouldHighlight={
+                        !isMessageHighlightConsumed &&
+                        isInitialScrollHandled &&
+                        urlMessageId === String(message.id)
                       }
-                      onOwnMessageActionSuccess();
-                    }}
-                    onDeleteSuccess={(data) => {
-                      if (handleNewMessagesVersion(data.messagesVersion)) {
-                        deleteMessage(data, appliedMessagesVersion.current);
-                      }
-                      onOwnMessageActionSuccess();
-                    }}
-                    onOptimisticFailedRetry={() => {
-                      deleteOptimisticMessage(message.id);
-                      messageCreateMutation.mutate({
-                        channelId: message.channel_id,
-                        content: message.content,
-                        reply_to_message_id: message.reply_to_message_id,
-                      });
-                    }}
-                    onOptimisticFailedDelete={() => {
-                      deleteOptimisticMessage(message.id);
-                    }}
-                    onReplyClick={() => {
-                      setMessageToReply({
-                        id: message.id,
-                        author: { name: message.author.name },
-                      });
-                      form.setFocus("content");
-                    }}
-                    onReportClick={() => {
-                      globalModal.openModal({
-                        props: { title: "Report Message" },
-                        content: (
-                          <ReportMessageForm
-                            message={message}
-                            onCancel={() => {}}
-                            onConfirm={() => {}}
-                          />
-                        ),
-                      });
-                    }}
-                  />
-                );
-              }}
-              context={virtuosoContext}
-              components={MessagesComponents}
-            />
+                      isIdleTrigger={isIdleTrigger}
+                      isIdleRef={isIdleRef}
+                      onHighlightConsumed={() => {
+                        setIsMessageHighlightConsumed(true);
+                      }}
+                      onUpdateSuccess={(data) => {
+                        if (handleNewMessagesVersion(data.messagesVersion)) {
+                          editMessage(data, appliedMessagesVersion.current);
+                        }
+                        onOwnMessageActionSuccess();
+                      }}
+                      onDeleteSuccess={(data) => {
+                        if (handleNewMessagesVersion(data.messagesVersion)) {
+                          deleteMessage(data, appliedMessagesVersion.current);
+                        }
+                        onOwnMessageActionSuccess();
+                      }}
+                      onOptimisticFailedRetry={() => {
+                        deleteOptimisticMessage(message.id);
+                        messageCreateMutation.mutate({
+                          channelId: message.channel_id,
+                          content: message.content,
+                          reply_to_message_id: message.reply_to_message_id,
+                        });
+                      }}
+                      onOptimisticFailedDelete={() => {
+                        deleteOptimisticMessage(message.id);
+                      }}
+                      onReplyClick={() => {
+                        setMessageToReply({
+                          id: message.id,
+                          author: { name: message.author.name },
+                        });
+                        form.setFocus("content");
+                      }}
+                      onReportClick={() => {
+                        globalModal.openModal({
+                          props: { title: "Report Message" },
+                          content: (
+                            <ReportMessageForm
+                              message={message}
+                              onCancel={() => {}}
+                              onConfirm={() => {}}
+                            />
+                          ),
+                        });
+                      }}
+                    />
+                  );
+                }}
+                context={virtuosoContext}
+                components={MessagesComponents}
+              />
+              {shouldShowJumpToBottomButton && (
+                <Paper
+                  elevation={4}
+                  className="absolute bottom-4 right-8 rounded-full"
+                >
+                  <Tooltip title="Jump to bottom">
+                    <IconButton
+                      onClick={() => {
+                        setUrlMessageId();
+                      }}
+                    >
+                      <ArrowDownwardIcon />
+                    </IconButton>
+                  </Tooltip>
+                </Paper>
+              )}
+            </>
           ) : messages.isError ? (
             <VerticalStack
               addClassName="flex-1 justify-center items-center"
