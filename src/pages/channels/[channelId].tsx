@@ -74,8 +74,6 @@ import ChannelHeader from "@/components/Chat/ChannelHeader";
 import type { AppRouter } from "@/server";
 import MessageEditor from "@/components/Chat/MessageEditor";
 import { User } from "@/utils/validators/shared/user";
-import { messageContentPreviewMaxLength } from "@/utils/validators/shared/messages";
-import { hasPermissions } from "@/utils/hasPermissions";
 import { useLatest } from "@/utils/hooks/useLatest";
 
 type JSONIncompatibleMessageFields = Pick<
@@ -128,7 +126,7 @@ const COMPACT_GAP_MS = minutes(5);
 const MAX_GROUP_AGE_MS = minutes(20);
 const MAX_GROUP_MESSAGES = 15;
 const FETCH_MORE_THRESHOLD = 1;
-const JUMP_TO_BOTTOM_THRESHOLD_ITEMS = 10;
+const JUMP_TO_BOTTOM_THRESHOLD_ITEMS = 25;
 
 const searchSchemaForm = z.object({
   text: Text.Long(),
@@ -1009,11 +1007,11 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     }
   };
 
-  const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
-    onSuccess: () => {
-      utils.messages.get.invalidate();
-    },
-  });
+  // const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
+  //   onSuccess: () => {
+  //     utils.messages.get.invalidate();
+  //   },
+  // });
 
   const messageCreateMutation = trpc.messages.create.useMutation({
     onMutate(variables) {
@@ -2030,7 +2028,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       visibleRangeRef.current.visibleEndIndex - firstItemIndex
     );
 
-    return localVisibleEndIndex < Math.max(0, totalItems - 10);
+    return (
+      localVisibleEndIndex <
+      Math.max(0, totalItems - JUMP_TO_BOTTOM_THRESHOLD_ITEMS)
+    );
     // eslint-disable-next-line
   }, [
     shouldRenderList,
@@ -2040,8 +2041,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     totalItems,
     isIdleTrigger,
   ]);
-
-  //console.log({ shouldShowJumpToBottomButton });
 
   const syncModeInfo = syncModeMapping[syncMode];
 

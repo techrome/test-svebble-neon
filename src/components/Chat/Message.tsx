@@ -56,8 +56,6 @@ import MessageEditor from "@/components/Chat/MessageEditor";
 import { makeMessageUpdateSchemaForm } from "@/utils/validators/client/messages";
 import { useLatest } from "@/utils/hooks/useLatest";
 import ReplyCountButton from "@/components/Chat/ReplyCountButton";
-import Link from "@/components/Link/Link";
-import ButtonBase from "@/components/Button/ButtonBase";
 import ParentMessagePreview from "@/components/Chat/ParentMessagePreview";
 
 const closestWithin = <T extends HTMLElement>(

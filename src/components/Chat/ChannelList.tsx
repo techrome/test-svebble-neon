@@ -1,5 +1,4 @@
 import React, { useMemo } from "react";
-import ViewListIcon from "@mui/icons-material/ViewList";
 import clsx from "clsx";
 import {
   List,
