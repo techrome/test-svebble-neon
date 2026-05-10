@@ -3,6 +3,7 @@ import { type GetStaticProps } from "next";
 import Button from "@/components/Button/Button";
 import clsx from "clsx";
 import { Paper, Typography } from "@mui/material";
+import ViewListIcon from "@mui/icons-material/ViewList";
 
 import { utils as serverUtils } from "@/server";
 import { trpc } from "@/trpc";
@@ -17,8 +18,11 @@ import ChannelList from "@/components/Chat/ChannelList";
 import { APP_NAME } from "@/utils/constants";
 import Link from "@/components/Link/Link";
 import { ROUTES } from "@/utils/routes";
+import { useGlobalDrawer } from "@/utils/hooks/useOverlay";
+import ChannelListWrapper from "@/components/Chat/ChannelList";
 
 const HomePage: AppPage = () => {
+  const globalDrawer = useGlobalDrawer();
   const channels = trpc.channels.get.useQuery(undefined, {
     staleTime: CACHE_TIME_MS.NORMAL,
   });
@@ -35,7 +39,7 @@ const HomePage: AppPage = () => {
         >
           <Paper
             elevation={5}
-            className="rounded-xl p-14 z-10 shadow-none ring ring-mui-divider"
+            className="rounded-xl p-7 md:p-14 z-10 shadow-none ring ring-mui-divider"
           >
             <VerticalStack addClassName={`${defaultPadding} items-center`}>
               <Typography variant="h2" component="h1" className="text-center">
@@ -52,6 +56,26 @@ const HomePage: AppPage = () => {
                   </Button>
                 </Link>
               ) : null}
+              <Button
+                color="inherit"
+                variant="contained"
+                size="large"
+                className="md:hidden"
+                onClick={() => {
+                  globalDrawer.openDrawer({
+                    content: <ChannelListWrapper isDrawer />,
+                    props: {
+                      title: "Channels",
+                      muiDrawerProps: {
+                        anchor: "left",
+                      },
+                    },
+                  });
+                }}
+                startIcon={<ViewListIcon />}
+              >
+                List of channels
+              </Button>
             </VerticalStack>
           </Paper>
         </Paper>

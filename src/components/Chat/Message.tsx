@@ -56,8 +56,7 @@ import MessageEditor from "@/components/Chat/MessageEditor";
 import { makeMessageUpdateSchemaForm } from "@/utils/validators/client/messages";
 import { useLatest } from "@/utils/hooks/useLatest";
 import ReplyCountButton from "@/components/Chat/ReplyCountButton";
-import Link from "@/components/Link/Link";
-import ButtonBase from "@/components/Button/ButtonBase";
+import ParentMessagePreview from "@/components/Chat/ParentMessagePreview";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -387,63 +386,12 @@ const Message = ({
         addClassName={`relative group hover:bg-mui-action-focus`}
         ref={ref}
       >
-        {!!message.reply_to_message_id &&
-          (!message.isOptimistic && !message.parentMessage ? (
-            <HorizontalStack
-              addClassName="pl-6 pr-1 items-center text-mui-text-secondary"
-              fullWidth
-              spacing="xs"
-            >
-              <ReplyIcon fontSize="small" className="-scale-x-100" />
-              <Typography>Message was deleted</Typography>
-            </HorizontalStack>
-          ) : (
-            <Link
-              href={`?messageId=${message.reply_to_message_id}`}
-              className="no-underline"
-            >
-              <ButtonBase
-                focusRipple
-                className="w-full hover:cursor-pointer hover:bg-mui-action-selected text-mui-text-secondary"
-              >
-                <HorizontalStack
-                  addClassName="pl-6 pr-1 items-center"
-                  fullWidth
-                  spacing="xs"
-                  wrap={false}
-                >
-                  <ReplyIcon fontSize="small" className="-scale-x-100" />
-                  <Typography
-                    component={"span"}
-                    className="text-ellipsis whitespace-nowrap overflow-hidden"
-                  >
-                    <strong>
-                      {message.parentMessage
-                        ? message.parentMessage.author.name
-                        : "Loading..."}
-                    </strong>
-                  </Typography>
-                  <div className="flex items-center gap-1 overflow-hidden">
-                    <Typography className="text-ellipsis whitespace-nowrap overflow-hidden">
-                      {message.parentMessage?.contentPreview}
-                    </Typography>
-                    {parentMessageUpdatedAtFull ? (
-                      <Tooltip title={parentMessageUpdatedAtFull}>
-                        <Typography
-                          className="whitespace-nowrap"
-                          component="span"
-                          color="textDisabled"
-                          variant="caption"
-                        >
-                          (edited)
-                        </Typography>
-                      </Tooltip>
-                    ) : null}
-                  </div>
-                </HorizontalStack>
-              </ButtonBase>
-            </Link>
-          ))}
+        {!!message.reply_to_message_id && (
+          <ParentMessagePreview
+            message={message}
+            parentMessageUpdatedAtFull={parentMessageUpdatedAtFull}
+          />
+        )}
         <div className={`px-1`}>
           <HorizontalStack
             addClassName="px-1 py-1 justify-between items-center"

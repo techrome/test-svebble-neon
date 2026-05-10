@@ -36,5 +36,5 @@ import { runChunksConcurrently } from "../src/server/utils/concurrency";
   });
 
   console.log(`DONE. Items changed: ${rows.length}`);
-  process.exit(1);
+  process.exit(0);
 })();

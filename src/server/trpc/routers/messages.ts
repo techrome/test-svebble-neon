@@ -114,14 +114,17 @@ type FullUser = typeof schema.user.$inferSelect;
 
 type Message = Pick<FullMessage, keyof typeof messageColumns>;
 
-type MessageAuthor = Pick<FullUser, keyof typeof messageAuthorColumns>;
+type MessageAuthor = PartialFor<
+  Pick<FullUser, keyof typeof messageAuthorColumns>,
+  "username" | "displayUsername" | "image"
+>;
 type JoinedMessage = Message & {
-  author: PartialFor<MessageAuthor, "username" | "displayUsername" | "image">;
+  author: MessageAuthor;
   parentMessage: {
     contentPreview: FullMessage["content_text"];
     created_at: FullMessage["created_at"];
     edited_at: FullMessage["edited_at"];
-    author: Pick<MessageAuthor, "name">;
+    author: MessageAuthor;
   } | null;
 };
 type ReplyMessage = Omit<JoinedMessage, "content"> & {
@@ -153,10 +156,10 @@ const toMessagesPayload = (
     author: NullableFields<MessageAuthor> | null;
     parent_message: NullableFields<
       Pick<FullMessage, "created_at" | "edited_at"> & {
-        author_name: MessageAuthor["name"];
         contentPreview: FullMessage["content_text"];
       }
-    >;
+    > | null;
+    parent_message_author: MessageAuthor | null;
   }>
 ) => {
   if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
@@ -169,14 +172,12 @@ const toMessagesPayload = (
 
       newItem.parentMessage =
         row.message.reply_to_message_id &&
-        row.parent_message.contentPreview &&
-        row.parent_message.created_at &&
-        row.parent_message.edited_at &&
-        row.parent_message.author_name
+        row.parent_message?.contentPreview &&
+        row.parent_message?.created_at &&
+        row.parent_message?.edited_at &&
+        row.parent_message_author
           ? {
-              author: {
-                name: row.parent_message.author_name,
-              },
+              author: row.parent_message_author,
               contentPreview: row.parent_message.contentPreview,
               created_at: row.parent_message.created_at,
               edited_at: row.parent_message.edited_at,
@@ -263,8 +264,11 @@ export const messagesRouter = router({
               ),
               created_at: parentMessage.created_at,
               edited_at: parentMessage.edited_at,
-              author_name: parentAuthor.name,
             },
+            parent_message_author: pickFromShape(
+              parentAuthor,
+              messageAuthorColumns
+            ),
           })
           .from(schema.channels)
           .leftJoinLateral(messagesSubquery, sql`true`)
@@ -375,8 +379,11 @@ export const messagesRouter = router({
               ),
               created_at: parentMessage.created_at,
               edited_at: parentMessage.edited_at,
-              author_name: parentAuthor.name,
             },
+            parent_message_author: pickFromShape(
+              parentAuthor,
+              messageAuthorColumns
+            ),
           })
           .from(aroundIds)
           .innerJoin(schema.messages, eq(schema.messages.id, aroundIds.id))
@@ -478,20 +485,16 @@ export const messagesRouter = router({
       const replyParentMessage = alias(schema.messages, "reply_parent_message");
       const replyParentAuthor = alias(schema.user, "reply_parent_author");
 
-      const validatedParentMessage = db.$with("reply_target").as(
+      const validatedParentMessage = db.$with("validated_parent_message").as(
         db
           .select({
             id: replyParentMessage.id,
-            author_name: replyParentAuthor.name,
+            user_id: replyParentMessage.user_id,
             content_text: replyParentMessage.content_text,
             created_at: replyParentMessage.created_at,
             edited_at: replyParentMessage.edited_at,
           })
           .from(replyParentMessage)
-          .innerJoin(
-            replyParentAuthor,
-            eq(replyParentAuthor.id, replyParentMessage.user_id)
-          )
           .where(
             isReply
               ? and(
@@ -503,7 +506,7 @@ export const messagesRouter = router({
           )
       );
 
-      const validatedChannel = db.$with("channel_target").as(
+      const validatedChannel = db.$with("validated_channel").as(
         db
           .select({
             id: schema.channels.id,
@@ -578,7 +581,6 @@ export const messagesRouter = router({
           channel_messages_version: channelUpdate.messages_version,
           parent_message: {
             id: validatedParentMessage.id,
-            author_name: validatedParentMessage.author_name,
             contentPreview: leftText(
               validatedParentMessage.content_text,
               sharedMessagesValidations.messageContentPreviewMaxLength
@@ -587,6 +589,10 @@ export const messagesRouter = router({
             edited_at: validatedParentMessage.edited_at,
             reply_count: parentMessageUpdate.reply_count,
           },
+          parent_message_author: pickFromShape(
+            replyParentAuthor,
+            messageAuthorColumns
+          ),
         })
         .from(messageInsert)
         .innerJoin(channelUpdate, sql`true`)
@@ -594,6 +600,10 @@ export const messagesRouter = router({
         .leftJoin(
           validatedParentMessage,
           eq(validatedParentMessage.id, messageInsert.reply_to_message_id)
+        )
+        .leftJoin(
+          replyParentAuthor,
+          eq(replyParentAuthor.id, validatedParentMessage.user_id)
         );
 
       if (!newData?.message || !newData.channel_messages_version) {
@@ -602,14 +612,12 @@ export const messagesRouter = router({
       const newMessage = newData.message as JoinedMessage;
       newMessage.author = author;
       newMessage.parentMessage =
-        newData.parent_message.author_name &&
         newData.parent_message.contentPreview &&
         newData.parent_message.created_at &&
-        newData.parent_message.edited_at
+        newData.parent_message.edited_at &&
+        newData.parent_message_author
           ? {
-              author: {
-                name: newData.parent_message.author_name,
-              },
+              author: newData.parent_message_author,
               contentPreview: newData.parent_message.contentPreview,
               created_at: newData.parent_message.created_at,
               edited_at: newData.parent_message.edited_at,

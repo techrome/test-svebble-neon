@@ -13,10 +13,7 @@ import {
 import { useLocalPopover } from "@/utils/hooks/useOverlay";
 import { type RouterOutput, trpc } from "@/trpc";
 import useAppQuery from "@/utils/hooks/useAppQuery";
-import {
-  messageContentPreviewMaxLength,
-  messageRepliesPageMaxSize,
-} from "@/utils/validators/shared/messages";
+import { messageRepliesPageMaxSize } from "@/utils/validators/shared/messages";
 import { CACHE_TIME_MS } from "@/utils/cacheTime";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import UserAvatar from "@/components/Avatar/UserAvatar";

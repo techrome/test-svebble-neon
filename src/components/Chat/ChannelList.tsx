@@ -1,5 +1,4 @@
 import React, { useMemo } from "react";
-import ViewListIcon from "@mui/icons-material/ViewList";
 import clsx from "clsx";
 import {
   List,
@@ -161,7 +160,7 @@ const AddOrEditChannelForm = (props: AddOrEditChannelFormProps) => {
   );
 };
 
-const ChannelList = () => {
+const ChannelList = ({ isDrawer }: { isDrawer?: boolean }) => {
   const { closeModal, openModal } = useGlobalModal();
   const channels = useAppQuery(
     trpc.channels.get.useQuery(undefined, {
@@ -189,15 +188,11 @@ const ChannelList = () => {
 
   return (
     <VerticalStack addClassName="min-h-0">
-      <HorizontalStack addClassName="justify-between items-center">
-        <Typography color="textSecondary">Channels</Typography>
-
-        <Tooltip title="List of channels">
-          <IconButton>
-            <ViewListIcon />
-          </IconButton>
-        </Tooltip>
-      </HorizontalStack>
+      {!isDrawer && (
+        <HorizontalStack addClassName="justify-between items-center">
+          <Typography color="textSecondary">Channels</Typography>
+        </HorizontalStack>
+      )}
 
       <List disablePadding className="overflow-y-auto">
         {channels.isError ? (
@@ -295,16 +290,19 @@ const ChannelList = () => {
   );
 };
 
-const ChannelListWrapper = () => {
+const ChannelListWrapper = ({ isDrawer }: { isDrawer?: boolean }) => {
   return (
     <Paper
-      elevation={1}
+      elevation={isDrawer ? 16 : 1}
       className={clsx(
-        `${defaultPadding} h-full min-h-[300px] flex flex-1 flex-col max-w-2xs max-md:hidden rounded-none ring ring-mui-divider`
+        `${defaultPadding} h-full min-h-[300px] flex flex-1 flex-col`,
+        isDrawer
+          ? ""
+          : "max-w-2xs max-md:hidden rounded-none ring ring-mui-divider"
       )}
     >
       <LoadingBoundary isOuter addClassName="min-h-0">
-        <ChannelList />
+        <ChannelList isDrawer={isDrawer} />
       </LoadingBoundary>
     </Paper>
   );

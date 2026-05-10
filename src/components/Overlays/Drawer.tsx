@@ -8,6 +8,7 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import IconButton from "@/components/Button/IconButton";
+import { type PartialFor } from "@/utils/types";
 
 export type DrawerProps = {
   isOpen: boolean;
@@ -15,7 +16,7 @@ export type DrawerProps = {
   onExited?: () => void;
   title?: string;
   children: React.ReactNode;
-  muiDrawerProps?: SwipeableDrawerProps;
+  muiDrawerProps?: PartialFor<SwipeableDrawerProps, "onClose" | "onOpen">;
   dialogTitleProps?: DialogTitleProps;
 };
 
