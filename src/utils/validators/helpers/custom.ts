@@ -7,12 +7,8 @@ export const zDayjs = z.custom<Dayjs>((v) => dayjs.isDayjs(v) && v.isValid(), {
   error: "Invalid date",
 });
 
-export const numericIdSchema = z.bigint().min(BigInt(0));
-export const numericIdQuerySchemaRaw = z.string().regex(/^[0-9]\d*$/);
-export const numericIdQuerySchema = numericIdQuerySchemaRaw.transform((val) =>
-  BigInt(val)
-);
-export const versionSchema = z.bigint().min(BigInt(0));
+export const numericIdSchema = z.int().min(0);
+export const versionSchema = z.int().min(0);
 
 type ZodShape = z.ZodRawShape;
 type MaskFor<TShape extends ZodShape> = Partial<Record<keyof TShape, true>>;

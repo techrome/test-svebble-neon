@@ -197,7 +197,7 @@ const Message = ({
   }, [isEdit]);
 
   useEffect(() => {
-    utils.messages.getReplies.invalidate({ messageId: String(message.id) });
+    utils.messages.getReplies.invalidate({ messageId: message.id });
     // eslint-disable-next-line
   }, [message.reply_count]);
 

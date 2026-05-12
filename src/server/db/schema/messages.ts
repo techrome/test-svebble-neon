@@ -19,7 +19,7 @@ export const messages = pgTable(
   "messages",
   withDefaultColumns(
     {
-      id: bigint("id", { mode: "bigint" })
+      id: bigint("id", { mode: "number" })
         .primaryKey()
         .generatedAlwaysAsIdentity(),
       user_id: uuid()
@@ -27,10 +27,10 @@ export const messages = pgTable(
         .references(() => user.id),
       content: varchar({ length: messageContentHtmlMaxLength }).notNull(),
       content_text: varchar({ length: TEXT_LIMITS.long }).notNull(),
-      channel_id: bigint("channel_id", { mode: "bigint" })
+      channel_id: bigint("channel_id", { mode: "number" })
         .notNull()
         .references(() => channels.id),
-      reply_to_message_id: bigint("reply_to_message_id", { mode: "bigint" }),
+      reply_to_message_id: bigint("reply_to_message_id", { mode: "number" }),
       reply_count: integer("reply_count").notNull().default(0),
       deleted_at: timestamp({ withTimezone: true, precision: 3 }),
       edited_at: timestamp({ withTimezone: true, precision: 3 })
