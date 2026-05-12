@@ -7,6 +7,11 @@ export const TEXT_LIMITS = {
   long: 2000,
 } as const;
 
+export const FILE_LIMITS = {
+  extension: 32,
+  name: 255,
+} as const;
+
 type TextProfile = keyof typeof TEXT_LIMITS;
 type TextOptions = { shouldTrim?: boolean; required?: boolean };
 
