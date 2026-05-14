@@ -35,13 +35,17 @@ import HelperText from "@/components/Fields/HelperText";
 import IconButton from "@/components/Button/IconButton";
 import clsx from "clsx";
 import {
-  AVATAR_MAX_WIDTH,
-  AVATAR_MAX_HEIGHT,
-  allowedAvatarExtensionsMap,
   avatarSelectSchema,
   AvatarSelectSchemaForm,
 } from "@/utils/validators/shared/user";
+import {
+  allowedAvatarExtensions,
+  allowedAvatarMimeTypes,
+  AVATAR_MAX_WIDTH,
+  AVATAR_MAX_HEIGHT,
+} from "@/utils/validators/sharedValues/user";
 import { createImage } from "@/pages/app/my-profile";
+import { getFileExtension } from "@/utils/validators/helpers/custom";
 
 const normalizeZoom = (val: number) => Math.max(0, Math.min(1, val));
 
@@ -183,7 +187,7 @@ const AvatarChangeModal = ({
   const validateAvatarFileSelect = async (file: File) => {
     const image = await createImage(file);
     const parseResult = avatarSelectSchema.safeParse({
-      imageType: file.type,
+      imageExtension: getFileExtension(file.name, allowedAvatarExtensions),
     } satisfies Record<keyof AvatarSelectSchemaForm, unknown>);
 
     if (!parseResult.success) {
@@ -221,7 +225,7 @@ const AvatarChangeModal = ({
   } = useDropzone({
     onDrop: onFileDrop,
     multiple: false,
-    accept: { avatar: Object.keys(allowedAvatarExtensionsMap) },
+    accept: { avatar: allowedAvatarMimeTypes },
   });
 
   const reset = () => {
@@ -276,7 +280,7 @@ const AvatarChangeModal = ({
                 : "Click to select an image, or drag it here."}
             </Typography>
             <HelperText
-              helperText={`Allowed formats: ${Object.values(allowedAvatarExtensionsMap).join(", ")}.`}
+              helperText={`Allowed formats: ${allowedAvatarExtensions.join(", ")}.`}
               helperTextAlwaysShown
             />
             <input hidden type="file" {...getDropzoneInputProps()} />
@@ -321,7 +325,7 @@ const AvatarChangeModal = ({
               />
             ) : null}
           </div>
-          <div>
+          <div className="flex flex-col items-center">
             <Typography>Preview:</Typography>
             <CropperPreview
               className="h-32 w-32 rounded-full"

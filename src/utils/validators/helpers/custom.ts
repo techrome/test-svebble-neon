@@ -34,3 +34,15 @@ export const toObject = <T extends readonly string[]>(arr: T) =>
   Object.fromEntries(arr.map((val) => [val, val])) as {
     readonly [K in T[number]]: K;
   };
+
+export const getFileExtension = (
+  filename: string,
+  allowedExtensions: string[]
+): string | null => {
+  if (!filename) return null;
+  const extension = filename.split(".").pop()?.trim().toLowerCase();
+  if (extension && allowedExtensions.includes(extension)) {
+    return extension;
+  }
+  return null;
+};

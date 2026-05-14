@@ -15,8 +15,6 @@ import { zUsername } from "@/utils/validators/shared/auth";
 import { baseURL } from "../auth";
 import { ROUTES } from "@/utils/routes";
 import {
-  allowedAvatarExtensionsMap,
-  avatarUploadUrlSchema,
   basicProfileSchemaForm,
   emailSchemaForm,
   makeEmailChangeSchemaForm,
@@ -40,6 +38,8 @@ import { isDev } from "@/utils/isDev";
 import { probeImageDimensions } from "../helpers/probeImage";
 import { P } from "@/utils/permissions";
 import { throwIfZodError } from "../helpers/validate";
+import { avatarUploadUrlSchemaServer } from "../validators/user";
+import { allowedAvatarExtensionsMap } from "@/utils/validators/sharedValues/user";
 
 const cacheControl = `public, max-age=${days(2, true)}`;
 
@@ -81,9 +81,9 @@ const moderateImage = async (url: string): Promise<ModerationResult> => {
   return result;
 };
 
-const avatarDimensionsSchema = avatarUploadUrlSchema.omit({
-  imageType: true,
-  imageSize: true,
+const avatarDimensionsSchema = avatarUploadUrlSchemaServer.pick({
+  imageWidth: true,
+  imageHeight: true,
 });
 
 export const userRouter = router({
@@ -392,17 +392,17 @@ export const userRouter = router({
     [P.user.avatar.create],
     rateLimitMiddlewares.auth_avatarUpload
   )
-    .input(avatarUploadUrlSchema)
+    .input(avatarUploadUrlSchemaServer)
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.user.id;
-      const fileExtension = allowedAvatarExtensionsMap[input.imageType];
+      const imageMimeType = allowedAvatarExtensionsMap[input.imageExtension];
 
-      const bucketKey = `users/${userId}/${randomUUID()}.${fileExtension}`;
+      const bucketKey = `users/${userId}/${randomUUID()}.${input.imageExtension}`;
 
       const uploadCommand = new PutObjectCommand({
         Bucket: env.BACKBLAZE_BUCKET_NAME!,
         Key: bucketKey,
-        ContentType: input.imageType,
+        ContentType: imageMimeType,
         ContentLength: input.imageSize,
         CacheControl: cacheControl,
       });
@@ -425,7 +425,7 @@ export const userRouter = router({
         bucketKey,
         uploadUrl,
         requiredHeaders: {
-          "Content-Type": input.imageType,
+          "Content-Type": imageMimeType,
           "Cache-Control": cacheControl,
         } as const,
       };
