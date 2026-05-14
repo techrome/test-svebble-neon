@@ -30,7 +30,8 @@
     "generate-encryption-keys": "npm run call-script:dev -- scripts/generate-encryption-keys.ts",
     "encryption-test": "npm run call-script:dev -- scripts/encryption-test.ts",
     "email-preview": "email dev --dir src/server/email/templates --port 3001",
-    "test": "playwright test"
+    "test": "playwright test",
+    "ts": "tsc --noEmit"
   },
   "devDependencies": {
     "@next/bundle-analyzer": "^16.0.3",
