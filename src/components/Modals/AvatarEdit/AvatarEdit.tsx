@@ -43,6 +43,7 @@ import {
   allowedAvatarMimeTypes,
   AVATAR_MAX_WIDTH,
   AVATAR_MAX_HEIGHT,
+  allowedAvatarExtensionsMap,
 } from "@/utils/validators/sharedValues/user";
 import { createImage } from "@/pages/app/my-profile";
 import { getFileExtension } from "@/utils/validators/helpers/custom";
@@ -56,7 +57,7 @@ const canvasToBlob = (canvas: HTMLCanvasElement): Promise<Blob> => {
         blob
           ? resolve(blob)
           : reject(new Error("canvas.toBlob() returned null")),
-      "image/webp",
+      allowedAvatarExtensionsMap.jpg,
       0.9
     );
   });
@@ -252,8 +253,8 @@ const AvatarChangeModal = ({
 
     const blob = await canvasToBlob(canvas);
 
-    const file = new File([blob], "cropped.webp", {
-      type: "image/webp",
+    const file = new File([blob], "cropped.jpg", {
+      type: allowedAvatarExtensionsMap.jpg,
     });
     onConfirm(file);
   };

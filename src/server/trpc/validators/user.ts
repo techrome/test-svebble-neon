@@ -5,7 +5,7 @@ import { z } from "@/utils/zod";
 export const avatarUploadUrlSchemaServer = z.object({
   ...avatarUploadUrlSchemaClient.shape,
   imageExtension: z.literal(
-    "webp" satisfies keyof typeof allowedAvatarExtensionsMap,
+    "jpg" satisfies keyof typeof allowedAvatarExtensionsMap,
     { error: "Unsupported image type." }
   ),
 } satisfies Record<keyof typeof avatarUploadUrlSchemaClient.shape, z.ZodType>);

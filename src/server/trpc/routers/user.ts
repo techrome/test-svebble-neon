@@ -35,7 +35,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { openAI } from "../helpers/openai";
 import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
 import { isDev } from "@/utils/isDev";
-import { probeImageDimensions } from "../helpers/probeImage";
+import { probeImageDimensionsAndType } from "../helpers/probeImage";
 import { P } from "@/utils/permissions";
 import { throwIfZodError } from "../helpers/validate";
 import { avatarUploadUrlSchemaServer } from "../validators/user";
@@ -45,12 +45,15 @@ const cacheControl = `public, max-age=${days(2, true)}`;
 
 const uuidSchema = z.uuid();
 const uuidRegex = "([0-9a-fA-F-]{36})";
-const fileObjectKeyRegex = new RegExp(
-  `^users\\/${uuidRegex}\\/${uuidRegex}\\.(png|jpe?g|webp)$`,
+const avatarFileObjectKeyRegex = new RegExp(
+  `^users\\/${uuidRegex}\\/${uuidRegex}\\.jpg$`,
   "i"
 );
-export const validateUserFileKey = (userId: string, key: string): boolean => {
-  const match = fileObjectKeyRegex.exec(key);
+export const validateUserAvatarFileKey = (
+  userId: string,
+  key: string
+): boolean => {
+  const match = avatarFileObjectKeyRegex.exec(key);
   if (!match) return false;
 
   const [, ownerId, fileId] = match;
@@ -81,9 +84,10 @@ const moderateImage = async (url: string): Promise<ModerationResult> => {
   return result;
 };
 
-const avatarDimensionsSchema = avatarUploadUrlSchemaServer.pick({
+const avatarProbeSchema = avatarUploadUrlSchemaServer.pick({
   imageWidth: true,
   imageHeight: true,
+  imageExtension: true,
 });
 
 export const userRouter = router({
@@ -117,7 +121,7 @@ export const userRouter = router({
       const newAvatarIsDifferent = ctx.user.image !== newAvatarKey;
 
       if (newAvatarIsDifferent && newAvatarKey) {
-        if (!validateUserFileKey(ctx.user.id, newAvatarKey)) {
+        if (!validateUserAvatarFileKey(ctx.user.id, newAvatarKey)) {
           throw new TRPCError({
             code: "UNPROCESSABLE_CONTENT",
             message: "Invalid avatar key.",
@@ -140,14 +144,17 @@ export const userRouter = router({
           });
         }
         const newAvatarUrl = `${clientEnv.NEXT_PUBLIC_CDN_URL}/${newAvatarKey}`;
-        const probeResult = await probeImageDimensions(newAvatarUrl);
-        console.log({ probeResult });
+        const probeResult = await probeImageDimensionsAndType(newAvatarUrl);
+        if (isDev) {
+          console.log({ probeResult });
+        }
 
         throwIfZodError(
-          avatarDimensionsSchema.safeParse({
+          avatarProbeSchema.safeParse({
             imageWidth: probeResult.width,
             imageHeight: probeResult.height,
-          } satisfies z.infer<typeof avatarDimensionsSchema>)
+            imageExtension: probeResult.imageSizeType,
+          } as z.infer<typeof avatarProbeSchema>)
         );
 
         let moderationResult: Awaited<ReturnType<typeof moderateImage>>;
