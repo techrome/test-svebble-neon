@@ -35,8 +35,8 @@ const filterCodec = z.codec(filterApiInputSchema, filterSchemaForm, {
   }),
   encode: (v) => ({
     ...v,
-    startDate: v.startDate?.toISOString() ?? null,
-    endDate: v.endDate?.toISOString() ?? null,
+    startDate: v.startDate?.toISOString() || null,
+    endDate: v.endDate?.toISOString() || null,
   }),
 });
 
