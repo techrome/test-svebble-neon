@@ -136,7 +136,7 @@ const ReplyList = ({ message, onReplyClick }: ReplyListProps) => {
   const replies = useAppQuery(
     trpc.messages.getReplies.useQuery(
       {
-        messageId: String(message.id),
+        messageId: message.id,
         page: pagination.page,
         pageSize: pagination.pageSize,
       },

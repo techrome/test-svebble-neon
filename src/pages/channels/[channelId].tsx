@@ -64,7 +64,7 @@ import {
   WebsocketEventName,
 } from "@/trpc/helpers/websockets";
 import ChannelListWrapper from "@/components/Chat/ChannelList";
-import { numericIdQuerySchemaRaw } from "@/utils/validators/helpers/custom";
+import { numericIdSchema } from "@/utils/validators/helpers/custom";
 import { TermsLabel } from "@/components/AuthForm/Helpers";
 import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider";
 import { MessagesSkeleton } from "@/components/Chat/MessagesSkeleton";
@@ -78,7 +78,7 @@ import { useLatest } from "@/utils/hooks/useLatest";
 
 type JSONIncompatibleMessageFields = Pick<
   MessageSerializable,
-  "created_at" | "edited_at" | "id" | "channel_id" | "reply_to_message_id"
+  "created_at" | "edited_at"
 >;
 
 type DeserializeMessage<T> = Omit<T, keyof JSONIncompatibleMessageFields> &
@@ -93,13 +93,6 @@ const deserializeMessage = <
     ...message,
     ...(message.created_at ? { created_at: new Date(message.created_at) } : {}),
     ...(message.edited_at ? { edited_at: new Date(message.edited_at) } : {}),
-    ...(message.id ? { id: BigInt(message.id) } : {}),
-    ...(message.channel_id ? { channel_id: BigInt(message.channel_id) } : {}),
-    ...(message.reply_to_message_id
-      ? {
-          reply_to_message_id: BigInt(message.reply_to_message_id),
-        }
-      : {}),
   }) as DeserializeMessage<T>;
 
 const deserializeMessageData = <K extends WebsocketEventName>(
@@ -113,7 +106,7 @@ const deserializeMessageData = <K extends WebsocketEventName>(
           ? deserializeMessage(payload.message.parentMessage)
           : null,
     },
-    messagesVersion: BigInt(payload.messagesVersion),
+    messagesVersion: payload.messagesVersion,
     parentMessageUpdate: payload.parentMessageUpdate
       ? deserializeMessage(payload.parentMessageUpdate)
       : null,
@@ -210,7 +203,7 @@ const messageQuerySelectors = {
         : undefined;
     } else {
       const firstPageParamId = firstPageParam?.id
-        ? firstPageParam.id + BigInt(1)
+        ? firstPageParam.id + 1
         : null;
       const newCursorId = firstPage.items[0]?.id || firstPageParamId;
       return newCursorId
@@ -228,12 +221,10 @@ const messageQuerySelectors = {
           }
         : undefined;
     } else {
-      const lastPageParamId = lastPageParam?.id
-        ? lastPageParam.id - BigInt(1)
-        : null;
+      const lastPageParamId = lastPageParam?.id ? lastPageParam.id - 1 : null;
       const newCursorId =
         lastPage.items[lastPage.items.length - 1]?.id || lastPageParamId;
-      return typeof newCursorId === "bigint" && newCursorId >= BigInt(0)
+      return typeof newCursorId === "number" && newCursorId >= 0
         ? { id: newCursorId, direction: "forward" }
         : undefined;
     }
@@ -345,7 +336,7 @@ const useMessagesGet = (
 
 const getLoadedMessagesIdBounds = (
   queryData: InfiniteData<MessagesGetOutput> | undefined
-): { lowestId: bigint; highestId: bigint } | null => {
+): { lowestId: number; highestId: number } | null => {
   const pagesCount = queryData?.pages.length;
   if (!pagesCount) return null;
 
@@ -403,8 +394,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const utils = trpc.useUtils();
   const router = useRouter();
 
-  const channelIdString = String(channel.id);
-
   const messageCreateSchema = useMemo(
     () => makeMessageCreateSchemaForm(user.data?.user?.emailVerified),
     [user.data?.user?.emailVerified]
@@ -440,7 +429,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     useState<boolean>(false);
   const hasCompletedFirstInit = useRef<boolean>(false);
   const hasStartedWsSyncRefetch = useRef<boolean>(false);
-  const nextOptimisticIdRef = useRef<bigint>(BigInt(-1));
+  const nextOptimisticIdRef = useRef<number>(-1);
   // gating initial load to avoid unnecessary refetch when waiting for websockets
   // in most cases it should be: ws connected -> start fetching initial page
   const [initialGateOpenedReason, setInitialGateOpenedReason] = useState<
@@ -460,7 +449,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const [wsSyncFailedCount, setWsSyncFailedCount] = useState<number>(0);
   const [messagesQueryKey, setMessagesQueryKey] = useState<MessagesGetInput>({
     limit: PER_PAGE,
-    channelId: channelIdString,
+    channelId: channel.id,
   });
   const isWsConnectedRef = useRef<boolean>(false);
   const isPolling = syncMode === "polling";
@@ -524,7 +513,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const messagesVersion = useAppQuery(
     trpc.channels.getMessagesVersion.useQuery(
-      { channelId: channelIdString },
+      { channelId: channel.id },
       {
         enabled: isWsLive,
         staleTime: CACHE_TIME_MS.QUICK,
@@ -533,10 +522,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     )
   );
 
-  const appliedMessagesVersion = useRef<bigint>(BigInt(0));
+  const appliedMessagesVersion = useRef<number>(0);
 
   const handleNewMessagesVersion = (
-    newVersion: bigint,
+    newVersion: number,
     isApplyingBufferedEvents?: boolean
   ) => {
     if (
@@ -547,7 +536,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       return true;
     }
 
-    const expectedNewVersion = appliedMessagesVersion.current + BigInt(1);
+    const expectedNewVersion = appliedMessagesVersion.current + 1;
 
     if (newVersion === expectedNewVersion) {
       appliedMessagesVersion.current = newVersion;
@@ -565,8 +554,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const totalItems = messages.data?.items.length || 0;
 
   const urlMessageId = useMemo(() => {
-    const queryValue = getRouterQueryValue(router.query.messageId);
-    if (numericIdQuerySchemaRaw.safeParse(queryValue).success) {
+    const queryValue = Number(getRouterQueryValue(router.query.messageId));
+    if (numericIdSchema.safeParse(queryValue).success) {
       return queryValue;
     } else {
       return undefined;
@@ -575,8 +564,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const foundMessageIndex = useMemo(() => {
     if (!urlMessageId || !messages.data?.items) return -1;
-    const targetId = BigInt(urlMessageId);
-    return messages.data.items.findIndex((m) => m.id === targetId);
+    return messages.data.items.findIndex((m) => m.id === urlMessageId);
   }, [messages.data?.items, urlMessageId]);
 
   const initialBottomMostItemIndex = useMemo(() => {
@@ -596,7 +584,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const appendMessage = (
     data: WebsocketEventsOriginal["messages:create"],
-    newMessagesVersion: bigint
+    newMessagesVersion: number
   ) => {
     utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
       if (
@@ -682,13 +670,13 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const editMessage = (
     data: WebsocketEventsOriginal["messages:update"],
-    newMessagesVersion: bigint
+    newMessagesVersion: number
   ) => {
     utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
       const pagesCount = queryData?.pages.length;
       if (!queryData || !pagesCount) return queryData;
       const message = data.message;
-      const itemToUpdateId = BigInt(message.id);
+      const itemToUpdateId = message.id;
       let anythingChanged = false;
       let updatedPages = [...queryData.pages];
 
@@ -751,7 +739,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const deleteMessage = (
     data: WebsocketEventsOriginal["messages:delete"],
-    newMessagesVersion: bigint
+    newMessagesVersion: number
   ) => {
     utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
       const pagesCount = queryData?.pages.length;
@@ -901,7 +889,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         appendMessage,
       } = dependencies.current;
       const message = data.message;
-      const newMessagesVersion = BigInt(data.messagesVersion);
+      const newMessagesVersion = data.messagesVersion;
       if (isPolling) return;
       if (isWsSyncing && !isApplyingBufferedEvents) {
         websocketsMessageQueue.current.push({
@@ -918,7 +906,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
       if (isApplyingBufferedEvents) {
         const newMessageAlreadyExists = messages.data?.items.some(
-          (item) => item.id === BigInt(message.id)
+          (item) => item.id === message.id
         );
         if (newMessageAlreadyExists) {
           return;
@@ -940,7 +928,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     ) => {
       const { isWsSyncing, isPolling, handleNewMessagesVersion, editMessage } =
         dependencies.current;
-      const newMessagesVersion = BigInt(data.messagesVersion);
+      const newMessagesVersion = data.messagesVersion;
       if (isPolling) return;
       if (isWsSyncing && !isApplyingBufferedEvents) {
         websocketsMessageQueue.current.push({
@@ -973,7 +961,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
         handleNewMessagesVersion,
         deleteMessage,
       } = dependencies.current;
-      const newMessagesVersion = BigInt(data.messagesVersion);
+      const newMessagesVersion = data.messagesVersion;
       if (isPolling) return;
       if (isWsSyncing && !isApplyingBufferedEvents) {
         websocketsMessageQueue.current.push({
@@ -996,7 +984,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     []
   );
 
-  const deleteOptimisticMessage = (id: bigint) => {
+  const deleteOptimisticMessage = (id: number) => {
     setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
   };
 
@@ -1018,7 +1006,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       const currentUser = user.data?.user;
       if (!currentUser) return;
       const tempId = nextOptimisticIdRef.current;
-      nextOptimisticIdRef.current -= BigInt(1);
+      nextOptimisticIdRef.current -= 1;
       setOptimisticMessages((prev) => [
         ...prev,
         {
@@ -1220,10 +1208,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
             direction: "forward",
           };
         } else if (currentPageFirstItemId) {
-          const newId = currentPageFirstItemId - BigInt(1);
+          const newId = Math.max(0, currentPageFirstItemId - 1);
           updatedPageParams[i] = {
             ...updatedPageParams[i],
-            id: newId < BigInt(1) ? BigInt(0) : newId,
+            id: newId,
             direction: "forward",
           };
         }
@@ -1416,31 +1404,29 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     lowestMessagesVersion,
     highestMessagesVersion,
   }: {
-    lowestMessagesVersion: bigint;
-    highestMessagesVersion: bigint;
+    lowestMessagesVersion: number;
+    highestMessagesVersion: number;
   }) => {
     if (!isWsSyncing) return;
 
     const relevantEvents = websocketsMessageQueue.current
-      .filter((e) => BigInt(e.data.messagesVersion) > lowestMessagesVersion)
+      .filter((e) => e.data.messagesVersion > lowestMessagesVersion)
       .sort((aEvent, bEvent) => {
-        const a = BigInt(aEvent.data.messagesVersion);
-        const b = BigInt(bEvent.data.messagesVersion);
-        return a < b ? -1 : a > b ? 1 : 0;
+        const a = aEvent.data.messagesVersion;
+        const b = bEvent.data.messagesVersion;
+        return a - b;
       });
 
     const canSafelySwitchToWebsockets = relevantEvents.length
       ? (() => {
-          const minVersion = BigInt(relevantEvents[0].data.messagesVersion);
-          const maxVersion = BigInt(
-            relevantEvents[relevantEvents.length - 1].data.messagesVersion
-          );
+          const minVersion = relevantEvents[0].data.messagesVersion;
+          const maxVersion =
+            relevantEvents[relevantEvents.length - 1].data.messagesVersion;
 
           return (
             maxVersion >= highestMessagesVersion &&
-            minVersion === lowestMessagesVersion + BigInt(1) &&
-            maxVersion - minVersion + BigInt(1) ===
-              BigInt(relevantEvents.length)
+            minVersion === lowestMessagesVersion + 1 &&
+            maxVersion - minVersion + 1 === relevantEvents.length
           );
         })()
       : lowestMessagesVersion === highestMessagesVersion;
@@ -1485,7 +1471,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
     let isEffectCleanup = false;
     const websocketsChannel = websocketsClient.channels.get(
-      getChannelId(channelIdString)
+      getChannelId(channel.id)
     );
     const onConnectionLost = () => {
       if (isEffectCleanup) return;
@@ -1561,7 +1547,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       void websocketsChannel.detach();
     };
     // eslint-disable-next-line
-  }, [websocketsClient, channelIdString]);
+  }, [websocketsClient, channel.id]);
 
   useLayoutEffect(() => {
     if (isWsSyncing) {
@@ -2179,7 +2165,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                       shouldHighlight={
                         !isMessageHighlightConsumed &&
                         isInitialScrollHandled &&
-                        urlMessageId === String(message.id)
+                        urlMessageId === message.id
                       }
                       isIdleTrigger={isIdleTrigger}
                       isIdleRef={isIdleRef}

@@ -61,7 +61,7 @@ export type WebsocketItem = {
   };
 }[WebsocketEventName];
 
-export const getChannelId = (id: string) => `publicChannels:${id}`;
+export const getChannelId = (id: number) => `publicChannels:${id}`;
 
 export const subscribeWs = <EventName extends WebsocketEventName>(
   channel: RealtimeChannel,

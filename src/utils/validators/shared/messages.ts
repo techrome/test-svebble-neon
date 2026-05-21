@@ -1,14 +1,11 @@
-import {
-  numericIdQuerySchema,
-  numericIdSchema,
-} from "@/utils/validators/helpers/custom";
+import { numericIdSchema } from "@/utils/validators/helpers/custom";
 import z from "@/utils/zod";
 
 export const messageContentPreviewMaxLength = 100;
 export const messageRepliesPageMaxSize = 20;
 
 export const messagesGetWebsocketsToken = z.object({
-  channelId: numericIdQuerySchema,
+  channelId: numericIdSchema,
 });
 
 export const infiniteListDirectionSchema = z
@@ -22,8 +19,8 @@ export const messagesGetSchemaForm = z.object({
     .max(50)
     .refine((val) => val % 2 === 0, "Must be an even integer")
     .default(30),
-  around: numericIdQuerySchema.optional(),
-  channelId: numericIdQuerySchema,
+  around: numericIdSchema.optional(),
+  channelId: numericIdSchema,
   cursor: z
     .object({
       direction: infiniteListDirectionSchema,
@@ -53,7 +50,7 @@ export const messageBulkDeleteSchemaForm = messageCreateSchemaForm.pick({
 });
 
 export const messagesGetRepliesSchemaForm = z.object({
-  messageId: numericIdQuerySchema,
+  messageId: numericIdSchema,
   page: z.int().positive(),
   pageSize: z
     .int()

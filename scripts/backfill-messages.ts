@@ -12,7 +12,7 @@ import { runChunksConcurrently } from "../src/server/utils/concurrency";
     .limit(1000);
 
   await runChunksConcurrently(rows, 200, 5, async (chunk) => {
-    let ids: bigint[] = [];
+    let ids: number[] = [];
     let sqlChunks: SQL[] = [sql`case`];
     for (let row of chunk) {
       const id = row.id;

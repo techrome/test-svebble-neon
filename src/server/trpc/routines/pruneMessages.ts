@@ -19,7 +19,7 @@ export const pruneMessages = async (
       }
     | {
         criteria: "by channel id";
-        channelId: bigint;
+        channelId: number;
       }
     | {
         criteria: "by user id";

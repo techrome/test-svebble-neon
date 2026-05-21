@@ -16,7 +16,7 @@ export const channels = pgTable(
   "channels",
   withDefaultColumns(
     {
-      id: bigint("id", { mode: "bigint" })
+      id: bigint("id", { mode: "number" })
         .primaryKey()
         .generatedAlwaysAsIdentity(),
       user_id: uuid()
@@ -24,7 +24,7 @@ export const channels = pgTable(
         .references(() => user.id),
       name: varchar({ length: TEXT_LIMITS.title }).notNull(),
       messages_version: bigint("messages_version", {
-        mode: "bigint",
+        mode: "number",
       })
         .notNull()
         .default(sql`1`),

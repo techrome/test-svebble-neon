@@ -39,7 +39,7 @@ export const createChannelSubscribeTokenRequest = async (opts: {
 export const publishChannelEvent = async <
   EventName extends WebsocketEventName,
 >(opts: {
-  channelId: string;
+  channelId: number;
   eventName: EventName;
   data: WebsocketPayload<EventName>;
 }): Promise<void> => {

@@ -1,54 +1,16 @@
 import { RouterOutput } from "@/trpc";
-import { kibibytes } from "@/utils/storageUnits";
+import { avatarUploadUrlSchemaClient } from "@/utils/validators/client/user";
 import { Text } from "@/utils/validators/helpers/text";
 import { signupSchemaForm, zEmail } from "@/utils/validators/shared/auth";
 import z from "@/utils/zod";
 
-export const AVATAR_MAX_SIZE_KB = 128;
-export const AVATAR_MAX_WIDTH = 256;
-export const AVATAR_MAX_HEIGHT = 256;
-
-export const allowedAvatarExtensionsMap = {
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-} as const;
-
-export const avatarUploadUrlSchema = z.object({
-  imageType: z.enum(
-    Object.keys(
-      allowedAvatarExtensionsMap
-    ) as (keyof typeof allowedAvatarExtensionsMap)[],
-    { error: "Unsupported image type." }
-  ),
-  imageSize: z
-    .number()
-    .int()
-    .positive()
-    .max(kibibytes(AVATAR_MAX_SIZE_KB), {
-      error: `Image size must be less than ${AVATAR_MAX_SIZE_KB}KB.`,
-    }),
-  imageWidth: z
-    .number()
-    .int()
-    .positive()
-    .max(AVATAR_MAX_WIDTH, {
-      error: `Image width must be less than ${AVATAR_MAX_WIDTH} pixels.`,
-    }),
-  imageHeight: z
-    .number()
-    .int()
-    .positive()
-    .max(AVATAR_MAX_HEIGHT, {
-      error: `Image height must be less than ${AVATAR_MAX_HEIGHT} pixels.`,
-    }),
+export const avatarSelectSchema = avatarUploadUrlSchemaClient.pick({
+  imageExtension: true,
 });
 
-export const avatarSelectSchema = avatarUploadUrlSchema.pick({
-  imageType: true,
-});
-
-export type AvatarUploadUrlSchemaForm = z.infer<typeof avatarUploadUrlSchema>;
+export type AvatarUploadUrlSchemaForm = z.infer<
+  typeof avatarUploadUrlSchemaClient
+>;
 export type AvatarSelectSchemaForm = z.infer<typeof avatarSelectSchema>;
 
 export const DISPLAY_NAME_ALLOWED_REGEX = /^[\p{L}\p{M}\p{N}\p{P}\p{S} ]+$/u;

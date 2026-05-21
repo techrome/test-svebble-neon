@@ -31,7 +31,7 @@ const Link = ({ children, disabled, href, ...props }: Props) => {
   const resolvedHref = useMemo(
     () =>
       typeof href === "string" && (href.startsWith("?") || href.startsWith("#"))
-        ? `${router.asPath.split("?")[0]?.split("#")[0] ?? ""}${href}`
+        ? `${router.asPath.split("?")[0]?.split("#")[0] || ""}${href}`
         : href,
     [href, router.asPath]
   );

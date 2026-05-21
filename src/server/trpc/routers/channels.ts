@@ -13,7 +13,7 @@ import { throwIfZodError } from "../helpers/validate";
 import { P } from "@/utils/permissions";
 import { TRPCError } from "@trpc/server";
 
-import { numericIdQuerySchema } from "@/utils/validators/helpers/custom";
+import { numericIdSchema } from "@/utils/validators/helpers/custom";
 
 type Channel = typeof schema.channels.$inferSelect;
 
@@ -36,7 +36,7 @@ export const channelsRouter = router({
   getMessagesVersion: publicProcedureSSRDefaultRateLimit
     .input(
       z.object({
-        channelId: numericIdQuerySchema,
+        channelId: numericIdSchema,
       })
     )
     .query(async ({ input }) => {

@@ -18,7 +18,7 @@ import {
   VerticalStack,
 } from "@/components/Layout/Containers";
 import { useAuthedUserData } from "@/trpc/hooks/useUser";
-import { trpc } from "@/trpc";
+import { type RouterInput, trpc } from "@/trpc";
 import Input from "@/components/Fields/Input";
 import Button from "@/components/Button/Button";
 import { useAppSnackbar } from "@/utils/snackbar";
@@ -43,7 +43,6 @@ import {
 import Tooltip from "@/components/Tooltip/Tooltip";
 import { env } from "@/utils/env";
 import {
-  avatarUploadUrlSchema,
   AvatarUploadUrlSchemaForm,
   BasicProfileFormValues,
   basicProfileSchemaForm,
@@ -59,6 +58,9 @@ import Skeleton from "@/components/Skeleton/Skeleton";
 import { ANCHORS } from "@/utils/routes";
 import DefaultAvatar from "@/components/Avatar/DefaultAvatar";
 import clsx from "clsx";
+import { avatarUploadUrlSchemaClient } from "@/utils/validators/client/user";
+import { getFileExtension } from "@/utils/validators/helpers/custom";
+import { allowedAvatarExtensions } from "@/utils/validators/sharedValues/user";
 
 export const defaultAvatars = {
   first: `default-avatars/2.png`,
@@ -126,9 +128,9 @@ const BasicProfileForm = () => {
       return null;
     }
     const imageInfo = await createImage(file);
-    const parseResult = avatarUploadUrlSchema.safeParse({
+    const parseResult = avatarUploadUrlSchemaClient.safeParse({
       imageSize: file.size,
-      imageType: file.type,
+      imageExtension: getFileExtension(file.name, allowedAvatarExtensions),
       imageWidth: imageInfo.naturalWidth,
       imageHeight: imageInfo.naturalHeight,
     } satisfies Record<keyof AvatarUploadUrlSchemaForm, unknown>);
@@ -148,7 +150,7 @@ const BasicProfileForm = () => {
     const parseResult = await validateAvatarFile(avatarFile);
     if (!parseResult) return;
     const data = await createAvatarUploadUrlMutation.mutateAsync(
-      parseResult.data
+      parseResult.data as RouterInput["user"]["createAvatarUploadUrl"]
     );
     try {
       const res = await fetch(data.uploadUrl, {

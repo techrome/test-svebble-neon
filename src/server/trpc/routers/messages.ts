@@ -151,7 +151,7 @@ const messagesJoinOn = (...extra: Array<SQL | undefined>) =>
 
 const toMessagesPayload = (
   rows: Array<{
-    messages_version: bigint;
+    messages_version: number;
     message: NullableFields<Message> | null;
     author: NullableFields<MessageAuthor> | null;
     parent_message: NullableFields<
@@ -290,7 +290,7 @@ export const messagesRouter = router({
       };
 
       if (cursor) {
-        if (cursor.direction && typeof cursor.id === "bigint") {
+        if (cursor.direction && typeof cursor.id === "number") {
           if (cursor.direction === "backward") {
             if (Math.random() < rate) throw new Error("Test error");
 
@@ -624,20 +624,18 @@ export const messagesRouter = router({
             }
           : null;
 
-      const parentMessageIdSerialized = newMessage.reply_to_message_id
-        ? String(newMessage.reply_to_message_id)
-        : null;
+      const parentMessageIdSerialized = newMessage.reply_to_message_id || null;
 
       waitUntil(
         publishChannelEvent({
           data: {
             message: {
               ...newMessage,
-              channel_id: String(newMessage.channel_id),
-              id: String(newMessage.id),
+              channel_id: newMessage.channel_id,
+              id: newMessage.id,
               reply_to_message_id: parentMessageIdSerialized,
             },
-            messagesVersion: String(newData.channel_messages_version),
+            messagesVersion: newData.channel_messages_version,
             parentMessageUpdate:
               parentMessageIdSerialized &&
               typeof newData.parent_message.reply_count === "number"
@@ -648,7 +646,7 @@ export const messagesRouter = router({
                 : null,
           },
           eventName: "messages:create",
-          channelId: String(newMessage.channel_id),
+          channelId: newMessage.channel_id,
         }).catch((e) => console.error("Ably message create publish failed", e))
       );
       return {
@@ -738,14 +736,14 @@ export const messagesRouter = router({
             message: {
               content: updatedMessage.content,
               contentPreview: updatedMessage.contentPreview,
-              id: String(updatedMessage.id),
+              id: updatedMessage.id,
               reply_count: updatedMessage.reply_count,
               edited_at: updatedMessage.edited_at,
             },
-            messagesVersion: String(updatedData.channel.messages_version),
+            messagesVersion: updatedData.channel.messages_version,
           },
           eventName: "messages:update",
-          channelId: String(updatedMessage.channel_id),
+          channelId: updatedMessage.channel_id,
         }).catch((e) => console.error("Ably message update publish failed", e))
       );
       return {
@@ -832,19 +830,19 @@ export const messagesRouter = router({
         publishChannelEvent({
           data: {
             message: {
-              id: String(updatedMessage.id),
+              id: updatedMessage.id,
             },
-            messagesVersion: String(updatedData.channel.messages_version),
+            messagesVersion: updatedData.channel.messages_version,
             parentMessageUpdate:
               parentMessage?.id && typeof parentMessage.reply_count === "number"
                 ? {
                     reply_count: parentMessage.reply_count,
-                    id: String(parentMessage.id),
+                    id: parentMessage.id,
                   }
                 : null,
           },
           eventName: "messages:delete",
-          channelId: String(updatedMessage.channel_id),
+          channelId: updatedMessage.channel_id,
         }).catch((e) => console.error("Ably message delete publish failed", e))
       );
       return {
