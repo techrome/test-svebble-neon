@@ -41,8 +41,9 @@
     "comments": "off",
     "strings": "on"
   },
-  "editor.snippetSuggestions": "inline",
+  "editor.snippetSuggestions": "bottom",
   "editor.suggestSelection": "first",
+  "editor.suggest.localityBonus": true,
   "folder-path-color.folders": [
     {
       "path": "src/components",
