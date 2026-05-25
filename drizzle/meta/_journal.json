@@ -218,6 +218,13 @@
       "when": 1778606227090,
       "tag": "0030_early_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1779733344350,
+      "tag": "0031_black_richard_fisk",
+      "breakpoints": true
     }
   ]
 }

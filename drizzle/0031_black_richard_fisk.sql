@@ -1,0 +1,2 @@
+ALTER TABLE "files" DROP CONSTRAINT "files_status_check";--> statement-breakpoint
+ALTER TABLE "files" ADD CONSTRAINT "files_status_check" CHECK ("files"."status" in ('issued', 'validated', 'active', 'inactive', 'deleted', 'error'));
