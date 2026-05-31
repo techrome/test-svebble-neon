@@ -35,14 +35,25 @@ export const toObject = <T extends readonly string[]>(arr: T) =>
     readonly [K in T[number]]: K;
   };
 
-export const getFileExtension = (
+export const getFileExtension = <T>(
   filename: string,
-  allowedExtensions: string[]
-): string | null => {
+  allowedExtensions: T[]
+): T | null => {
   if (!filename) return null;
   const extension = filename.split(".").pop()?.trim().toLowerCase();
-  if (extension && allowedExtensions.includes(extension)) {
-    return extension;
-  }
-  return null;
+  return allowedExtensions.find((allowed) => allowed === extension) || null;
+};
+
+const INVALID_FILENAME_CHARS_RE = /[<>:"\/\\|?*\x00-\x1F]/g;
+
+export const getFileName = (filename: string): string | null => {
+  const trimmed = filename.trim().replace(INVALID_FILENAME_CHARS_RE, "");
+  if (!trimmed) return null;
+
+  const lastDotIndex = trimmed.lastIndexOf(".");
+  if (lastDotIndex <= 0) return trimmed;
+
+  const name = trimmed.slice(0, lastDotIndex).trim();
+
+  return name || null;
 };

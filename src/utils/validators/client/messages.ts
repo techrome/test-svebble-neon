@@ -12,23 +12,18 @@ export const getMessageContentMaxLength = (isVerifiedUser?: boolean) =>
 const contentSchema = (isVerifiedUser?: boolean) =>
   z
     .string()
-    .min(1, { error: "Message content is required" })
-    .transform((fullHtml) => {
-      const htmlText = htmlToText(fullHtml);
+    .transform((html) => {
+      const text = htmlToText(html);
 
-      return { htmlText, fullHtml };
+      return { text, html };
     })
-    .superRefine(({ htmlText, fullHtml }, ctx) => {
+    .superRefine(({ text, html }, ctx) => {
+      if (!text && !html) return;
+
       const textMaxLength = getMessageContentMaxLength(isVerifiedUser);
       const htmlMaxLength = TEXT_LIMITS.long * 4;
-      if (!htmlText || !fullHtml) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Message content is required",
-        });
-        return;
-      }
-      if (htmlText.length > textMaxLength) {
+
+      if (text.length > textMaxLength) {
         ctx.addIssue({
           code: "too_big",
           message: `Message content must not be greater than ${textMaxLength} characters`,
@@ -37,7 +32,7 @@ const contentSchema = (isVerifiedUser?: boolean) =>
         });
         return;
       }
-      if (fullHtml.length > htmlMaxLength) {
+      if (html.length > htmlMaxLength) {
         ctx.addIssue({
           code: "too_big",
           message: `Message content total HTML must not be greater than ${htmlMaxLength} characters`,
@@ -47,18 +42,44 @@ const contentSchema = (isVerifiedUser?: boolean) =>
         return;
       }
     })
-    .transform((v) => v.fullHtml);
+    .transform((v) => v.html);
 
-export const makeMessageCreateSchemaForm = (isVerifiedUser?: boolean) =>
-  messageCreateSchemaForm.safeExtend({
-    content: contentSchema(isVerifiedUser),
-  });
+type MessageFormData = {
+  content: string;
+  attachmentIds: readonly unknown[];
+};
 
-export type MessageCreateFormValues = z.infer<
+const requireContentOrAttachments = (
+  data: MessageFormData,
+  ctx: z.RefinementCtx
+) => {
+  const hasContent = Boolean(data.content);
+  const hasAttachments = data.attachmentIds.length > 0;
+
+  if (!hasContent && !hasAttachments) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["content"],
+      message: "Message cannot be empty",
+    });
+    return;
+  }
+};
+
+export type MessageCreateFormValues = z.input<
   ReturnType<typeof makeMessageCreateSchemaForm>
 >;
 
+export const makeMessageCreateSchemaForm = (isVerifiedUser?: boolean) =>
+  messageCreateSchemaForm
+    .safeExtend({
+      content: contentSchema(isVerifiedUser),
+    })
+    .superRefine(requireContentOrAttachments);
+
 export const makeMessageUpdateSchemaForm = (isVerifiedUser?: boolean) =>
-  messageUpdateSchemaForm.safeExtend({
-    content: contentSchema(isVerifiedUser),
-  });
+  messageUpdateSchemaForm
+    .safeExtend({
+      content: contentSchema(isVerifiedUser),
+    })
+    .superRefine(requireContentOrAttachments);
