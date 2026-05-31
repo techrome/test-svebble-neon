@@ -11,10 +11,12 @@ import {
   isNotNull,
   gt,
 } from "drizzle-orm";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
 import { alias, unionAll } from "drizzle-orm/pg-core";
 import { TRPCError } from "@trpc/server";
 import { waitUntil } from "@vercel/functions";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { db } from "../../db/core";
 import * as schema from "../../db/schema";
@@ -22,15 +24,21 @@ import { router } from "../core";
 import { privateProcedure, publicProcedure } from "../procedures";
 import * as sharedMessagesValidations from "@/utils/validators/shared/messages";
 import * as serverMessagesValidations from "../validators/messages";
-import { throwIfZodError } from "../helpers/validate";
+import {
+  throwIfZodError,
+  validateMessageAttachmentExtension,
+  validateUserFileKey,
+} from "../helpers/validate";
 import { P } from "@/utils/permissions";
 import { after, before, beforeOrEqual } from "../../db/helpers/time";
+import { s3Client } from "../../storage/s3";
 import {
   createChannelSubscribeTokenRequest,
   publishChannelEvent,
 } from "../../websockets/core";
 import { rateLimitMiddlewares } from "../ratelimit";
 import {
+  getFileExtension,
   numericIdSchema,
   versionSchema,
 } from "@/utils/validators/helpers/custom";
@@ -38,6 +46,20 @@ import { PartialFor, type NullableFields } from "@/utils/types";
 import { AuthSession } from "../context";
 import type { WebsocketEventsOriginal } from "@/trpc/helpers/websockets";
 import { leftText } from "../../db/helpers/stringUtils";
+import {
+  allowedMessageAttachmentExtensions,
+  allowedMessageAttachmentExtensionsMap,
+  isImageExtension,
+} from "@/utils/validators/sharedValues/messages";
+import { env } from "../../env";
+import { cacheControl } from "../../storage/vars";
+import { minutes } from "@/utils/cacheTime";
+import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/enums";
+import { env as clientEnv } from "@/utils/env";
+import { probeFileType } from "../helpers/probeFileType";
+import { isDev } from "@/utils/isDev";
+import { moderateImage } from "../helpers/openai";
+import { probeImageDimensionsAndType } from "../helpers/probeImage";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -463,6 +485,195 @@ export const messagesRouter = router({
             .where(eq(schema.messages.id, input.reply_to_message_id));
         }
       }
+    }),
+  createAttachmentUploadUrl: privateProcedure(
+    [P.messageAttachments.create],
+    rateLimitMiddlewares.auth_messagesAttachments
+  )
+    .input(sharedMessagesValidations.createMessageAttachmentUploadUrlSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const imageMimeType =
+        allowedMessageAttachmentExtensionsMap[input.fileExtension];
+
+      const bucketKey = `users/${userId}/${randomUUID()}.${input.fileExtension}`;
+
+      const uploadCommand = new PutObjectCommand({
+        Bucket: env.BACKBLAZE_BUCKET_NAME!,
+        Key: bucketKey,
+        ContentType: imageMimeType,
+        ContentLength: input.fileSize,
+        CacheControl: cacheControl,
+      });
+
+      const expiresIn = minutes(10, true);
+
+      const uploadUrl = await getSignedUrl(s3Client, uploadCommand, {
+        expiresIn,
+        signableHeaders: new Set(["content-type", "cache-control"]),
+      });
+
+      await db.insert(schema.files).values({
+        object_key: bucketKey,
+        owner_user_id: userId,
+        purpose: FILE_PURPOSE.message_attachment,
+        status: FILE_STATUS.issued,
+        original_name: input.fileName,
+        extension: input.fileExtension,
+        size_bytes: input.fileSize,
+      });
+
+      return {
+        bucketKey,
+        uploadUrl,
+        requiredHeaders: {
+          "Content-Type": imageMimeType,
+          "Cache-Control": cacheControl,
+        } as const,
+      };
+    }),
+  validateMessageAttachment: privateProcedure(
+    [P.messageAttachments.create],
+    rateLimitMiddlewares.auth_messagesAttachments
+  )
+    .input(sharedMessagesValidations.finalizeMessageAttachmentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const newFileKey = input.fileObjectKey;
+      const nonVerifiedExtension = getFileExtension(
+        newFileKey,
+        allowedMessageAttachmentExtensions
+      );
+      if (
+        !validateUserFileKey(
+          userId,
+          newFileKey,
+          allowedMessageAttachmentExtensions
+        ) ||
+        !nonVerifiedExtension
+      ) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: "Invalid file key.",
+        });
+      }
+      const pendingFileFilter = and(
+        eq(schema.files.object_key, newFileKey),
+        eq(schema.files.purpose, FILE_PURPOSE.message_attachment),
+        eq(schema.files.owner_user_id, ctx.user.id),
+        eq(schema.files.status, FILE_STATUS.issued)
+      );
+
+      const [foundPendingFile] = await db
+        .select({ id: schema.files.id })
+        .from(schema.files)
+        .where(pendingFileFilter);
+
+      if (!foundPendingFile) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: "Invalid file key.",
+        });
+      }
+
+      let realExtension: string;
+      const newFileUrl = `${clientEnv.NEXT_PUBLIC_CDN_URL}/${newFileKey}`;
+      const isImage = isImageExtension(nonVerifiedExtension);
+
+      if (isImage) {
+        const probeResult = await probeImageDimensionsAndType(newFileUrl);
+        if (isDev) {
+          console.log({ probeResult });
+        }
+        throwIfZodError(
+          sharedMessagesValidations.messageAttachmentImageSchema.safeParse({
+            width: probeResult.width,
+            height: probeResult.height,
+          } satisfies z.infer<
+            typeof sharedMessagesValidations.messageAttachmentImageSchema
+          >)
+        );
+        realExtension = probeResult.detectedFileType.ext;
+      } else {
+        const probeResult = await probeFileType(newFileUrl);
+        if (isDev) {
+          console.log({ probeResult });
+        }
+        realExtension =
+          probeResult.kind === "binary"
+            ? probeResult.detectedFileType.ext
+            : "txt";
+      }
+
+      if (
+        !validateMessageAttachmentExtension(nonVerifiedExtension, realExtension)
+      ) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: `File extension mismatch. Expected: ${nonVerifiedExtension}. Received: ${realExtension}.`,
+        });
+      }
+
+      if (isImage) {
+        let moderationResult: Awaited<ReturnType<typeof moderateImage>>;
+
+        try {
+          moderationResult = await moderateImage(newFileUrl);
+        } catch (err) {
+          console.error(
+            "Error moderating image file",
+            err,
+            "STRINGIFIED:",
+            JSON.stringify(err)
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
+        const flagged = moderationResult.results?.[0]?.flagged || false;
+        if (flagged) {
+          try {
+            await s3Client.send(
+              new DeleteObjectCommand({
+                Bucket: env.BACKBLAZE_BUCKET_NAME!,
+                Key: newFileKey,
+              })
+            );
+            await db
+              .update(schema.files)
+              .set({
+                status: FILE_STATUS.deleted,
+                info_text: `Moderation rejected. Details: ${JSON.stringify(moderationResult.results?.[0])}`,
+              })
+              .where(pendingFileFilter);
+          } catch (err) {
+            const errorText = `Failed to delete the avatar image from the bucket. Key was: ${newFileKey}. Error: ${JSON.stringify(err)}`;
+            console.error(errorText);
+            await db
+              .update(schema.files)
+              .set({
+                status: FILE_STATUS.error,
+                error_text: errorText,
+              })
+              .where(pendingFileFilter);
+          }
+          throw new TRPCError({
+            code: "UNPROCESSABLE_CONTENT",
+            message:
+              "Image rejected by moderation. Please try a different file.",
+          });
+        }
+      }
+
+      const [updatedRow] = await db
+        .update(schema.files)
+        .set({
+          status: FILE_STATUS.validated,
+        })
+        .where(pendingFileFilter)
+        .returning({ id: schema.files.id });
+
+      return Boolean(updatedRow);
     }),
   create: privateProcedure(
     [P.messages.create],
