@@ -109,7 +109,7 @@ type Props = {
   onReplyClick: React.MouseEventHandler<HTMLElement>;
 };
 
-type FormValues = z.infer<ReturnType<typeof makeMessageUpdateSchemaForm>>;
+type FormValues = z.input<ReturnType<typeof makeMessageUpdateSchemaForm>>;
 
 const Message = ({
   message,
@@ -212,6 +212,11 @@ const Message = ({
       </IconButton>
     </Tooltip>
   );
+
+  const handleReplyClick: typeof onReplyClick = (e) => {
+    menuPopover.closePopover();
+    onReplyClick(e);
+  };
 
   const isOwnMessage = message.user_id === user.data?.user?.id;
 
@@ -345,7 +350,6 @@ const Message = ({
               placeholder={`Message`}
               autoFocus
               hideError
-              isEdit
             />
             <HorizontalStack>
               <Button
@@ -489,7 +493,7 @@ const Message = ({
                     </Tooltip>
                   )}
                   <Tooltip title="Reply">
-                    <IconButton size="small" onClick={onReplyClick}>
+                    <IconButton size="small" onClick={handleReplyClick}>
                       <ReplyIcon />
                     </IconButton>
                   </Tooltip>
@@ -539,7 +543,7 @@ const Message = ({
               </ListItemIcon>
               <ListItemText>Add Reaction</ListItemText>
             </MenuItem>
-            <MenuItem onClick={onReplyClick}>
+            <MenuItem onClick={handleReplyClick}>
               <ListItemIcon>
                 <ReplyIcon />
               </ListItemIcon>

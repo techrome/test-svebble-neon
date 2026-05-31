@@ -24,7 +24,7 @@ let _theme = createTheme({
     allVariants: { wordBreak: "break-word" },
     tiny: {
       fontSize: "0.625rem",
-      lineHeight: 1.3,
+      lineHeight: 1.5,
     },
   },
   cssVariables: { colorSchemeSelector: "class" },
@@ -36,6 +36,13 @@ let _theme = createTheme({
 _theme = {
   ..._theme,
   components: {
+    MuiTypography: {
+      defaultProps: {
+        variantMapping: {
+          tiny: "p",
+        },
+      },
+    },
     MuiButton: {
       styleOverrides: {
         root: {

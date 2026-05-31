@@ -108,7 +108,7 @@ const getErrorInfo = (
   };
 };
 
-const handleError = (qc: QueryClient, error: Error) => {
+export const handleError = (qc: QueryClient, error: Error) => {
   if (!isBrowser) {
     return;
   }
@@ -131,6 +131,7 @@ const handleError = (qc: QueryClient, error: Error) => {
     if (errorInfo.internal.shouldLogout) {
       userLogoutLifecycle(qc);
     }
+    return errorInfo;
   } else {
     store.dispatch(
       addSnackbar({
@@ -191,6 +192,8 @@ const getQueryClient = () => {
   }
 };
 
+export const MAX_BATCH_CALLS = 10;
+
 export const trpc = createTRPCNext<AppRouter>({
   config: () => {
     return {
@@ -198,6 +201,7 @@ export const trpc = createTRPCNext<AppRouter>({
         httpBatchLink({
           url: `${getApiBaseUrl()}/api/trpc`,
           transformer: superJSON,
+          maxItems: MAX_BATCH_CALLS,
         }),
       ],
       queryClient: getQueryClient(),

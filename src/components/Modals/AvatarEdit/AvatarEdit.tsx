@@ -45,8 +45,9 @@ import {
   AVATAR_MAX_HEIGHT,
   allowedAvatarExtensionsMap,
 } from "@/utils/validators/sharedValues/user";
-import { createImage } from "@/pages/app/my-profile";
+import { createImage } from "@/utils/image";
 import { getFileExtension } from "@/utils/validators/helpers/custom";
+import { z } from "@/utils/zod";
 
 const normalizeZoom = (val: number) => Math.max(0, Math.min(1, val));
 
@@ -189,7 +190,7 @@ const AvatarChangeModal = ({
     const image = await createImage(file);
     const parseResult = avatarSelectSchema.safeParse({
       imageExtension: getFileExtension(file.name, allowedAvatarExtensions),
-    } satisfies Record<keyof AvatarSelectSchemaForm, unknown>);
+    } satisfies z.input<typeof avatarSelectSchema>);
 
     if (!parseResult.success) {
       addAppSnackbar({
