@@ -281,10 +281,9 @@ const AvatarChangeModal = ({
                 ? "Drop the image here..."
                 : "Click to select an image, or drag it here."}
             </Typography>
-            <HelperText
-              helperText={`Allowed formats: ${allowedAvatarExtensions.join(", ")}.`}
-              helperTextAlwaysShown
-            />
+            <Typography variant="body2">
+              Allowed extensions: {allowedAvatarExtensions.join(", ")}.
+            </Typography>
             <input hidden type="file" {...getDropzoneInputProps()} />
           </VerticalStack>
         </ButtonBase>
