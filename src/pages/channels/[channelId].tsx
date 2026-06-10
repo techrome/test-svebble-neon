@@ -92,7 +92,8 @@ import {
   createMessageAttachmentUploadUrlSchema,
   messageAttachmentImageSchema,
 } from "@/utils/validators/shared/messages";
-import MessageAttachmentsUpload, {
+import {
+  MessageAttachmentsUpload,
   type NewMessageAttachmentData,
 } from "@/components/Chat/MessageAttachments";
 
@@ -200,6 +201,7 @@ const estimateMessageHeight = (message: RenderedMessage): number => {
     Math.max(0, message.content.length - charsPerLine) / charsPerLine
   );
   const replyCount = message.reply_count ? 24 : 0;
+  const attachments = message.attachments.length ? 150 : 0;
 
   return Math.max(
     32,
@@ -210,7 +212,8 @@ const estimateMessageHeight = (message: RenderedMessage): number => {
         base +
         replyPreview +
         additionalTextLines * lineHeight +
-        replyCount
+        replyCount +
+        attachments
     )
   );
 };
@@ -950,6 +953,59 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     });
   };
 
+  const messageCreateMutation = trpc.messages.create.useMutation({
+    onMutate(variables) {
+      const currentUser = user.data?.user;
+      if (!currentUser) return;
+      const tempId = nextOptimisticIdRef.current;
+      nextOptimisticIdRef.current -= 1;
+      setOptimisticMessages((prev) => [
+        ...prev,
+        {
+          channel_id: variables.channelId,
+          content: variables.content,
+          content_text: variables.content,
+          created_at: new Date(),
+          edited_at: new Date(),
+          deleted_at: null,
+          id: tempId,
+          user_id: currentUser.id,
+          reply_count: 0,
+          reply_to_message_id: variables.reply_to_message_id || null,
+          author: {
+            ...currentUser,
+          },
+          attachments: variables.attachmentIds || [],
+          isOptimistic: true,
+          parentMessage: null,
+        },
+      ]);
+      return {
+        tempId,
+      };
+    },
+    onSuccess(data, _vars, onMutateResult) {
+      if (onMutateResult?.tempId) {
+        deleteOptimisticMessage(onMutateResult.tempId);
+      }
+      if (handleNewMessagesVersion(data.messagesVersion)) {
+        appendMessage(data, appliedMessagesVersion.current);
+      }
+      onOwnMessageActionSuccess();
+    },
+    onError(_error, _variables, onMutateResult) {
+      if (onMutateResult?.tempId) {
+        setOptimisticMessages((prev) =>
+          prev.map((m) =>
+            m.id === onMutateResult.tempId ? { ...m, isFailed: true } : m
+          )
+        );
+      }
+    },
+    meta: { keepDefaultErrorHandling: true },
+  });
+
+  const isFormSubmitted = form.formState.isSubmitted;
   const dependencies = useRef({
     messagesQueryKey,
     firstItemIndex,
@@ -963,6 +1019,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     appendMessage,
     editMessage,
     deleteMessage,
+    form,
+    isFormSubmitted,
   });
 
   dependencies.current = {
@@ -978,6 +1036,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     appendMessage,
     editMessage,
     deleteMessage,
+    form,
+    isFormSubmitted,
   };
 
   const wsMessageCreateHandler = useCallback(
@@ -1105,57 +1165,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   //   },
   // });
 
-  const messageCreateMutation = trpc.messages.create.useMutation({
-    onMutate(variables) {
-      const currentUser = user.data?.user;
-      if (!currentUser) return;
-      const tempId = nextOptimisticIdRef.current;
-      nextOptimisticIdRef.current -= 1;
-      setOptimisticMessages((prev) => [
-        ...prev,
-        {
-          channel_id: variables.channelId,
-          content: variables.content,
-          content_text: variables.content,
-          created_at: new Date(),
-          edited_at: new Date(),
-          deleted_at: null,
-          id: tempId,
-          user_id: currentUser.id,
-          reply_count: 0,
-          reply_to_message_id: variables.reply_to_message_id || null,
-          author: {
-            ...currentUser,
-          },
-          isOptimistic: true,
-          parentMessage: null,
-        },
-      ]);
-      return {
-        tempId,
-      };
-    },
-    onSuccess(data, _vars, onMutateResult) {
-      if (onMutateResult?.tempId) {
-        deleteOptimisticMessage(onMutateResult.tempId);
-      }
-      if (handleNewMessagesVersion(data.messagesVersion)) {
-        appendMessage(data, appliedMessagesVersion.current);
-      }
-      onOwnMessageActionSuccess();
-    },
-    onError(_error, _variables, onMutateResult) {
-      if (onMutateResult?.tempId) {
-        setOptimisticMessages((prev) =>
-          prev.map((m) =>
-            m.id === onMutateResult.tempId ? { ...m, isFailed: true } : m
-          )
-        );
-      }
-    },
-    meta: { keepDefaultErrorHandling: true },
-  });
-
   // const commentDeleteAllMutation = trpc.messages.deleteAll.useMutation({
   //   onSuccess: () => {
   //     utils.messages.get.invalidate();
@@ -1185,12 +1194,17 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   };
 
   const onSubmit: SubmitHandler<MessageCreateFormValues> = (values) => {
-    form.reset();
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        form.reset();
+      })
+    );
     messageCreateMutation.mutate({
       ...values,
       reply_to_message_id: messageToReply?.id,
     });
     setMessageToReply(null);
+    setAttachments([]);
   };
   const onSearchSubmit: SubmitHandler<SearchFormValues> = (values) => {
     setUrlMessageId(values.text);
@@ -1975,6 +1989,15 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     messages.hasNextPage,
   ]);
 
+  useEffect(() => {
+    const { form, isFormSubmitted } = dependencies.current;
+    form.setValue(
+      "attachmentIds",
+      attachments.map((x) => x.remoteId || ""),
+      { shouldValidate: isFormSubmitted }
+    );
+  }, [attachments]);
+
   const virtuosoContext = {
     messages,
     scrollerElRef,
@@ -2292,12 +2315,16 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                         onOwnMessageActionSuccess();
                       }}
                       onOptimisticFailedRetry={() => {
-                        deleteOptimisticMessage(message.id);
-                        messageCreateMutation.mutate({
-                          channelId: message.channel_id,
-                          content: message.content,
-                          reply_to_message_id: message.reply_to_message_id,
-                        });
+                        // will be always optimistic anyway but just for TS narrowing
+                        if (message.isOptimistic) {
+                          deleteOptimisticMessage(message.id);
+                          messageCreateMutation.mutate({
+                            channelId: message.channel_id,
+                            content: message.content,
+                            reply_to_message_id: message.reply_to_message_id,
+                            attachmentIds: message.attachments,
+                          });
+                        }
                       }}
                       onOptimisticFailedDelete={() => {
                         deleteOptimisticMessage(message.id);
@@ -2412,6 +2439,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 <MessageAttachmentsUpload
                   attachments={attachments}
                   setAttachments={setAttachments}
+                  form={form}
                 />
               )}
               <MessageEditor

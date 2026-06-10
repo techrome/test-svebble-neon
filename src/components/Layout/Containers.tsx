@@ -54,6 +54,7 @@ type StackProps = {
   spacing?: keyof typeof spacingMapping;
   withPadding?: boolean;
   fullWidth?: boolean;
+  minWidth?: boolean;
   wrap?: boolean;
 } & BaseSectionProps;
 
@@ -65,6 +66,7 @@ export const VerticalStack = React.forwardRef<HTMLDivElement, StackProps>(
       spacing = "sm",
       withPadding,
       fullWidth = true,
+      minWidth,
       ...props
     }: StackProps,
     ref
@@ -75,6 +77,7 @@ export const VerticalStack = React.forwardRef<HTMLDivElement, StackProps>(
         className={clsx(
           `flex flex-col ${spacingMapping[spacing]}`,
           fullWidth && "w-full",
+          minWidth && "min-w-0",
           withPadding && defaultPadding,
           addClassName
         )}
@@ -94,6 +97,7 @@ export const HorizontalStack = forwardRef<HTMLDivElement, StackProps>(
       spacing = "sm",
       withPadding,
       fullWidth,
+      minWidth,
       wrap = true,
       ...props
     },
@@ -107,6 +111,7 @@ export const HorizontalStack = forwardRef<HTMLDivElement, StackProps>(
           `max-w-full flex ${spacingMapping[spacing]}`,
           withPadding && defaultPadding,
           fullWidth && "w-full",
+          minWidth && "min-w-0",
           addClassName
         )}
         {...props}

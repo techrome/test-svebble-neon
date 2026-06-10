@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Paper, Typography, Backdrop, CircularProgress } from "@mui/material";
 import DeleteIcon from "@mui/icons-material/Delete";
 import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
@@ -8,6 +8,7 @@ import ErrorIcon from "@mui/icons-material/Error";
 import ReplayIcon from "@mui/icons-material/Replay";
 import CloseIcon from "@mui/icons-material/Close";
 import WarningIcon from "@mui/icons-material/Warning";
+import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 
 import IconButton from "@/components/Button/IconButton";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
@@ -15,14 +16,22 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import { formatBytes } from "@/utils/storageUnits";
 import {
   allowedMessageAttachmentExtensions,
+  isImageExtension,
   MESSAGE_ATTACHMENT_MAX_COUNT,
 } from "@/utils/validators/sharedValues/messages";
 import { handleError, trpc } from "@/trpc";
-import { useAppSnackbar } from "@/utils/snackbar";
 import { getFileExtension } from "@/utils/validators/helpers/custom";
 import { TRPCClientError } from "@trpc/client";
 import { axios } from "@/trpc/axios";
 import { useQueryClient } from "@tanstack/react-query";
+import { RenderedMessage } from "@/components/Chat/Message";
+import Skeleton from "@/components/Skeleton/Skeleton";
+import { env } from "@/utils/env";
+import clsx from "clsx";
+import useIsDesktop from "@/utils/hooks/useIsDesktop";
+import { UseFormReturn } from "react-hook-form";
+import { MessageCreateFormValues } from "@/utils/validators/client/messages";
+import HelperText from "@/components/Fields/HelperText";
 
 const isAbortError = (error: unknown, signal?: AbortSignal) => {
   if (signal?.aborted) return true;
@@ -40,6 +49,7 @@ const isAbortError = (error: unknown, signal?: AbortSignal) => {
 
 export type NewMessageAttachmentData = {
   id: string;
+  remoteId?: string;
   objectKey?: string | null;
   file: File;
   status:
@@ -60,6 +70,7 @@ type MessageAttachmentsProps = {
   setAttachments: React.Dispatch<
     React.SetStateAction<NewMessageAttachmentData[]>
   >;
+  form: UseFormReturn<MessageCreateFormValues>;
 };
 
 type NewMessageAttachmentProps = {
@@ -90,7 +101,10 @@ const NewMessageAttachment = ({
 
   const setAttachment = (
     fields: Partial<
-      Pick<NewMessageAttachmentData, "status" | "statusInfo" | "uploadPercent">
+      Pick<
+        NewMessageAttachmentData,
+        "status" | "statusInfo" | "uploadPercent" | "remoteId"
+      >
     >
   ) => {
     setAttachments((prev) =>
@@ -134,14 +148,18 @@ const NewMessageAttachment = ({
       });
       setAttachment({ status: "Validating" });
 
-      await utils.client.messages.validateMessageAttachment.mutate(
-        {
-          fileObjectKey: uploadUrlData.bucketKey,
-        },
-        { signal }
-      );
+      const validatedData =
+        await utils.client.messages.validateMessageAttachment.mutate(
+          {
+            fileObjectKey: uploadUrlData.bucketKey,
+          },
+          { signal }
+        );
 
-      setAttachment({ status: "Ready to be attached" });
+      setAttachment({
+        status: "Ready to be attached",
+        remoteId: validatedData.id,
+      });
     } catch (err) {
       if (isAbortError(err, signal)) {
         setAttachment({
@@ -202,7 +220,7 @@ const NewMessageAttachment = ({
           </div>
         }
       >
-        <div className="relative flex justify-center items-center w-full h-full p-1 border-mui-divider rounded-md border overflow-hidden">
+        <div className="relative flex justify-center items-center w-full h-full p-1 border-mui-divider rounded-md border overflow-hidden bg-[rgb(var(--mui-palette-background-defaultChannel)/0.3)]">
           {status === "Error" ? (
             <Typography color="error">
               <ErrorIcon fontSize="large" />
@@ -309,56 +327,206 @@ const NewMessageAttachment = ({
   );
 };
 
-const MessageAttachmentsUpload = ({
+export const MessageAttachmentsUpload = ({
   attachments,
   setAttachments,
+  form,
 }: MessageAttachmentsProps) => {
   const abortControllersRef = useRef<Record<string, AbortController>>({});
+  const errorMessage = form.formState.errors.attachmentIds?.length
+    ? form.formState.errors.attachmentIds.find?.(Boolean)?.message
+    : undefined;
+  const hasError = !!errorMessage;
 
   return (
-    <HorizontalStack
-      addClassName="justify-between items-center pb-2"
-      fullWidth
-      wrap={false}
-    >
+    <VerticalStack spacing="xs" addClassName="pb-2">
       <HorizontalStack
-        addClassName="items-center overflow-x-auto"
-        spacing="xs"
+        addClassName="justify-between items-center"
+        fullWidth
         wrap={false}
       >
-        {attachments.map((attachment) => (
-          <NewMessageAttachment
-            key={attachment.id}
-            attachment={attachment}
-            setAttachments={setAttachments}
-            abortControllersRef={abortControllersRef}
-          />
-        ))}
-      </HorizontalStack>
-      <VerticalStack spacing="xs" fullWidth={false} addClassName="items-center">
-        <Tooltip
-          title={`Selected: ${attachments.length} files. Maximum: ${MESSAGE_ATTACHMENT_MAX_COUNT}`}
+        <HorizontalStack
+          addClassName="items-center overflow-x-auto"
+          spacing="xs"
+          wrap={false}
         >
-          <Typography variant="subtitle2" className="whitespace-nowrap">
-            {attachments.length}/{MESSAGE_ATTACHMENT_MAX_COUNT}
-          </Typography>
-        </Tooltip>
-        <Tooltip title="Remove all attachments">
-          <IconButton
-            color="error"
-            onClick={() => {
-              for (const key in abortControllersRef.current) {
-                abortControllersRef.current[key]?.abort();
-              }
-              setAttachments([]);
-            }}
+          {attachments.map((attachment) => (
+            <NewMessageAttachment
+              key={attachment.id}
+              attachment={attachment}
+              setAttachments={setAttachments}
+              abortControllersRef={abortControllersRef}
+            />
+          ))}
+        </HorizontalStack>
+        <VerticalStack
+          spacing="xs"
+          fullWidth={false}
+          addClassName="items-center"
+        >
+          <Tooltip
+            title={`Selected: ${attachments.length} files. Maximum: ${MESSAGE_ATTACHMENT_MAX_COUNT}`}
           >
-            <DeleteSweepIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </VerticalStack>
-    </HorizontalStack>
+            <Typography variant="subtitle2" className="whitespace-nowrap">
+              {attachments.length}/{MESSAGE_ATTACHMENT_MAX_COUNT}
+            </Typography>
+          </Tooltip>
+          <Tooltip title="Remove all attachments">
+            <IconButton
+              color="error"
+              onClick={() => {
+                for (const key in abortControllersRef.current) {
+                  abortControllersRef.current[key]?.abort();
+                }
+                setAttachments([]);
+              }}
+            >
+              <DeleteSweepIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </VerticalStack>
+      </HorizontalStack>
+      {hasError && (
+        <HelperText
+          helperText={errorMessage}
+          hasError={hasError}
+          isInsideFormHelperText={false}
+        />
+      )}
+    </VerticalStack>
   );
 };
 
-export default MessageAttachmentsUpload;
+const getHorizontalScrollState = (el: HTMLElement) => {
+  const threshold = 1;
+
+  return {
+    atStart: el.scrollLeft <= threshold,
+    atEnd: el.scrollLeft + el.clientWidth >= el.scrollWidth - threshold,
+  };
+};
+
+type MessageAttachmentDisplayListProps = {
+  message: RenderedMessage;
+};
+
+const attachmentClass =
+  "rounded shrink-0 h-[75px] min-w-[75px] max-w-[150px] md:h-[150px] md:min-w-[150px] md:max-w-[300px]";
+
+export const MessageAttachmentDisplayList = ({
+  message,
+}: MessageAttachmentDisplayListProps) => {
+  const isDesktop = useIsDesktop();
+  const [scrollState, setScrollState] = useState({
+    atStart: true,
+    atEnd: false,
+  });
+  const ref = useRef<HTMLDivElement>(null);
+
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    setScrollState(getHorizontalScrollState(event.currentTarget));
+  };
+
+  const scrollAttachments = (direction: "left" | "right") => {
+    const el = ref.current;
+    if (!el) return;
+
+    el.scrollBy({
+      left: direction === "left" ? -el.clientWidth * 0.7 : el.clientWidth * 0.7,
+      behavior: "smooth",
+    });
+  };
+
+  useEffect(() => {
+    if (ref.current) {
+      setScrollState(getHorizontalScrollState(ref.current));
+    }
+  }, [message.attachments]);
+
+  if (!message.attachments.length) return null;
+
+  return (
+    <div className="relative ">
+      <HorizontalStack
+        addClassName="overflow-x-auto rounded"
+        wrap={false}
+        onScroll={handleScroll}
+        ref={ref}
+      >
+        {message.isOptimistic
+          ? message.attachments.map((x, i) => (
+              <Skeleton
+                key={i}
+                variant="rounded"
+                className="h-[75px] min-w-[75px] md:h-[150px] md:min-w-[150px]"
+              />
+            ))
+          : message.attachments.map((x) => {
+              const isIamge = isImageExtension(x.extension);
+              const fileName = `${x.original_name}.${x.extension}`;
+              return (
+                <Tooltip title={fileName} key={x.id}>
+                  {isIamge ? (
+                    // eslint-disable-next-line
+                    <img
+                      alt={fileName}
+                      src={`${env.NEXT_PUBLIC_CDN_URL}/${x.object_key}`}
+                      className={clsx(attachmentClass, "object-cover")}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : (
+                    <Paper
+                      className={clsx(
+                        attachmentClass,
+                        "flex justify-center items-center border border-mui-divider shadow-none"
+                      )}
+                      elevation={2}
+                    >
+                      <Typography color="textSecondary">
+                        <DescriptionIcon fontSize="large" />
+                      </Typography>
+                    </Paper>
+                  )}
+                </Tooltip>
+              );
+            })}
+      </HorizontalStack>
+      <button
+        type="button"
+        aria-label="Scroll attachments left"
+        onClick={() => scrollAttachments("left")}
+        className={clsx(
+          "border-0 absolute inset-y-0 left-0 w-5 rounded-l",
+          "bg-[rgb(var(--mui-palette-text-primaryChannel)/0.5)]",
+          "md:hidden flex justify-center items-center transition",
+          "disabled:opacity-0 disabled:pointer-events-none"
+        )}
+        disabled={scrollState.atStart || isDesktop}
+      >
+        <ArrowForwardIosIcon
+          fontSize="inherit"
+          className="rotate-180 text-mui-background-default text-xs"
+        />
+      </button>
+
+      <button
+        type="button"
+        aria-label="Scroll attachments right"
+        onClick={() => scrollAttachments("right")}
+        className={clsx(
+          "border-0 absolute inset-y-0 right-0 w-5 rounded-r",
+          "bg-[rgb(var(--mui-palette-text-primaryChannel)/0.5)]",
+          "md:hidden flex justify-center items-center transition",
+          "disabled:opacity-0 disabled:pointer-events-none"
+        )}
+        disabled={scrollState.atEnd || isDesktop}
+      >
+        <ArrowForwardIosIcon
+          fontSize="inherit"
+          className="text-mui-background-default text-xs"
+        />
+      </button>
+    </div>
+  );
+};
