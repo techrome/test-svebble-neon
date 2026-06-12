@@ -10,6 +10,8 @@ import {
   type SQL,
   isNotNull,
   gt,
+  inArray,
+  count,
 } from "drizzle-orm";
 import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
@@ -42,7 +44,7 @@ import {
   numericIdSchema,
   versionSchema,
 } from "@/utils/validators/helpers/custom";
-import { PartialFor, type NullableFields } from "@/utils/types";
+import { PartialFor, StrictOmit, type NullableFields } from "@/utils/types";
 import { AuthSession } from "../context";
 import type { WebsocketEventsOriginal } from "@/trpc/helpers/websockets";
 import { leftText } from "../../db/helpers/stringUtils";
@@ -60,6 +62,7 @@ import { probeFileType } from "../helpers/probeFileType";
 import { isDev } from "@/utils/isDev";
 import { moderateImage } from "../helpers/openai";
 import { probeImageDimensionsAndType } from "../helpers/probeImage";
+import { jsonAggBuildObject } from "../helpers/jsonSQL";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -132,6 +135,9 @@ const messageAuthorColumns = {
 };
 
 export type FullMessage = typeof schema.messages.$inferSelect;
+export type FullFile = typeof schema.files.$inferSelect;
+export type FullMessageAttachment =
+  typeof schema.message_attachments.$inferSelect;
 type FullUser = typeof schema.user.$inferSelect;
 
 type Message = Pick<FullMessage, keyof typeof messageColumns>;
@@ -148,8 +154,15 @@ type JoinedMessage = Message & {
     edited_at: FullMessage["edited_at"];
     author: MessageAuthor;
   } | null;
+  attachments: Array<
+    Pick<
+      FullFile,
+      "id" | "object_key" | "original_name" | "extension" | "size_bytes"
+    > &
+      Pick<FullMessageAttachment, "sort_order">
+  >;
 };
-type ReplyMessage = Omit<JoinedMessage, "content"> & {
+type ReplyMessage = StrictOmit<JoinedMessage, "content" | "attachments"> & {
   contentPreview: FullMessage["content_text"];
 };
 
@@ -164,13 +177,6 @@ const pickMessageAuthor = (
   role: user.role,
 });
 
-const messagesJoinOn = (...extra: Array<SQL | undefined>) =>
-  and(
-    eq(schema.messages.channel_id, schema.channels.id),
-    isNull(schema.messages.deleted_at),
-    ...extra
-  );
-
 const toMessagesPayload = (
   rows: Array<{
     messages_version: number;
@@ -182,6 +188,7 @@ const toMessagesPayload = (
       }
     > | null;
     parent_message_author: MessageAuthor | null;
+    attachments: JoinedMessage["attachments"] | null;
   }>
 ) => {
   if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
@@ -191,16 +198,16 @@ const toMessagesPayload = (
     if (row.message?.id && row.author?.id) {
       let newItem = row.message as JoinedMessage;
       newItem.author = row.author as MessageAuthor;
+      newItem.attachments = row.attachments?.length ? row.attachments : [];
 
       newItem.parentMessage =
         row.message.reply_to_message_id &&
-        row.parent_message?.contentPreview &&
         row.parent_message?.created_at &&
         row.parent_message?.edited_at &&
         row.parent_message_author
           ? {
               author: row.parent_message_author,
-              contentPreview: row.parent_message.contentPreview,
+              contentPreview: row.parent_message.contentPreview || "",
               created_at: row.parent_message.created_at,
               edited_at: row.parent_message.edited_at,
             }
@@ -238,6 +245,44 @@ export const messagesRouter = router({
         isNull(schema.channels.deleted_at)
       );
 
+      const buildMessagesFilter = (extraCondition?: SQL) =>
+        and(
+          eq(schema.messages.channel_id, input.channelId),
+          isNull(schema.messages.deleted_at),
+          extraCondition
+        );
+
+      const buildAttachmentsAggregator = () =>
+        jsonAggBuildObject<JoinedMessage["attachments"]>(
+          {
+            id: schema.files.id,
+            object_key: schema.files.object_key,
+            original_name: schema.files.original_name,
+            extension: schema.files.extension,
+            size_bytes: schema.files.size_bytes,
+            sort_order: schema.message_attachments.sort_order,
+          },
+          {
+            orderBy: schema.message_attachments.sort_order,
+          }
+        ).as("attachments");
+
+      const buildAttachmentsSubquery = (filter: SQL) =>
+        db
+          .select({
+            attachments: buildAttachmentsAggregator(),
+          })
+          .from(schema.files)
+          .innerJoin(
+            schema.message_attachments,
+            and(
+              eq(schema.message_attachments.file_id, schema.files.id),
+              eq(schema.files.status, FILE_STATUS.active)
+            )
+          )
+          .where(filter)
+          .as("attachments_subquery");
+
       const parentMessage = alias(schema.messages, "parent_message");
       const parentAuthor = alias(schema.user, "parent_author");
 
@@ -253,7 +298,7 @@ export const messagesRouter = router({
         db
           .select(messageColumns)
           .from(schema.messages)
-          .where(messagesJoinOn(extraCondition))
+          .where(buildMessagesFilter(extraCondition))
           .orderBy(
             direction === "forward"
               ? asc(schema.messages.id)
@@ -274,10 +319,15 @@ export const messagesRouter = router({
           direction,
         });
 
-        return db
+        const attachmentsSubquery = buildAttachmentsSubquery(
+          eq(schema.message_attachments.message_id, messagesSubquery.id)
+        );
+
+        const query = db
           .select({
             messages_version: schema.channels.messages_version,
             message: pickFromShape(messagesSubquery, messageColumns),
+            attachments: attachmentsSubquery.attachments,
             author: messageAuthorColumns,
             parent_message: {
               contentPreview: leftText(
@@ -293,7 +343,8 @@ export const messagesRouter = router({
             ),
           })
           .from(schema.channels)
-          .leftJoinLateral(messagesSubquery, sql`true`)
+          .leftJoin(messagesSubquery, sql`true`)
+          .leftJoinLateral(attachmentsSubquery, sql`true`)
           .leftJoin(schema.user, eq(schema.user.id, messagesSubquery.user_id))
           .leftJoin(
             parentMessage,
@@ -309,6 +360,8 @@ export const messagesRouter = router({
               ? asc(messagesSubquery.id)
               : desc(messagesSubquery.id)
           );
+        console.log({ direction, query: query.toSQL() });
+        return query;
       };
 
       if (cursor) {
@@ -366,15 +419,18 @@ export const messagesRouter = router({
             .select({
               id: schema.messages.id,
             })
-            .from(schema.channels)
-            .innerJoin(schema.messages, messagesJoinOn(extraCondition))
-            .where(channelFilter)
+            .from(schema.messages)
+            .where(buildMessagesFilter(extraCondition))
             .orderBy(
               direction === "forward"
                 ? asc(schema.messages.id)
                 : desc(schema.messages.id)
             )
             .limit(limit);
+
+        const attachmentsSubquery = buildAttachmentsSubquery(
+          eq(schema.message_attachments.message_id, schema.messages.id)
+        );
 
         const aroundIds = unionAll(
           selectAroundSideIds({
@@ -389,10 +445,11 @@ export const messagesRouter = router({
           })
         ).as("around_ids");
 
-        const rows = await db
+        const query = db
           .select({
             messages_version: schema.channels.messages_version,
             message: messageColumns,
+            attachments: attachmentsSubquery.attachments,
             author: messageAuthorColumns,
             parent_message: {
               contentPreview: leftText(
@@ -421,9 +478,13 @@ export const messagesRouter = router({
               isNull(parentMessage.deleted_at)
             )
           )
+          .leftJoinLateral(attachmentsSubquery, sql`true`)
           .leftJoin(parentAuthor, eq(parentAuthor.id, parentMessage.user_id))
           .where(channelFilter)
           .orderBy(asc(schema.messages.id));
+        console.log({ QUERY_AROUND: query.toSQL() });
+
+        const rows = await query;
 
         const { items, messages_version } = toMessagesPayload(rows);
 
@@ -431,7 +492,10 @@ export const messagesRouter = router({
       }
       if (Math.random() < rate) throw new Error("Test error");
 
-      const rows = await selectMessageRows({ direction: "backward" });
+      const query = selectMessageRows({ direction: "backward" });
+      console.log({ QUERY_DEFAULT: query.toSQL() });
+      const rows = await query;
+
       const { messages_version, items } = toMessagesPayload(rows);
 
       return {
@@ -673,7 +737,7 @@ export const messagesRouter = router({
         .where(pendingFileFilter)
         .returning({ id: schema.files.id });
 
-      return Boolean(updatedRow);
+      return { id: updatedRow.id };
     }),
   create: privateProcedure(
     [P.messages.create],
@@ -685,16 +749,52 @@ export const messagesRouter = router({
       const fullCheckResult = serverMessagesValidations
         .makeMessageCreateSchema(ctx.user.emailVerified)
         .safeParse(dangerousInput);
+
       throwIfZodError(fullCheckResult);
       const input = fullCheckResult.data;
+
       // await new Promise((r) => setTimeout(r, 1500));
       // if (Math.random() < 0.7) throw new Error("Test error");
-
+      const userId = ctx.user.id;
       const author = pickMessageAuthor(ctx.user);
       const isReply = Boolean(input.reply_to_message_id);
+      const attachmentIds = input.attachmentIds;
+      const attachmentCount = attachmentIds.length;
 
       const replyParentMessage = alias(schema.messages, "reply_parent_message");
       const replyParentAuthor = alias(schema.user, "reply_parent_author");
+
+      const validatedAttachments = db.$with("validated_attachments").as(
+        db
+          .select({
+            id: schema.files.id,
+            object_key: schema.files.object_key,
+            original_name: schema.files.original_name,
+            size_bytes: schema.files.size_bytes,
+            extension: schema.files.extension,
+          })
+          .from(schema.files)
+          .where(
+            attachmentCount
+              ? and(
+                  inArray(schema.files.id, attachmentIds),
+                  eq(schema.files.owner_user_id, userId),
+                  eq(schema.files.purpose, FILE_PURPOSE.message_attachment),
+                  eq(schema.files.status, FILE_STATUS.validated)
+                )
+              : sql`false`
+          )
+      );
+
+      const validatedAttachmentCount = db
+        .$with("validated_attachment_count")
+        .as(
+          db
+            .select({
+              count: count().as("attachment_count"),
+            })
+            .from(validatedAttachments)
+        );
 
       const validatedParentMessage = db.$with("validated_parent_message").as(
         db
@@ -724,10 +824,14 @@ export const messagesRouter = router({
           })
           .from(schema.channels)
           .leftJoin(validatedParentMessage, sql`true`)
+          .crossJoin(validatedAttachmentCount)
           .where(
             and(
               eq(schema.channels.id, input.channelId),
               isNull(schema.channels.deleted_at),
+              attachmentCount
+                ? eq(validatedAttachmentCount.count, attachmentCount)
+                : undefined,
               isReply ? isNotNull(validatedParentMessage.id) : undefined
             )
           )
@@ -747,6 +851,44 @@ export const messagesRouter = router({
           })
           .returning(messageColumns)
       );
+
+      const attachmentInsert = attachmentCount
+        ? db.$with("message_attachment").as(
+            db
+              .insert(schema.message_attachments)
+              .values(
+                attachmentIds.map((fileId, index) => ({
+                  message_id: sql`(select ${messageInsert.id} from ${messageInsert})`,
+                  file_id: fileId,
+                  sort_order: index,
+                }))
+              )
+              .returning({
+                file_id: schema.message_attachments.file_id,
+                sort_order: schema.message_attachments.sort_order,
+              })
+          )
+        : undefined;
+
+      const attachedFilesUpdate = attachmentInsert
+        ? db.$with("attached_files").as(
+            db
+              .update(schema.files)
+              .set({
+                status: FILE_STATUS.active,
+              })
+              .from(attachmentInsert)
+              .where(eq(schema.files.id, attachmentInsert.file_id))
+              .returning({
+                id: schema.files.id,
+                object_key: schema.files.object_key,
+                original_name: schema.files.original_name,
+                size_bytes: schema.files.size_bytes,
+                extension: schema.files.extension,
+                sort_order: attachmentInsert.sort_order,
+              })
+          )
+        : undefined;
 
       const channelUpdate = db.$with("channel").as(
         db
@@ -779,16 +921,30 @@ export const messagesRouter = router({
           })
       );
 
-      const [newData] = await db
+      const query = db
         .with(
+          validatedAttachments,
+          validatedAttachmentCount,
           validatedParentMessage,
           validatedChannel,
           messageInsert,
+          ...(attachmentInsert ? [attachmentInsert] : []),
+          ...(attachedFilesUpdate ? [attachedFilesUpdate] : []),
           parentMessageUpdate,
           channelUpdate
         )
         .select({
           message: pickFromShape(messageInsert, messageColumns),
+          attachment: attachedFilesUpdate
+            ? {
+                id: attachedFilesUpdate.id,
+                object_key: attachedFilesUpdate.object_key,
+                original_name: attachedFilesUpdate.original_name,
+                size_bytes: attachedFilesUpdate.size_bytes,
+                extension: attachedFilesUpdate.extension,
+                sort_order: attachedFilesUpdate.sort_order,
+              }
+            : sql<null>`null`.as("attachment"),
           channel_messages_version: channelUpdate.messages_version,
           parent_message: {
             id: validatedParentMessage.id,
@@ -815,7 +971,14 @@ export const messagesRouter = router({
         .leftJoin(
           replyParentAuthor,
           eq(replyParentAuthor.id, validatedParentMessage.user_id)
-        );
+        )
+        .$dynamic();
+
+      const rows = attachedFilesUpdate
+        ? await query.leftJoin(attachedFilesUpdate, sql`true`)
+        : await query;
+
+      const newData = rows[0];
 
       if (!newData?.message || !newData.channel_messages_version) {
         throw new TRPCError({ code: "NOT_FOUND" });
@@ -823,17 +986,19 @@ export const messagesRouter = router({
       const newMessage = newData.message as JoinedMessage;
       newMessage.author = author;
       newMessage.parentMessage =
-        newData.parent_message.contentPreview &&
         newData.parent_message.created_at &&
         newData.parent_message.edited_at &&
         newData.parent_message_author
           ? {
               author: newData.parent_message_author,
-              contentPreview: newData.parent_message.contentPreview,
+              contentPreview: newData.parent_message.contentPreview || "",
               created_at: newData.parent_message.created_at,
               edited_at: newData.parent_message.edited_at,
             }
           : null;
+      newMessage.attachments = rows.flatMap((row) =>
+        row.attachment?.id ? [row.attachment] : []
+      );
 
       const parentMessageIdSerialized = newMessage.reply_to_message_id || null;
 
@@ -992,6 +1157,24 @@ export const messagesRouter = router({
           .returning(messageColumns)
       );
 
+      const attachedFilesUpdate = db.$with("attached_files").as(
+        db
+          .update(schema.files)
+          .set({ status: FILE_STATUS.deleted })
+          .from(schema.message_attachments)
+          .where(
+            and(
+              eq(schema.files.id, schema.message_attachments.file_id),
+              eq(
+                schema.message_attachments.message_id,
+                db.select({ id: messageUpdate.id }).from(messageUpdate)
+              ),
+              eq(schema.files.owner_user_id, ctx.user.id),
+              eq(schema.files.status, FILE_STATUS.active)
+            )
+          )
+      );
+
       const channelUpdate = db.$with("channel").as(
         db
           .update(schema.channels)
@@ -1027,7 +1210,12 @@ export const messagesRouter = router({
       );
 
       const [updatedData] = await db
-        .with(messageUpdate, channelUpdate, parentMessageUpdate)
+        .with(
+          messageUpdate,
+          attachedFilesUpdate,
+          channelUpdate,
+          parentMessageUpdate
+        )
         .select()
         .from(messageUpdate)
         .innerJoin(channelUpdate, sql`true`)

@@ -46,36 +46,26 @@ const contentSchema = (isVerifiedUser?: boolean) =>
       }
     });
 
-type MessageFormData = {
-  content: { text: string; html: string };
-  attachmentIds: unknown[];
-};
-
-const requireContentOrAttachments = (
-  data: MessageFormData,
-  ctx: z.RefinementCtx
-) => {
-  const hasContent = Boolean(data.content.html && data.content.text);
-  const hasAttachments = data.attachmentIds.length > 0;
-
-  if (!hasContent && !hasAttachments) {
-    ctx.addIssue({
-      code: "custom",
-      message: "Message cannot be empty",
-    });
-    return;
-  }
-};
-
 export const makeMessageCreateSchema = (isVerifiedUser?: boolean) =>
   messageCreateSchemaForm
     .extend({
       content: contentSchema(isVerifiedUser),
     })
-    .superRefine(requireContentOrAttachments);
+    .superRefine((data, ctx) => {
+      const hasContent = Boolean(data.content.html && data.content.text);
+      const hasAttachments = data.attachmentIds.length > 0;
+
+      if (!hasContent && !hasAttachments) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Message cannot be empty",
+        });
+        return;
+      }
+    });
 
 export const messageUpdateSchema = messageCreateSchemaForm
-  .pick({ content: true, attachmentIds: true })
+  .pick({ content: true })
   .extend({
     id: numericIdSchema,
   });
@@ -85,4 +75,14 @@ export const makeMessageUpdateSchema = (isVerifiedUser?: boolean) =>
     .extend({
       content: contentSchema(isVerifiedUser),
     })
-    .superRefine(requireContentOrAttachments);
+    .superRefine((data, ctx) => {
+      const hasContent = Boolean(data.content.html && data.content.text);
+
+      if (!hasContent) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Message cannot be empty",
+        });
+        return;
+      }
+    });

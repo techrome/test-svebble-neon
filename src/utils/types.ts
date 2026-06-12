@@ -38,3 +38,5 @@ export type ToSerializable<T> = T extends bigint
     : T;
 
 export type NullableFields<T> = { [K in keyof T]: T[K] | null };
+
+export type StrictOmit<T, K extends keyof T> = Omit<T, K>;

@@ -41,30 +41,7 @@ const contentSchema = (isVerifiedUser?: boolean) =>
         });
         return;
       }
-    })
-    .transform((v) => v.html);
-
-type MessageFormData = {
-  content: string;
-  attachmentIds: readonly unknown[];
-};
-
-const requireContentOrAttachments = (
-  data: MessageFormData,
-  ctx: z.RefinementCtx
-) => {
-  const hasContent = Boolean(data.content);
-  const hasAttachments = data.attachmentIds.length > 0;
-
-  if (!hasContent && !hasAttachments) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["content"],
-      message: "Message cannot be empty",
     });
-    return;
-  }
-};
 
 export type MessageCreateFormValues = z.input<
   ReturnType<typeof makeMessageCreateSchemaForm>
@@ -72,14 +49,36 @@ export type MessageCreateFormValues = z.input<
 
 export const makeMessageCreateSchemaForm = (isVerifiedUser?: boolean) =>
   messageCreateSchemaForm
-    .safeExtend({
+    .extend({
       content: contentSchema(isVerifiedUser),
     })
-    .superRefine(requireContentOrAttachments);
+    .superRefine((data, ctx) => {
+      const hasContent = Boolean(data.content.html && data.content.text);
+      const hasAttachments = data.attachmentIds.length > 0;
+
+      if (!hasContent && !hasAttachments) {
+        ctx.addIssue({
+          code: "custom",
+          path: ["content"],
+          message: "Message cannot be empty",
+        });
+        return;
+      }
+    })
+    .transform((data) => ({ ...data, content: data.content.html }));
 
 export const makeMessageUpdateSchemaForm = (isVerifiedUser?: boolean) =>
-  messageUpdateSchemaForm
-    .safeExtend({
-      content: contentSchema(isVerifiedUser),
-    })
-    .superRefine(requireContentOrAttachments);
+  messageUpdateSchemaForm.safeExtend({
+    content: contentSchema(isVerifiedUser)
+      .superRefine(({ text, html }, ctx) => {
+        if (!text || !html) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["content"],
+            message: "Message content is required",
+          });
+          return;
+        }
+      })
+      .transform((v) => v.html),
+  });

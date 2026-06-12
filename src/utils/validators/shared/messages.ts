@@ -45,13 +45,18 @@ export const messageCreateSchemaForm = z.object({
   channelId: numericIdSchema,
   reply_to_message_id: numericIdSchema.optional().nullable(),
   attachmentIds: z
-    .array(z.uuid())
+    .array(
+      z.uuid({
+        error:
+          "Some attachments are not ready. Wait for uploads to finish or remove failed/cancelled attachments.",
+      })
+    )
     .max(MESSAGE_ATTACHMENT_MAX_COUNT)
     .default([]),
 });
 
 export const messageUpdateSchemaForm = messageCreateSchemaForm
-  .pick({ content: true, attachmentIds: true })
+  .pick({ content: true })
   .extend({
     id: numericIdSchema,
   });
