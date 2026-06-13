@@ -57,3 +57,37 @@ export const getFileName = (filename: string): string | null => {
 
   return name || null;
 };
+
+export const canonicalizeEmail = (email: string) => {
+  const normalized = email.trim().toLowerCase();
+
+  const [rawLocal, rawDomain] = normalized.split("@");
+
+  if (!rawLocal || !rawDomain) {
+    return normalized;
+  }
+
+  let local = rawLocal;
+  let domain = rawDomain;
+
+  if (domain === "gmail.com") {
+    local = local.replaceAll(".", "");
+  }
+
+  return `${local}@${domain}`;
+};
+
+export const getEmailDomain = (email: string) =>
+  email.split("@").at(-1)?.toLowerCase() || "";
+
+export const allowedEmailDomains = [
+  "gmail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "icloud.com",
+  "me.com",
+  "yahoo.com",
+  "proton.me",
+  "protonmail.com",
+];

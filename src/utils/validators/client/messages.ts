@@ -59,7 +59,7 @@ export const makeMessageCreateSchemaForm = (isVerifiedUser?: boolean) =>
       if (!hasContent && !hasAttachments) {
         ctx.addIssue({
           code: "custom",
-          path: ["content"],
+          path: ["content"] satisfies (keyof typeof data)[],
           message: "Message cannot be empty",
         });
         return;
@@ -74,7 +74,6 @@ export const makeMessageUpdateSchemaForm = (isVerifiedUser?: boolean) =>
         if (!text || !html) {
           ctx.addIssue({
             code: "custom",
-            path: ["content"],
             message: "Message content is required",
           });
           return;

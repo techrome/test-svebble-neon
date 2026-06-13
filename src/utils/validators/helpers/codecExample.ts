@@ -15,7 +15,7 @@ const filterSchemaForm = z
     if (v.startDate && v.endDate && v.endDate.isBefore(v.startDate)) {
       ctx.addIssue({
         code: "custom",
-        path: ["endDate"],
+        path: ["endDate"] satisfies (keyof typeof v)[],
         message: "End date must be after start date",
       });
     }
