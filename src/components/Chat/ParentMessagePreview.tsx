@@ -10,6 +10,7 @@ import Tooltip from "@/components/Tooltip/Tooltip";
 import { useIsTextTruncated } from "@/utils/hooks/useIsTextTruncated";
 import { messageContentPreviewMaxLength } from "@/utils/validators/shared/messages";
 import UserAvatar from "@/components/Avatar/UserAvatar";
+import clsx from "clsx";
 
 type Props = {
   message: RenderedMessage;
@@ -33,8 +34,12 @@ const ParentMessagePreview = ({
           ? `${previewText.slice(0, messageContentPreviewMaxLength - 1)}...`
           : previewText;
     }
-    return "";
-  }, [message.parentMessage?.contentPreview, isTruncated]);
+    return message.isOptimistic ? "" : "Attachment-only message";
+  }, [
+    message.parentMessage?.contentPreview,
+    message.isOptimistic,
+    isTruncated,
+  ]);
 
   return !message.isOptimistic && !message.parentMessage ? (
     <HorizontalStack
@@ -74,7 +79,12 @@ const ParentMessagePreview = ({
         </Typography>
         <div className="flex items-center gap-1 overflow-hidden">
           <Typography
-            className="text-ellipsis whitespace-nowrap overflow-hidden"
+            className={clsx(
+              "text-ellipsis whitespace-nowrap overflow-hidden",
+              !message.parentMessage?.contentPreview &&
+                !message.isOptimistic &&
+                "italic"
+            )}
             ref={ref}
             variant="subtitle2"
           >

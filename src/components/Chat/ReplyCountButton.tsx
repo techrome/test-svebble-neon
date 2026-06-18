@@ -95,9 +95,12 @@ const ReplyMessage = ({ message, onReplyClick }: ReplyMessageProps) => {
             <HorizontalStack wrap={false} spacing="xs">
               <Typography
                 variant="caption"
-                className="text-ellipsis whitespace-nowrap overflow-hidden"
+                className={clsx(
+                  "text-ellipsis whitespace-nowrap overflow-hidden",
+                  !message.contentPreview && "italic"
+                )}
               >
-                {message.contentPreview}
+                {message.contentPreview || "Attachment-only message"}
               </Typography>
               {updatedAtFull ? (
                 <Tooltip title={updatedAtFull}>
