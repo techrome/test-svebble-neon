@@ -44,6 +44,9 @@
   "editor.snippetSuggestions": "bottom",
   "editor.suggestSelection": "first",
   "editor.suggest.localityBonus": true,
+  "workbench.colorCustomizations": {
+    "folderPathColor.custom1": "#ff9d2e"
+  },
   "folder-path-color.folders": [
     {
       "path": "src/components",
@@ -52,6 +55,10 @@
     {
       "path": "src/pages",
       "color": "magenta"
+    },
+    {
+      "path": "src/server/trpc",
+      "color": "custom1"
     },
     {
       "path": "src/server",
