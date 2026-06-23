@@ -260,14 +260,10 @@ const messageQuerySelectors = {
     // while having sane limits on how many messages can be collapsed consecutively
     let groupStartCreatedAt: Date | undefined;
     let groupMessageCount = 0;
+    let prevMessage: (typeof data.pages)[number]["items"][number] | undefined;
     for (let pageIndex = 0; pageIndex < data.pages.length; pageIndex++) {
       const page = data.pages[pageIndex];
       for (let itemIndex = 0; itemIndex < page.items.length; itemIndex++) {
-        const prevPage = data.pages[pageIndex - 1];
-        const prevMessage =
-          itemIndex === 0 && prevPage
-            ? prevPage.items[prevPage.items.length - 1]
-            : page.items[itemIndex - 1];
         const message = page.items[itemIndex];
 
         const isFirstMessageOfTheDay =
@@ -309,6 +305,7 @@ const messageQuerySelectors = {
 
         items.push(newItem);
         heightEstimates.push(estimatedHeight);
+        prevMessage = message;
       }
     }
 
@@ -1194,6 +1191,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   };
 
   const onSubmit: SubmitHandler<MessageCreateFormValues> = (values) => {
+    form.reset();
+    // second reset because form doesn't get fully reset right away
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         form.reset();
