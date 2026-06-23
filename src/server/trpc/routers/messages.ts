@@ -12,6 +12,7 @@ import {
   gt,
   inArray,
   count,
+  SQLWrapper,
 } from "drizzle-orm";
 import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
@@ -62,7 +63,8 @@ import { probeFileType } from "../helpers/probeFileType";
 import { isDev } from "@/utils/isDev";
 import { moderateImage } from "../helpers/openai";
 import { probeImageDimensionsAndType } from "../helpers/probeImage";
-import { jsonAggBuildObject } from "../helpers/jsonSQL";
+import { emptyJsonArray, jsonAggBuildArray } from "../helpers/jsonSQL";
+import { firstNonNull, sqlAny, sqlArray } from "../../db/helpers/sql";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -103,7 +105,7 @@ const messagesGetOutputSchema = z.object({
 // to avoid type circular dependency
 export type MessagesGetOutput = z.infer<typeof messagesGetOutputSchema>;
 
-const pickFromShape = <
+const pickByShape = <
   TShape extends Record<string, unknown>,
   TSource extends { [K in keyof TShape]: unknown },
 >(
@@ -132,6 +134,14 @@ const messageAuthorColumns = {
   name: schema.user.name,
   image: schema.user.image,
   role: schema.user.role,
+};
+
+const messageFileColumns = {
+  id: schema.files.id,
+  object_key: schema.files.object_key,
+  original_name: schema.files.original_name,
+  extension: schema.files.extension,
+  size_bytes: schema.files.size_bytes,
 };
 
 export type FullMessage = typeof schema.messages.$inferSelect;
@@ -252,49 +262,45 @@ export const messagesRouter = router({
           extraCondition
         );
 
-      const buildAttachmentsAggregator = () =>
-        jsonAggBuildObject<JoinedMessage["attachments"]>(
+      type FileColumnsSource = Record<
+        keyof typeof messageFileColumns,
+        SQLWrapper
+      >;
+      type AttachmentColumnsSource = Record<
+        keyof FullMessageAttachment,
+        SQLWrapper
+      >;
+      const buildAttachmentsAggregator = (
+        fileColumnsSource: FileColumnsSource,
+        attachmentColumnsSource: AttachmentColumnsSource
+      ) =>
+        jsonAggBuildArray<JoinedMessage["attachments"]>(
           {
-            id: schema.files.id,
-            object_key: schema.files.object_key,
-            original_name: schema.files.original_name,
-            extension: schema.files.extension,
-            size_bytes: schema.files.size_bytes,
-            sort_order: schema.message_attachments.sort_order,
+            ...pickByShape(fileColumnsSource, messageFileColumns),
+            sort_order: attachmentColumnsSource.sort_order,
           },
           {
-            orderBy: schema.message_attachments.sort_order,
+            orderBy: attachmentColumnsSource.sort_order,
+            noFallbackArray: true,
           }
         ).as("attachments");
-
-      const buildAttachmentsSubquery = (filter: SQL) =>
-        db
-          .select({
-            attachments: buildAttachmentsAggregator(),
-          })
-          .from(schema.files)
-          .innerJoin(
-            schema.message_attachments,
-            and(
-              eq(schema.message_attachments.file_id, schema.files.id),
-              eq(schema.files.status, FILE_STATUS.active)
-            )
-          )
-          .where(filter)
-          .as("attachments_subquery");
 
       const parentMessage = alias(schema.messages, "parent_message");
       const parentAuthor = alias(schema.user, "parent_author");
 
       type Direction = NonNullable<typeof cursor>["direction"];
 
-      const selectMessagesSubquery = ({
+      type SelectMessagesArgs = {
+        direction: Direction;
+        extraCondition?: SQL;
+        limit?: number;
+      };
+
+      const selectMessages = ({
         extraCondition,
         direction,
-      }: {
-        extraCondition?: SQL;
-        direction: Direction;
-      }) =>
+        limit = input.limit,
+      }: SelectMessagesArgs) =>
         db
           .select(messageColumns)
           .from(schema.messages)
@@ -304,30 +310,101 @@ export const messagesRouter = router({
               ? asc(schema.messages.id)
               : desc(schema.messages.id)
           )
-          .limit(input.limit)
-          .as("messages_subquery");
+          .limit(limit);
 
-      const selectMessageRows = ({
-        extraCondition,
+      const buildDirectionalMessagesSubquery = (args: SelectMessagesArgs) =>
+        db.$with("messages_subquery").as(selectMessages(args));
+
+      type MessagesSubquery = ReturnType<
+        typeof buildDirectionalMessagesSubquery
+      >;
+
+      const buildFullQuery = ({
+        messagesSubquery,
         direction,
       }: {
-        extraCondition?: SQL;
+        messagesSubquery: MessagesSubquery;
         direction: Direction;
       }) => {
-        const messagesSubquery = selectMessagesSubquery({
-          extraCondition,
-          direction,
-        });
-
-        const attachmentsSubquery = buildAttachmentsSubquery(
-          eq(schema.message_attachments.message_id, messagesSubquery.id)
+        const attachmentsSubquery = db.$with("attachments_subquery").as(
+          db
+            .select()
+            .from(schema.message_attachments)
+            .where(
+              eq(
+                schema.message_attachments.message_id,
+                // ANY(ARRAY(...)) to avoid bad plans when PostgreSQL misjudges row counts.
+                // Normal data in this table won't ever hit this, but apparently outliers with lots of
+                // related records can make the planner choose a seq scan
+                // e.g. tested with a few outlier messages that had thousands of attachments
+                sqlAny(
+                  sqlArray(
+                    db
+                      .select({ id: messagesSubquery.id })
+                      .from(messagesSubquery)
+                  )
+                )
+              )
+            )
         );
 
-        const query = db
+        const filesSubquery = db.$with("files_subquery").as(
+          db
+            .select(messageFileColumns)
+            .from(schema.files)
+            .where(
+              and(
+                eq(
+                  schema.files.id,
+                  sqlAny(
+                    sqlArray(
+                      db
+                        .select({ file_id: attachmentsSubquery.file_id })
+                        .from(attachmentsSubquery)
+                    )
+                  )
+                ),
+                eq(schema.files.status, FILE_STATUS.active)
+              )
+            )
+        );
+
+        const attachmentsByMessageSubquery = db
+          .$with("attachments_by_message_subquery")
+          // needs materialized because the planner may underestimate the row count and choose a slow plan
+          .materialized()
+          .as(
+            db
+              .select({
+                message_id: attachmentsSubquery.message_id,
+                attachments: buildAttachmentsAggregator(
+                  filesSubquery,
+                  attachmentsSubquery
+                ),
+              })
+              .from(attachmentsSubquery)
+              .innerJoin(
+                filesSubquery,
+                eq(filesSubquery.id, attachmentsSubquery.file_id)
+              )
+              .groupBy(attachmentsSubquery.message_id)
+          );
+
+        return db
+          .with(
+            messagesSubquery,
+            attachmentsSubquery,
+            filesSubquery,
+            attachmentsByMessageSubquery
+          )
           .select({
             messages_version: schema.channels.messages_version,
-            message: pickFromShape(messagesSubquery, messageColumns),
-            attachments: attachmentsSubquery.attachments,
+            message: pickByShape(messagesSubquery, messageColumns),
+            attachments: firstNonNull<JoinedMessage["attachments"]>(
+              attachmentsByMessageSubquery.attachments,
+              emptyJsonArray()
+            ).as("attachments"),
+
             author: messageAuthorColumns,
             parent_message: {
               contentPreview: leftText(
@@ -337,14 +414,17 @@ export const messagesRouter = router({
               created_at: parentMessage.created_at,
               edited_at: parentMessage.edited_at,
             },
-            parent_message_author: pickFromShape(
+            parent_message_author: pickByShape(
               parentAuthor,
               messageAuthorColumns
             ),
           })
           .from(schema.channels)
           .leftJoin(messagesSubquery, sql`true`)
-          .leftJoinLateral(attachmentsSubquery, sql`true`)
+          .leftJoin(
+            attachmentsByMessageSubquery,
+            eq(attachmentsByMessageSubquery.message_id, messagesSubquery.id)
+          )
           .leftJoin(schema.user, eq(schema.user.id, messagesSubquery.user_id))
           .leftJoin(
             parentMessage,
@@ -360,8 +440,6 @@ export const messagesRouter = router({
               ? asc(messagesSubquery.id)
               : desc(messagesSubquery.id)
           );
-        console.log({ direction, query: query.toSQL() });
-        return query;
       };
 
       if (cursor) {
@@ -369,8 +447,11 @@ export const messagesRouter = router({
           if (cursor.direction === "backward") {
             if (Math.random() < rate) throw new Error("Test error");
 
-            const rows = await selectMessageRows({
-              extraCondition: before(schema.messages.id, cursor.id),
+            const rows = await buildFullQuery({
+              messagesSubquery: buildDirectionalMessagesSubquery({
+                extraCondition: before(schema.messages.id, cursor.id),
+                direction: "backward",
+              }),
               direction: "backward",
             });
 
@@ -385,8 +466,11 @@ export const messagesRouter = router({
           if (cursor.direction === "forward") {
             if (Math.random() < rate) throw new Error("Test error");
 
-            const rows = await selectMessageRows({
-              extraCondition: after(schema.messages.id, cursor.id),
+            const rows = await buildFullQuery({
+              messagesSubquery: buildDirectionalMessagesSubquery({
+                extraCondition: after(schema.messages.id, cursor.id),
+                direction: "forward",
+              }),
               direction: "forward",
             });
 
@@ -406,85 +490,25 @@ export const messagesRouter = router({
       if (input.around) {
         const sideLimit = input.limit / 2;
 
-        const selectAroundSideIds = ({
-          extraCondition,
-          direction,
-          limit,
-        }: {
-          extraCondition: SQL;
-          direction: Direction;
-          limit: number;
-        }) =>
-          db
-            .select({
-              id: schema.messages.id,
+        const messagesSubquery = db.$with("messages_subquery").as(
+          unionAll(
+            selectMessages({
+              extraCondition: beforeOrEqual(schema.messages.id, input.around),
+              direction: "backward",
+              limit: sideLimit + 1, // includes target
+            }),
+            selectMessages({
+              extraCondition: after(schema.messages.id, input.around),
+              direction: "forward",
+              limit: sideLimit,
             })
-            .from(schema.messages)
-            .where(buildMessagesFilter(extraCondition))
-            .orderBy(
-              direction === "forward"
-                ? asc(schema.messages.id)
-                : desc(schema.messages.id)
-            )
-            .limit(limit);
-
-        const attachmentsSubquery = buildAttachmentsSubquery(
-          eq(schema.message_attachments.message_id, schema.messages.id)
+          )
         );
 
-        const aroundIds = unionAll(
-          selectAroundSideIds({
-            extraCondition: beforeOrEqual(schema.messages.id, input.around),
-            direction: "backward",
-            limit: sideLimit + 1, // includes target
-          }),
-          selectAroundSideIds({
-            extraCondition: after(schema.messages.id, input.around),
-            direction: "forward",
-            limit: sideLimit,
-          })
-        ).as("around_ids");
-
-        const query = db
-          .select({
-            messages_version: schema.channels.messages_version,
-            message: messageColumns,
-            attachments: attachmentsSubquery.attachments,
-            author: messageAuthorColumns,
-            parent_message: {
-              contentPreview: leftText(
-                parentMessage.content_text,
-                sharedMessagesValidations.messageContentPreviewMaxLength
-              ),
-              created_at: parentMessage.created_at,
-              edited_at: parentMessage.edited_at,
-            },
-            parent_message_author: pickFromShape(
-              parentAuthor,
-              messageAuthorColumns
-            ),
-          })
-          .from(aroundIds)
-          .innerJoin(schema.messages, eq(schema.messages.id, aroundIds.id))
-          .innerJoin(
-            schema.channels,
-            eq(schema.channels.id, schema.messages.channel_id)
-          )
-          .innerJoin(schema.user, eq(schema.user.id, schema.messages.user_id))
-          .leftJoin(
-            parentMessage,
-            and(
-              eq(parentMessage.id, schema.messages.reply_to_message_id),
-              isNull(parentMessage.deleted_at)
-            )
-          )
-          .leftJoinLateral(attachmentsSubquery, sql`true`)
-          .leftJoin(parentAuthor, eq(parentAuthor.id, parentMessage.user_id))
-          .where(channelFilter)
-          .orderBy(asc(schema.messages.id));
-        console.log({ QUERY_AROUND: query.toSQL() });
-
-        const rows = await query;
+        const rows = await buildFullQuery({
+          messagesSubquery,
+          direction: "forward",
+        });
 
         const { items, messages_version } = toMessagesPayload(rows);
 
@@ -492,9 +516,12 @@ export const messagesRouter = router({
       }
       if (Math.random() < rate) throw new Error("Test error");
 
-      const query = selectMessageRows({ direction: "backward" });
-      console.log({ QUERY_DEFAULT: query.toSQL() });
-      const rows = await query;
+      const rows = await buildFullQuery({
+        messagesSubquery: buildDirectionalMessagesSubquery({
+          direction: "backward",
+        }),
+        direction: "backward",
+      });
 
       const { messages_version, items } = toMessagesPayload(rows);
 
@@ -934,7 +961,7 @@ export const messagesRouter = router({
           channelUpdate
         )
         .select({
-          message: pickFromShape(messageInsert, messageColumns),
+          message: pickByShape(messageInsert, messageColumns),
           attachment: attachedFilesUpdate
             ? {
                 id: attachedFilesUpdate.id,
@@ -956,7 +983,7 @@ export const messagesRouter = router({
             edited_at: validatedParentMessage.edited_at,
             reply_count: parentMessageUpdate.reply_count,
           },
-          parent_message_author: pickFromShape(
+          parent_message_author: pickByShape(
             replyParentAuthor,
             messageAuthorColumns
           ),
