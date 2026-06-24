@@ -7,7 +7,12 @@ import { withCronAuth } from "../../../server/trpc/helpers/cronHelpers";
 
 const handler = async (_req: NextApiRequest, res: NextApiResponse) => {
   const pruneResult = await trpc.routines.pruneFiles({
-    statusesToDelete: [FILE_STATUS.deleted, FILE_STATUS.error],
+    criteria: "default",
+    statusesToPrune: [
+      FILE_STATUS.deleted,
+      FILE_STATUS.error,
+      FILE_STATUS.validated,
+    ],
     howOldMs: days(1),
   });
   console.log("Prune errored files result:", pruneResult);
