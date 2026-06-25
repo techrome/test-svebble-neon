@@ -1,6 +1,6 @@
 {
   "tailwindCSS.experimental.classRegex": [
-    ["className\\s*:\\s*['\"]([^'\"]*)['\"]"]
+    ["\\b(?:className|\\w*Class(?:Name)?)\\s*[:=]\\s*['\"`]([^'\"`]*)['\"`]"]
   ],
   "tailwindCSS.classAttributes": [
     "class",
@@ -13,6 +13,7 @@
   "prettier.requireConfig": true,
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "javascript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.preferences.preferTypeOnlyAutoImports": true,
   "typescript.preferences.autoImportSpecifierExcludeRegexes": [
     "^@/server/",
     "^src/server/",
