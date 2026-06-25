@@ -8,6 +8,7 @@ export type UserRole = (typeof USER_ROLE_ENUM)[number];
 
 export const FILE_STATUSES_ENUM = [
   "issued",
+  "validated",
   "active",
   "inactive",
   "deleted",

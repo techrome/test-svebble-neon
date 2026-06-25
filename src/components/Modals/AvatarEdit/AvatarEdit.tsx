@@ -31,13 +31,9 @@ import { useAppSnackbar } from "@/utils/snackbar";
 import ButtonBase from "@/components/Button/ButtonBase";
 import { useLocalModal } from "@/utils/hooks/useOverlay";
 import Tooltip from "@/components/Tooltip/Tooltip";
-import HelperText from "@/components/Fields/HelperText";
 import IconButton from "@/components/Button/IconButton";
 import clsx from "clsx";
-import {
-  avatarSelectSchema,
-  AvatarSelectSchemaForm,
-} from "@/utils/validators/shared/user";
+import { avatarSelectSchema } from "@/utils/validators/shared/user";
 import {
   allowedAvatarExtensions,
   allowedAvatarMimeTypes,
@@ -45,8 +41,9 @@ import {
   AVATAR_MAX_HEIGHT,
   allowedAvatarExtensionsMap,
 } from "@/utils/validators/sharedValues/user";
-import { createImage } from "@/pages/app/my-profile";
+import { createImage } from "@/utils/image";
 import { getFileExtension } from "@/utils/validators/helpers/custom";
+import { z } from "@/utils/zod";
 
 const normalizeZoom = (val: number) => Math.max(0, Math.min(1, val));
 
@@ -189,7 +186,7 @@ const AvatarChangeModal = ({
     const image = await createImage(file);
     const parseResult = avatarSelectSchema.safeParse({
       imageExtension: getFileExtension(file.name, allowedAvatarExtensions),
-    } satisfies Record<keyof AvatarSelectSchemaForm, unknown>);
+    } satisfies z.input<typeof avatarSelectSchema>);
 
     if (!parseResult.success) {
       addAppSnackbar({
@@ -280,10 +277,9 @@ const AvatarChangeModal = ({
                 ? "Drop the image here..."
                 : "Click to select an image, or drag it here."}
             </Typography>
-            <HelperText
-              helperText={`Allowed formats: ${allowedAvatarExtensions.join(", ")}.`}
-              helperTextAlwaysShown
-            />
+            <Typography variant="body2">
+              Allowed extensions: {allowedAvatarExtensions.join(", ")}.
+            </Typography>
             <input hidden type="file" {...getDropzoneInputProps()} />
           </VerticalStack>
         </ButtonBase>

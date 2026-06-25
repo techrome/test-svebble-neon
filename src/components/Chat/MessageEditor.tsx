@@ -5,7 +5,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import AttachFileIcon from "@mui/icons-material/AttachFile";
 import SendIcon from "@mui/icons-material/Send";
 import TextFormatIcon from "@mui/icons-material/TextFormat";
 import dynamic from "next/dynamic";
@@ -55,7 +54,7 @@ type EditorProps = {
   placeholder?: string;
   disabled?: boolean;
   autoFocus?: boolean;
-  isEdit?: boolean;
+  startAccessory?: React.ReactNode;
 };
 
 type Props<
@@ -70,7 +69,7 @@ const MessageEditor = <TFV extends FieldValues, TName extends FieldPath<TFV>>({
   placeholder,
   hideError,
   autoFocus,
-  isEdit,
+  startAccessory,
 }: Props<TFV, TName>) => {
   const [isToolbarVisible, setIsToolbarVisible] = useState(false);
   const reactQuillRef = useRef<ReactQuill | null>(null);
@@ -139,21 +138,7 @@ const MessageEditor = <TFV extends FieldValues, TName extends FieldPath<TFV>>({
       isToolbarVisible={isToolbarVisible}
       placeholder={placeholder}
       editorRef={setEditorRef}
-      startAccessory={
-        !isEdit && (
-          <Tooltip title="Attach file">
-            <IconButton
-              type="button"
-              className=""
-              onClick={() => {
-                // TODO
-              }}
-            >
-              <AttachFileIcon />
-            </IconButton>
-          </Tooltip>
-        )
-      }
+      startAccessory={startAccessory}
       endAccessory={
         <>
           <Tooltip

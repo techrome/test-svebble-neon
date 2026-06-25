@@ -57,6 +57,8 @@ import { makeMessageUpdateSchemaForm } from "@/utils/validators/client/messages"
 import { useLatest } from "@/utils/hooks/useLatest";
 import ReplyCountButton from "@/components/Chat/ReplyCountButton";
 import ParentMessagePreview from "@/components/Chat/ParentMessagePreview";
+import { StrictOmit } from "@/utils/types";
+import { MessageAttachmentDisplayList } from "@/components/Chat/MessageAttachments";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -87,12 +89,24 @@ type MessageDeleteMutationOptions = NonNullable<
 
 export type Message = RouterOutput["messages"]["get"]["items"][number];
 
-export type RenderedMessage = Message & {
-  isOptimistic?: true;
-  isFailed?: true;
+type RenderedMessageFlags = {
   isCompact?: true;
   isFirstMessageOfTheDay?: true;
+  isFailed?: true;
 };
+
+type ServerRenderedMessage = Message &
+  RenderedMessageFlags & {
+    isOptimistic?: false;
+  };
+
+type OptimisticRenderedMessage = StrictOmit<Message, "attachments"> &
+  RenderedMessageFlags & {
+    isOptimistic: true;
+    attachments: string[];
+  };
+
+export type RenderedMessage = ServerRenderedMessage | OptimisticRenderedMessage;
 
 type Props = {
   message: RenderedMessage;
@@ -109,7 +123,7 @@ type Props = {
   onReplyClick: React.MouseEventHandler<HTMLElement>;
 };
 
-type FormValues = z.infer<ReturnType<typeof makeMessageUpdateSchemaForm>>;
+type FormValues = z.input<ReturnType<typeof makeMessageUpdateSchemaForm>>;
 
 const Message = ({
   message,
@@ -213,6 +227,11 @@ const Message = ({
     </Tooltip>
   );
 
+  const handleReplyClick: typeof onReplyClick = (e) => {
+    menuPopover.closePopover();
+    onReplyClick(e);
+  };
+
   const isOwnMessage = message.user_id === user.data?.user?.id;
 
   const onSubmit: SubmitHandler<FormValues> = (values) => {
@@ -227,7 +246,6 @@ const Message = ({
 
   const exitEditMode = () => {
     setIsEdit(false);
-    form.reset();
   };
 
   const {
@@ -345,7 +363,6 @@ const Message = ({
               placeholder={`Message`}
               autoFocus
               hideError
-              isEdit
             />
             <HorizontalStack>
               <Button
@@ -398,7 +415,12 @@ const Message = ({
             fullWidth
             wrap={false}
           >
-            <HorizontalStack wrap={false} spacing="xs" addClassName="flex-1">
+            <HorizontalStack
+              minWidth
+              wrap={false}
+              spacing="xs"
+              addClassName="flex-1"
+            >
               <div
                 className={clsx(
                   "min-w-12 max-w-12 flex",
@@ -426,6 +448,7 @@ const Message = ({
               <VerticalStack
                 spacing="none"
                 fullWidth={false}
+                minWidth
                 addClassName="flex-1"
               >
                 {!message.isCompact && (
@@ -459,6 +482,7 @@ const Message = ({
                     </Tooltip>
                   ) : null}
                 </Typography>
+                <MessageAttachmentDisplayList message={message} />
               </VerticalStack>
             </HorizontalStack>
             {message.isOptimistic ? null : isDesktop ? (
@@ -489,7 +513,7 @@ const Message = ({
                     </Tooltip>
                   )}
                   <Tooltip title="Reply">
-                    <IconButton size="small" onClick={onReplyClick}>
+                    <IconButton size="small" onClick={handleReplyClick}>
                       <ReplyIcon />
                     </IconButton>
                   </Tooltip>
@@ -539,7 +563,7 @@ const Message = ({
               </ListItemIcon>
               <ListItemText>Add Reaction</ListItemText>
             </MenuItem>
-            <MenuItem onClick={onReplyClick}>
+            <MenuItem onClick={handleReplyClick}>
               <ListItemIcon>
                 <ReplyIcon />
               </ListItemIcon>

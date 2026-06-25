@@ -43,7 +43,6 @@ import {
 import Tooltip from "@/components/Tooltip/Tooltip";
 import { env } from "@/utils/env";
 import {
-  AvatarUploadUrlSchemaForm,
   BasicProfileFormValues,
   basicProfileSchemaForm,
   makeUsernameSchemaForm,
@@ -61,6 +60,8 @@ import clsx from "clsx";
 import { avatarUploadUrlSchemaClient } from "@/utils/validators/client/user";
 import { getFileExtension } from "@/utils/validators/helpers/custom";
 import { allowedAvatarExtensions } from "@/utils/validators/sharedValues/user";
+import { createImage } from "@/utils/image";
+import { z } from "@/utils/zod";
 
 export const defaultAvatars = {
   first: `default-avatars/2.png`,
@@ -83,23 +84,6 @@ export const SectionWrapper = (props: {
       {props.children}
     </Paper>
   );
-};
-
-export const createImage = async (file: File): Promise<HTMLImageElement> => {
-  const url = URL.createObjectURL(file);
-
-  try {
-    return await new Promise((resolve, reject) => {
-      const img = new Image();
-
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("Image failed to load"));
-
-      img.src = url;
-    });
-  } finally {
-    URL.revokeObjectURL(url);
-  }
 };
 
 const BasicProfileForm = () => {
@@ -133,7 +117,7 @@ const BasicProfileForm = () => {
       imageExtension: getFileExtension(file.name, allowedAvatarExtensions),
       imageWidth: imageInfo.naturalWidth,
       imageHeight: imageInfo.naturalHeight,
-    } satisfies Record<keyof AvatarUploadUrlSchemaForm, unknown>);
+    } satisfies z.input<typeof avatarUploadUrlSchemaClient>);
 
     if (!parseResult.success) {
       addAppSnackbar({

@@ -1,14 +1,13 @@
 import { Buffer } from "node:buffer";
 import { fileTypeFromBuffer } from "file-type";
-import sizeOf from "image-size";
 
 import { kilobytes } from "@/utils/storageUnits";
 import { seconds } from "@/utils/cacheTime";
 
-const MAX_BYTES = kilobytes(64);
+const MAX_BYTES = kilobytes(16);
 
-// a performant way to get remote image's dimensions and type without having to download the whole image
-export const probeImageDimensionsAndType = async (s3Url: string) => {
+// a performant way to get remote file type without having to download the whole file
+export const probeFileType = async (s3Url: string) => {
   const res = await fetch(s3Url, {
     headers: { Range: `bytes=0-${MAX_BYTES - 1}` },
     signal: AbortSignal.timeout(seconds(10)),
@@ -33,7 +32,7 @@ export const probeImageDimensionsAndType = async (s3Url: string) => {
 
     if (bytesFetched + value.byteLength > MAX_BYTES) {
       await reader.cancel();
-      throw new Error(`Exceeded ${MAX_BYTES} bytes without dimensions/type`);
+      throw new Error(`Exceeded ${MAX_BYTES} bytes without type`);
     }
 
     buf.set(value, bytesFetched);
@@ -44,21 +43,19 @@ export const probeImageDimensionsAndType = async (s3Url: string) => {
       detectedFileType = await fileTypeFromBuffer(currentBytes);
     }
 
-    try {
-      const imageInfo = sizeOf(currentBytes);
-
-      if (detectedFileType && imageInfo) {
-        await reader.cancel();
-        return {
-          width: imageInfo.width,
-          height: imageInfo.height,
-          imageSizeType: imageInfo.type,
-          detectedFileType,
-          bytesFetched,
-        };
-      }
-    } catch {}
+    if (detectedFileType) {
+      await reader.cancel();
+      return {
+        detectedFileType,
+        bytesFetched,
+        kind: "binary",
+      } as const;
+    }
   }
 
-  throw new Error("Stream ended before dimensions/type could be determined");
+  return {
+    detectedFileType: undefined,
+    bytesFetched,
+    kind: "text",
+  } as const;
 };

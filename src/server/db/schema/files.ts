@@ -12,7 +12,7 @@ import {
 import { sql } from "drizzle-orm";
 
 import { withDefaultColumns } from "../helpers/withDefaultColumns";
-import { FILE_LIMITS, TEXT_LIMITS } from "@/utils/validators/helpers/text";
+import { TEXT_LIMITS } from "@/utils/validators/helpers/text";
 import { user } from "./auth";
 import {
   FILE_PURPOSE,
@@ -31,8 +31,8 @@ export const files = pgTable(
     status: text("status", { enum: FILE_STATUSES_ENUM }).notNull(),
     purpose: text("purpose", { enum: FILE_PURPOSES_ENUM }).notNull(),
     object_key: varchar({ length: TEXT_LIMITS.long }).notNull().unique(),
-    original_name: varchar({ length: FILE_LIMITS.name }),
-    extension: varchar({ length: FILE_LIMITS.extension }),
+    original_name: varchar({ length: TEXT_LIMITS.fileName }),
+    extension: varchar({ length: TEXT_LIMITS.fileExtension }),
     size_bytes: bigint("size_bytes", { mode: "number" }),
     deleted_at: timestamp({ withTimezone: true, precision: 3 }),
     error_text: varchar({ length: TEXT_LIMITS.long }),

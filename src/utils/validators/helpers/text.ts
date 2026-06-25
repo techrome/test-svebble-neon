@@ -5,11 +5,8 @@ export const TEXT_LIMITS = {
   title: 80,
   short: 256,
   long: 2000,
-} as const;
-
-export const FILE_LIMITS = {
-  extension: 32,
-  name: 255,
+  fileExtension: 32,
+  fileName: 255,
 } as const;
 
 type TextProfile = keyof typeof TEXT_LIMITS;
@@ -36,4 +33,6 @@ export const Text = {
   Title: (options?: TextOptions) => text("title", options),
   Short: (options?: TextOptions) => text("short", options),
   Long: (options?: TextOptions) => text("long", options),
+  FileName: (options?: TextOptions) => text("fileName", options),
+  FileExtension: (options?: TextOptions) => text("fileExtension", options),
 } as const;

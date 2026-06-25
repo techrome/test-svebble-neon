@@ -16,7 +16,6 @@ export const messageContentHtmlMaxLength = TEXT_LIMITS.long * 4;
 const contentSchema = (isVerifiedUser?: boolean) =>
   z
     .string()
-    .min(1, { error: "Message content is required" })
     .transform((v) => {
       const sanitizedHtml = sanitizeMessageHtml(v);
       const parsedDocument = htmlparser2.parseDocument(sanitizedHtml);
@@ -26,16 +25,11 @@ const contentSchema = (isVerifiedUser?: boolean) =>
       return { text, html };
     })
     .superRefine(({ text, html }, ctx) => {
+      if (!text && !html) return;
+
       const textMaxLength = getMessageContentMaxLength(isVerifiedUser);
       const htmlMaxLength = messageContentHtmlMaxLength;
 
-      if (!text || !html) {
-        ctx.addIssue({
-          code: "custom",
-          message: "Message content is required",
-        });
-        return;
-      }
       if (text.length > textMaxLength) {
         ctx.addIssue({
           code: "custom",
@@ -53,9 +47,22 @@ const contentSchema = (isVerifiedUser?: boolean) =>
     });
 
 export const makeMessageCreateSchema = (isVerifiedUser?: boolean) =>
-  messageCreateSchemaForm.extend({
-    content: contentSchema(isVerifiedUser),
-  });
+  messageCreateSchemaForm
+    .extend({
+      content: contentSchema(isVerifiedUser),
+    })
+    .superRefine((data, ctx) => {
+      const hasContent = Boolean(data.content.html && data.content.text);
+      const hasAttachments = data.attachmentIds.length > 0;
+
+      if (!hasContent && !hasAttachments) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Message cannot be empty",
+        });
+        return;
+      }
+    });
 
 export const messageUpdateSchema = messageCreateSchemaForm
   .pick({ content: true })
@@ -64,6 +71,18 @@ export const messageUpdateSchema = messageCreateSchemaForm
   });
 
 export const makeMessageUpdateSchema = (isVerifiedUser?: boolean) =>
-  messageUpdateSchema.extend({
-    content: contentSchema(isVerifiedUser),
-  });
+  messageUpdateSchema
+    .extend({
+      content: contentSchema(isVerifiedUser),
+    })
+    .superRefine((data, ctx) => {
+      const hasContent = Boolean(data.content.html && data.content.text);
+
+      if (!hasContent) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Message cannot be empty",
+        });
+        return;
+      }
+    });

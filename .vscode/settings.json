@@ -1,6 +1,6 @@
 {
   "tailwindCSS.experimental.classRegex": [
-    ["className\\s*:\\s*['\"]([^'\"]*)['\"]"]
+    ["\\b(?:className|\\w*Class(?:Name)?)\\s*[:=]\\s*['\"`]([^'\"`]*)['\"`]"]
   ],
   "tailwindCSS.classAttributes": [
     "class",
@@ -13,6 +13,7 @@
   "prettier.requireConfig": true,
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "javascript.preferences.importModuleSpecifier": "non-relative",
+  "typescript.preferences.preferTypeOnlyAutoImports": true,
   "typescript.preferences.autoImportSpecifierExcludeRegexes": [
     "^@/server/",
     "^src/server/",
@@ -41,8 +42,12 @@
     "comments": "off",
     "strings": "on"
   },
-  "editor.snippetSuggestions": "inline",
+  "editor.snippetSuggestions": "bottom",
   "editor.suggestSelection": "first",
+  "editor.suggest.localityBonus": true,
+  "workbench.colorCustomizations": {
+    "folderPathColor.custom1": "#ff9d2e"
+  },
   "folder-path-color.folders": [
     {
       "path": "src/components",
@@ -51,6 +56,10 @@
     {
       "path": "src/pages",
       "color": "magenta"
+    },
+    {
+      "path": "src/server/trpc",
+      "color": "custom1"
     },
     {
       "path": "src/server",

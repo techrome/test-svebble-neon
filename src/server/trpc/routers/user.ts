@@ -28,61 +28,23 @@ import { getCookieForwarder } from "./auth";
 import { s3Client } from "../../storage/s3";
 import { env } from "../../env";
 import { env as clientEnv } from "@/utils/env";
-import { days, minutes } from "@/utils/cacheTime";
+import { minutes } from "@/utils/cacheTime";
 import { db, schema } from "../../db";
 import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/enums";
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { openAI } from "../helpers/openai";
+import { moderateImage } from "../helpers/openai";
 import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
 import { isDev } from "@/utils/isDev";
 import { probeImageDimensionsAndType } from "../helpers/probeImage";
 import { P } from "@/utils/permissions";
-import { throwIfZodError } from "../helpers/validate";
-import { avatarUploadUrlSchemaServer } from "../validators/user";
+import { throwIfZodError, validateUserFileKey } from "../helpers/validate";
+import {
+  allowedAvatarExtensionsServer,
+  avatarUploadUrlSchemaServer,
+} from "../validators/user";
 import { allowedAvatarExtensionsMap } from "@/utils/validators/sharedValues/user";
-
-const cacheControl = `public, max-age=${days(2, true)}`;
-
-const uuidSchema = z.uuid();
-const uuidRegex = "([0-9a-fA-F-]{36})";
-const avatarFileObjectKeyRegex = new RegExp(
-  `^users\\/${uuidRegex}\\/${uuidRegex}\\.jpg$`,
-  "i"
-);
-export const validateUserAvatarFileKey = (
-  userId: string,
-  key: string
-): boolean => {
-  const match = avatarFileObjectKeyRegex.exec(key);
-  if (!match) return false;
-
-  const [, ownerId, fileId] = match;
-
-  if (ownerId !== userId || !uuidSchema.safeParse(fileId).success) {
-    return false;
-  }
-
-  return true;
-};
-
-type ModerationResult = Awaited<ReturnType<typeof openAI.moderations.create>>;
-
-const moderateImage = async (url: string): Promise<ModerationResult> => {
-  if (isDev) {
-    return { id: "dev", model: "dev", results: [] };
-  }
-  const result = await openAI.moderations.create({
-    model: "omni-moderation-latest",
-    input: [
-      {
-        type: "image_url",
-        image_url: { url },
-      },
-    ],
-  });
-  console.log("RESULT:", result.results);
-  return result;
-};
+import { cacheControl } from "../../storage/vars";
+import { Text } from "@/utils/validators/helpers/text";
 
 const avatarProbeSchema = avatarUploadUrlSchemaServer.pick({
   imageWidth: true,
@@ -113,7 +75,7 @@ export const userRouter = router({
   )
     .input(
       basicProfileSchemaForm.safeExtend({
-        image: z.string().nullable().optional(),
+        image: Text.Long().nullable().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -121,7 +83,13 @@ export const userRouter = router({
       const newAvatarIsDifferent = ctx.user.image !== newAvatarKey;
 
       if (newAvatarIsDifferent && newAvatarKey) {
-        if (!validateUserAvatarFileKey(ctx.user.id, newAvatarKey)) {
+        if (
+          !validateUserFileKey(
+            ctx.user.id,
+            newAvatarKey,
+            allowedAvatarExtensionsServer
+          )
+        ) {
           throw new TRPCError({
             code: "UNPROCESSABLE_CONTENT",
             message: "Invalid avatar key.",
@@ -134,7 +102,8 @@ export const userRouter = router({
             and(
               eq(schema.files.object_key, newAvatarKey),
               eq(schema.files.owner_user_id, ctx.user.id),
-              eq(schema.files.status, FILE_STATUS.issued)
+              eq(schema.files.status, FILE_STATUS.issued),
+              eq(schema.files.purpose, FILE_PURPOSE.avatar)
             )
           );
         if (!foundPendingAvatarFile) {

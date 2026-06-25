@@ -19,6 +19,13 @@ export default defineConfig([
           ignoreRestSiblings: true,
         },
       ],
+      // "@typescript-eslint/consistent-type-imports": [
+      //   "warn",
+      //   {
+      //     prefer: "type-imports",
+      //     fixStyle: "inline-type-imports",
+      //   },
+      // ],
     },
   },
 ]);

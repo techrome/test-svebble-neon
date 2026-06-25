@@ -2,6 +2,11 @@ import z from "@/utils/zod";
 
 import { requiredPasswordRules } from "@/components/AuthForm/Signup";
 import { Text } from "@/utils/validators/helpers/text";
+import {
+  allowedEmailDomains,
+  canonicalizeEmail,
+  getEmailDomain,
+} from "@/utils/validators/helpers/custom";
 
 export const passwordMinLength = 8;
 export const passwordCheck = z.string().min(passwordMinLength);
@@ -34,7 +39,20 @@ export const zPassword = Text.Title({
   });
 });
 
-export const zEmail = Text.Title().pipe(z.email());
+export const zEmail = Text.Title()
+  .pipe(z.email())
+  .refine(
+    (email) => {
+      return !email.includes("+");
+    },
+    {
+      message: "Email aliases using '+' are not allowed.",
+    }
+  )
+  .refine((email) => allowedEmailDomains.includes(getEmailDomain(email)), {
+    message: `Email domain is not allowed. Allowed domains: ${allowedEmailDomains.join(", ")}.`,
+  })
+  .transform(canonicalizeEmail);
 
 export const signupSchemaForm = z
   .object({

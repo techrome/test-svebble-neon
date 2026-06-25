@@ -10,11 +10,16 @@ import {
   type SQL,
   isNotNull,
   gt,
+  inArray,
+  count,
+  SQLWrapper,
 } from "drizzle-orm";
+import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
 import { alias, unionAll } from "drizzle-orm/pg-core";
 import { TRPCError } from "@trpc/server";
 import { waitUntil } from "@vercel/functions";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { db } from "../../db/core";
 import * as schema from "../../db/schema";
@@ -22,22 +27,44 @@ import { router } from "../core";
 import { privateProcedure, publicProcedure } from "../procedures";
 import * as sharedMessagesValidations from "@/utils/validators/shared/messages";
 import * as serverMessagesValidations from "../validators/messages";
-import { throwIfZodError } from "../helpers/validate";
+import {
+  throwIfZodError,
+  validateMessageAttachmentExtension,
+  validateUserFileKey,
+} from "../helpers/validate";
 import { P } from "@/utils/permissions";
 import { after, before, beforeOrEqual } from "../../db/helpers/time";
+import { s3Client } from "../../storage/s3";
 import {
   createChannelSubscribeTokenRequest,
   publishChannelEvent,
 } from "../../websockets/core";
 import { rateLimitMiddlewares } from "../ratelimit";
 import {
+  getFileExtension,
   numericIdSchema,
   versionSchema,
 } from "@/utils/validators/helpers/custom";
-import { PartialFor, type NullableFields } from "@/utils/types";
+import { PartialFor, StrictOmit, type NullableFields } from "@/utils/types";
 import { AuthSession } from "../context";
 import type { WebsocketEventsOriginal } from "@/trpc/helpers/websockets";
 import { leftText } from "../../db/helpers/stringUtils";
+import {
+  allowedMessageAttachmentExtensions,
+  allowedMessageAttachmentExtensionsMap,
+  isImageExtension,
+} from "@/utils/validators/sharedValues/messages";
+import { env } from "../../env";
+import { cacheControl } from "../../storage/vars";
+import { minutes } from "@/utils/cacheTime";
+import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/enums";
+import { env as clientEnv } from "@/utils/env";
+import { probeFileType } from "../helpers/probeFileType";
+import { isDev } from "@/utils/isDev";
+import { moderateImage } from "../helpers/openai";
+import { probeImageDimensionsAndType } from "../helpers/probeImage";
+import { emptyJsonArray, jsonAggBuildArray } from "../helpers/jsonSQL";
+import { firstNonNull, sqlAny, sqlArray } from "../../db/helpers/sql";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -78,7 +105,7 @@ const messagesGetOutputSchema = z.object({
 // to avoid type circular dependency
 export type MessagesGetOutput = z.infer<typeof messagesGetOutputSchema>;
 
-const pickFromShape = <
+const pickByShape = <
   TShape extends Record<string, unknown>,
   TSource extends { [K in keyof TShape]: unknown },
 >(
@@ -109,7 +136,18 @@ const messageAuthorColumns = {
   role: schema.user.role,
 };
 
+const messageFileColumns = {
+  id: schema.files.id,
+  object_key: schema.files.object_key,
+  original_name: schema.files.original_name,
+  extension: schema.files.extension,
+  size_bytes: schema.files.size_bytes,
+};
+
 export type FullMessage = typeof schema.messages.$inferSelect;
+export type FullFile = typeof schema.files.$inferSelect;
+export type FullMessageAttachment =
+  typeof schema.message_attachments.$inferSelect;
 type FullUser = typeof schema.user.$inferSelect;
 
 type Message = Pick<FullMessage, keyof typeof messageColumns>;
@@ -126,8 +164,15 @@ type JoinedMessage = Message & {
     edited_at: FullMessage["edited_at"];
     author: MessageAuthor;
   } | null;
+  attachments: Array<
+    Pick<
+      FullFile,
+      "id" | "object_key" | "original_name" | "extension" | "size_bytes"
+    > &
+      Pick<FullMessageAttachment, "sort_order">
+  >;
 };
-type ReplyMessage = Omit<JoinedMessage, "content"> & {
+type ReplyMessage = StrictOmit<JoinedMessage, "content" | "attachments"> & {
   contentPreview: FullMessage["content_text"];
 };
 
@@ -142,13 +187,6 @@ const pickMessageAuthor = (
   role: user.role,
 });
 
-const messagesJoinOn = (...extra: Array<SQL | undefined>) =>
-  and(
-    eq(schema.messages.channel_id, schema.channels.id),
-    isNull(schema.messages.deleted_at),
-    ...extra
-  );
-
 const toMessagesPayload = (
   rows: Array<{
     messages_version: number;
@@ -160,6 +198,7 @@ const toMessagesPayload = (
       }
     > | null;
     parent_message_author: MessageAuthor | null;
+    attachments: JoinedMessage["attachments"] | null;
   }>
 ) => {
   if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
@@ -169,16 +208,16 @@ const toMessagesPayload = (
     if (row.message?.id && row.author?.id) {
       let newItem = row.message as JoinedMessage;
       newItem.author = row.author as MessageAuthor;
+      newItem.attachments = row.attachments?.length ? row.attachments : [];
 
       newItem.parentMessage =
         row.message.reply_to_message_id &&
-        row.parent_message?.contentPreview &&
         row.parent_message?.created_at &&
         row.parent_message?.edited_at &&
         row.parent_message_author
           ? {
               author: row.parent_message_author,
-              contentPreview: row.parent_message.contentPreview,
+              contentPreview: row.parent_message.contentPreview || "",
               created_at: row.parent_message.created_at,
               edited_at: row.parent_message.edited_at,
             }
@@ -216,46 +255,156 @@ export const messagesRouter = router({
         isNull(schema.channels.deleted_at)
       );
 
+      const buildMessagesFilter = (extraCondition?: SQL) =>
+        and(
+          eq(schema.messages.channel_id, input.channelId),
+          isNull(schema.messages.deleted_at),
+          extraCondition
+        );
+
+      type FileColumnsSource = Record<
+        keyof typeof messageFileColumns,
+        SQLWrapper
+      >;
+      type AttachmentColumnsSource = Record<
+        keyof FullMessageAttachment,
+        SQLWrapper
+      >;
+      const buildAttachmentsAggregator = (
+        fileColumnsSource: FileColumnsSource,
+        attachmentColumnsSource: AttachmentColumnsSource
+      ) =>
+        jsonAggBuildArray<JoinedMessage["attachments"]>(
+          {
+            ...pickByShape(fileColumnsSource, messageFileColumns),
+            sort_order: attachmentColumnsSource.sort_order,
+          },
+          {
+            orderBy: attachmentColumnsSource.sort_order,
+            noFallbackArray: true,
+          }
+        ).as("attachments");
+
       const parentMessage = alias(schema.messages, "parent_message");
       const parentAuthor = alias(schema.user, "parent_author");
 
       type Direction = NonNullable<typeof cursor>["direction"];
 
-      const selectMessagesSubquery = ({
+      type SelectMessagesArgs = {
+        direction: Direction;
+        extraCondition?: SQL;
+        limit?: number;
+      };
+
+      const selectMessages = ({
         extraCondition,
         direction,
-      }: {
-        extraCondition?: SQL;
-        direction: Direction;
-      }) =>
+        limit = input.limit,
+      }: SelectMessagesArgs) =>
         db
           .select(messageColumns)
           .from(schema.messages)
-          .where(messagesJoinOn(extraCondition))
+          .where(buildMessagesFilter(extraCondition))
           .orderBy(
             direction === "forward"
               ? asc(schema.messages.id)
               : desc(schema.messages.id)
           )
-          .limit(input.limit)
-          .as("messages_subquery");
+          .limit(limit);
 
-      const selectMessageRows = ({
-        extraCondition,
+      const buildDirectionalMessagesSubquery = (args: SelectMessagesArgs) =>
+        db.$with("messages_subquery").as(selectMessages(args));
+
+      type MessagesSubquery = ReturnType<
+        typeof buildDirectionalMessagesSubquery
+      >;
+
+      const buildFullQuery = ({
+        messagesSubquery,
         direction,
       }: {
-        extraCondition?: SQL;
+        messagesSubquery: MessagesSubquery;
         direction: Direction;
       }) => {
-        const messagesSubquery = selectMessagesSubquery({
-          extraCondition,
-          direction,
-        });
+        const attachmentsSubquery = db.$with("attachments_subquery").as(
+          db
+            .select()
+            .from(schema.message_attachments)
+            .where(
+              eq(
+                schema.message_attachments.message_id,
+                // ANY(ARRAY(...)) to avoid bad plans when PostgreSQL misjudges row counts.
+                // Normal data in this table won't ever hit this, but apparently outliers with lots of
+                // related records can make the planner choose a seq scan
+                // e.g. tested with a few outlier messages that had thousands of attachments
+                sqlAny(
+                  sqlArray(
+                    db
+                      .select({ id: messagesSubquery.id })
+                      .from(messagesSubquery)
+                  )
+                )
+              )
+            )
+        );
+
+        const filesSubquery = db.$with("files_subquery").as(
+          db
+            .select(messageFileColumns)
+            .from(schema.files)
+            .where(
+              and(
+                eq(
+                  schema.files.id,
+                  sqlAny(
+                    sqlArray(
+                      db
+                        .select({ file_id: attachmentsSubquery.file_id })
+                        .from(attachmentsSubquery)
+                    )
+                  )
+                ),
+                eq(schema.files.status, FILE_STATUS.active)
+              )
+            )
+        );
+
+        const attachmentsByMessageSubquery = db
+          .$with("attachments_by_message_subquery")
+          // needs materialized because the planner may underestimate the row count and choose a slow plan
+          .materialized()
+          .as(
+            db
+              .select({
+                message_id: attachmentsSubquery.message_id,
+                attachments: buildAttachmentsAggregator(
+                  filesSubquery,
+                  attachmentsSubquery
+                ),
+              })
+              .from(attachmentsSubquery)
+              .innerJoin(
+                filesSubquery,
+                eq(filesSubquery.id, attachmentsSubquery.file_id)
+              )
+              .groupBy(attachmentsSubquery.message_id)
+          );
 
         return db
+          .with(
+            messagesSubquery,
+            attachmentsSubquery,
+            filesSubquery,
+            attachmentsByMessageSubquery
+          )
           .select({
             messages_version: schema.channels.messages_version,
-            message: pickFromShape(messagesSubquery, messageColumns),
+            message: pickByShape(messagesSubquery, messageColumns),
+            attachments: firstNonNull<JoinedMessage["attachments"]>(
+              attachmentsByMessageSubquery.attachments,
+              emptyJsonArray()
+            ).as("attachments"),
+
             author: messageAuthorColumns,
             parent_message: {
               contentPreview: leftText(
@@ -265,13 +414,17 @@ export const messagesRouter = router({
               created_at: parentMessage.created_at,
               edited_at: parentMessage.edited_at,
             },
-            parent_message_author: pickFromShape(
+            parent_message_author: pickByShape(
               parentAuthor,
               messageAuthorColumns
             ),
           })
           .from(schema.channels)
-          .leftJoinLateral(messagesSubquery, sql`true`)
+          .leftJoin(messagesSubquery, sql`true`)
+          .leftJoin(
+            attachmentsByMessageSubquery,
+            eq(attachmentsByMessageSubquery.message_id, messagesSubquery.id)
+          )
           .leftJoin(schema.user, eq(schema.user.id, messagesSubquery.user_id))
           .leftJoin(
             parentMessage,
@@ -294,8 +447,11 @@ export const messagesRouter = router({
           if (cursor.direction === "backward") {
             if (Math.random() < rate) throw new Error("Test error");
 
-            const rows = await selectMessageRows({
-              extraCondition: before(schema.messages.id, cursor.id),
+            const rows = await buildFullQuery({
+              messagesSubquery: buildDirectionalMessagesSubquery({
+                extraCondition: before(schema.messages.id, cursor.id),
+                direction: "backward",
+              }),
               direction: "backward",
             });
 
@@ -310,8 +466,11 @@ export const messagesRouter = router({
           if (cursor.direction === "forward") {
             if (Math.random() < rate) throw new Error("Test error");
 
-            const rows = await selectMessageRows({
-              extraCondition: after(schema.messages.id, cursor.id),
+            const rows = await buildFullQuery({
+              messagesSubquery: buildDirectionalMessagesSubquery({
+                extraCondition: after(schema.messages.id, cursor.id),
+                direction: "forward",
+              }),
               direction: "forward",
             });
 
@@ -331,77 +490,25 @@ export const messagesRouter = router({
       if (input.around) {
         const sideLimit = input.limit / 2;
 
-        const selectAroundSideIds = ({
-          extraCondition,
-          direction,
-          limit,
-        }: {
-          extraCondition: SQL;
-          direction: Direction;
-          limit: number;
-        }) =>
-          db
-            .select({
-              id: schema.messages.id,
+        const messagesSubquery = db.$with("messages_subquery").as(
+          unionAll(
+            selectMessages({
+              extraCondition: beforeOrEqual(schema.messages.id, input.around),
+              direction: "backward",
+              limit: sideLimit + 1, // includes target
+            }),
+            selectMessages({
+              extraCondition: after(schema.messages.id, input.around),
+              direction: "forward",
+              limit: sideLimit,
             })
-            .from(schema.channels)
-            .innerJoin(schema.messages, messagesJoinOn(extraCondition))
-            .where(channelFilter)
-            .orderBy(
-              direction === "forward"
-                ? asc(schema.messages.id)
-                : desc(schema.messages.id)
-            )
-            .limit(limit);
-
-        const aroundIds = unionAll(
-          selectAroundSideIds({
-            extraCondition: beforeOrEqual(schema.messages.id, input.around),
-            direction: "backward",
-            limit: sideLimit + 1, // includes target
-          }),
-          selectAroundSideIds({
-            extraCondition: after(schema.messages.id, input.around),
-            direction: "forward",
-            limit: sideLimit,
-          })
-        ).as("around_ids");
-
-        const rows = await db
-          .select({
-            messages_version: schema.channels.messages_version,
-            message: messageColumns,
-            author: messageAuthorColumns,
-            parent_message: {
-              contentPreview: leftText(
-                parentMessage.content_text,
-                sharedMessagesValidations.messageContentPreviewMaxLength
-              ),
-              created_at: parentMessage.created_at,
-              edited_at: parentMessage.edited_at,
-            },
-            parent_message_author: pickFromShape(
-              parentAuthor,
-              messageAuthorColumns
-            ),
-          })
-          .from(aroundIds)
-          .innerJoin(schema.messages, eq(schema.messages.id, aroundIds.id))
-          .innerJoin(
-            schema.channels,
-            eq(schema.channels.id, schema.messages.channel_id)
           )
-          .innerJoin(schema.user, eq(schema.user.id, schema.messages.user_id))
-          .leftJoin(
-            parentMessage,
-            and(
-              eq(parentMessage.id, schema.messages.reply_to_message_id),
-              isNull(parentMessage.deleted_at)
-            )
-          )
-          .leftJoin(parentAuthor, eq(parentAuthor.id, parentMessage.user_id))
-          .where(channelFilter)
-          .orderBy(asc(schema.messages.id));
+        );
+
+        const rows = await buildFullQuery({
+          messagesSubquery,
+          direction: "forward",
+        });
 
         const { items, messages_version } = toMessagesPayload(rows);
 
@@ -409,7 +516,13 @@ export const messagesRouter = router({
       }
       if (Math.random() < rate) throw new Error("Test error");
 
-      const rows = await selectMessageRows({ direction: "backward" });
+      const rows = await buildFullQuery({
+        messagesSubquery: buildDirectionalMessagesSubquery({
+          direction: "backward",
+        }),
+        direction: "backward",
+      });
+
       const { messages_version, items } = toMessagesPayload(rows);
 
       return {
@@ -464,6 +577,195 @@ export const messagesRouter = router({
         }
       }
     }),
+  createAttachmentUploadUrl: privateProcedure(
+    [P.messageAttachments.create],
+    rateLimitMiddlewares.auth_messagesAttachments
+  )
+    .input(sharedMessagesValidations.createMessageAttachmentUploadUrlSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const imageMimeType =
+        allowedMessageAttachmentExtensionsMap[input.fileExtension];
+
+      const bucketKey = `users/${userId}/${randomUUID()}.${input.fileExtension}`;
+
+      const uploadCommand = new PutObjectCommand({
+        Bucket: env.BACKBLAZE_BUCKET_NAME!,
+        Key: bucketKey,
+        ContentType: imageMimeType,
+        ContentLength: input.fileSize,
+        CacheControl: cacheControl,
+      });
+
+      const expiresIn = minutes(10, true);
+
+      const uploadUrl = await getSignedUrl(s3Client, uploadCommand, {
+        expiresIn,
+        signableHeaders: new Set(["content-type", "cache-control"]),
+      });
+
+      await db.insert(schema.files).values({
+        object_key: bucketKey,
+        owner_user_id: userId,
+        purpose: FILE_PURPOSE.message_attachment,
+        status: FILE_STATUS.issued,
+        original_name: input.fileName,
+        extension: input.fileExtension,
+        size_bytes: input.fileSize,
+      });
+
+      return {
+        bucketKey,
+        uploadUrl,
+        requiredHeaders: {
+          "Content-Type": imageMimeType,
+          "Cache-Control": cacheControl,
+        } as const,
+      };
+    }),
+  validateMessageAttachment: privateProcedure(
+    [P.messageAttachments.create],
+    rateLimitMiddlewares.auth_messagesAttachments
+  )
+    .input(sharedMessagesValidations.finalizeMessageAttachmentSchema)
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.user.id;
+      const newFileKey = input.fileObjectKey;
+      const nonVerifiedExtension = getFileExtension(
+        newFileKey,
+        allowedMessageAttachmentExtensions
+      );
+      if (
+        !validateUserFileKey(
+          userId,
+          newFileKey,
+          allowedMessageAttachmentExtensions
+        ) ||
+        !nonVerifiedExtension
+      ) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: "Invalid file key.",
+        });
+      }
+      const pendingFileFilter = and(
+        eq(schema.files.object_key, newFileKey),
+        eq(schema.files.purpose, FILE_PURPOSE.message_attachment),
+        eq(schema.files.owner_user_id, ctx.user.id),
+        eq(schema.files.status, FILE_STATUS.issued)
+      );
+
+      const [foundPendingFile] = await db
+        .select({ id: schema.files.id })
+        .from(schema.files)
+        .where(pendingFileFilter);
+
+      if (!foundPendingFile) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: "Invalid file key.",
+        });
+      }
+
+      let realExtension: string;
+      const newFileUrl = `${clientEnv.NEXT_PUBLIC_CDN_URL}/${newFileKey}`;
+      const isImage = isImageExtension(nonVerifiedExtension);
+
+      if (isImage) {
+        const probeResult = await probeImageDimensionsAndType(newFileUrl);
+        if (isDev) {
+          console.log({ probeResult });
+        }
+        throwIfZodError(
+          sharedMessagesValidations.messageAttachmentImageSchema.safeParse({
+            width: probeResult.width,
+            height: probeResult.height,
+          } satisfies z.infer<
+            typeof sharedMessagesValidations.messageAttachmentImageSchema
+          >)
+        );
+        realExtension = probeResult.detectedFileType.ext;
+      } else {
+        const probeResult = await probeFileType(newFileUrl);
+        if (isDev) {
+          console.log({ probeResult });
+        }
+        realExtension =
+          probeResult.kind === "binary"
+            ? probeResult.detectedFileType.ext
+            : "txt";
+      }
+
+      if (
+        !validateMessageAttachmentExtension(nonVerifiedExtension, realExtension)
+      ) {
+        throw new TRPCError({
+          code: "UNPROCESSABLE_CONTENT",
+          message: `File extension mismatch. Expected: ${nonVerifiedExtension}. Received: ${realExtension}.`,
+        });
+      }
+
+      if (isImage) {
+        let moderationResult: Awaited<ReturnType<typeof moderateImage>>;
+
+        try {
+          moderationResult = await moderateImage(newFileUrl);
+        } catch (err) {
+          console.error(
+            "Error moderating image file",
+            err,
+            "STRINGIFIED:",
+            JSON.stringify(err)
+          );
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+          });
+        }
+        const flagged = moderationResult.results?.[0]?.flagged || false;
+        if (flagged) {
+          try {
+            await s3Client.send(
+              new DeleteObjectCommand({
+                Bucket: env.BACKBLAZE_BUCKET_NAME!,
+                Key: newFileKey,
+              })
+            );
+            await db
+              .update(schema.files)
+              .set({
+                status: FILE_STATUS.deleted,
+                info_text: `Moderation rejected. Details: ${JSON.stringify(moderationResult.results?.[0])}`,
+              })
+              .where(pendingFileFilter);
+          } catch (err) {
+            const errorText = `Failed to delete the avatar image from the bucket. Key was: ${newFileKey}. Error: ${JSON.stringify(err)}`;
+            console.error(errorText);
+            await db
+              .update(schema.files)
+              .set({
+                status: FILE_STATUS.error,
+                error_text: errorText,
+              })
+              .where(pendingFileFilter);
+          }
+          throw new TRPCError({
+            code: "UNPROCESSABLE_CONTENT",
+            message:
+              "Image rejected by moderation. Please try a different file.",
+          });
+        }
+      }
+
+      const [updatedRow] = await db
+        .update(schema.files)
+        .set({
+          status: FILE_STATUS.validated,
+        })
+        .where(pendingFileFilter)
+        .returning({ id: schema.files.id });
+
+      return { id: updatedRow.id };
+    }),
   create: privateProcedure(
     [P.messages.create],
     rateLimitMiddlewares.auth_messagesWrite
@@ -474,16 +776,52 @@ export const messagesRouter = router({
       const fullCheckResult = serverMessagesValidations
         .makeMessageCreateSchema(ctx.user.emailVerified)
         .safeParse(dangerousInput);
+
       throwIfZodError(fullCheckResult);
       const input = fullCheckResult.data;
+
       // await new Promise((r) => setTimeout(r, 1500));
       // if (Math.random() < 0.7) throw new Error("Test error");
-
+      const userId = ctx.user.id;
       const author = pickMessageAuthor(ctx.user);
       const isReply = Boolean(input.reply_to_message_id);
+      const attachmentIds = input.attachmentIds;
+      const attachmentCount = attachmentIds.length;
 
       const replyParentMessage = alias(schema.messages, "reply_parent_message");
       const replyParentAuthor = alias(schema.user, "reply_parent_author");
+
+      const validatedAttachments = db.$with("validated_attachments").as(
+        db
+          .select({
+            id: schema.files.id,
+            object_key: schema.files.object_key,
+            original_name: schema.files.original_name,
+            size_bytes: schema.files.size_bytes,
+            extension: schema.files.extension,
+          })
+          .from(schema.files)
+          .where(
+            attachmentCount
+              ? and(
+                  inArray(schema.files.id, attachmentIds),
+                  eq(schema.files.owner_user_id, userId),
+                  eq(schema.files.purpose, FILE_PURPOSE.message_attachment),
+                  eq(schema.files.status, FILE_STATUS.validated)
+                )
+              : sql`false`
+          )
+      );
+
+      const validatedAttachmentCount = db
+        .$with("validated_attachment_count")
+        .as(
+          db
+            .select({
+              count: count().as("attachment_count"),
+            })
+            .from(validatedAttachments)
+        );
 
       const validatedParentMessage = db.$with("validated_parent_message").as(
         db
@@ -513,10 +851,14 @@ export const messagesRouter = router({
           })
           .from(schema.channels)
           .leftJoin(validatedParentMessage, sql`true`)
+          .crossJoin(validatedAttachmentCount)
           .where(
             and(
               eq(schema.channels.id, input.channelId),
               isNull(schema.channels.deleted_at),
+              attachmentCount
+                ? eq(validatedAttachmentCount.count, attachmentCount)
+                : undefined,
               isReply ? isNotNull(validatedParentMessage.id) : undefined
             )
           )
@@ -536,6 +878,44 @@ export const messagesRouter = router({
           })
           .returning(messageColumns)
       );
+
+      const attachmentInsert = attachmentCount
+        ? db.$with("message_attachment").as(
+            db
+              .insert(schema.message_attachments)
+              .values(
+                attachmentIds.map((fileId, index) => ({
+                  message_id: sql`(select ${messageInsert.id} from ${messageInsert})`,
+                  file_id: fileId,
+                  sort_order: index,
+                }))
+              )
+              .returning({
+                file_id: schema.message_attachments.file_id,
+                sort_order: schema.message_attachments.sort_order,
+              })
+          )
+        : undefined;
+
+      const attachedFilesUpdate = attachmentInsert
+        ? db.$with("attached_files").as(
+            db
+              .update(schema.files)
+              .set({
+                status: FILE_STATUS.active,
+              })
+              .from(attachmentInsert)
+              .where(eq(schema.files.id, attachmentInsert.file_id))
+              .returning({
+                id: schema.files.id,
+                object_key: schema.files.object_key,
+                original_name: schema.files.original_name,
+                size_bytes: schema.files.size_bytes,
+                extension: schema.files.extension,
+                sort_order: attachmentInsert.sort_order,
+              })
+          )
+        : undefined;
 
       const channelUpdate = db.$with("channel").as(
         db
@@ -568,16 +948,30 @@ export const messagesRouter = router({
           })
       );
 
-      const [newData] = await db
+      const query = db
         .with(
+          validatedAttachments,
+          validatedAttachmentCount,
           validatedParentMessage,
           validatedChannel,
           messageInsert,
+          ...(attachmentInsert ? [attachmentInsert] : []),
+          ...(attachedFilesUpdate ? [attachedFilesUpdate] : []),
           parentMessageUpdate,
           channelUpdate
         )
         .select({
-          message: pickFromShape(messageInsert, messageColumns),
+          message: pickByShape(messageInsert, messageColumns),
+          attachment: attachedFilesUpdate
+            ? {
+                id: attachedFilesUpdate.id,
+                object_key: attachedFilesUpdate.object_key,
+                original_name: attachedFilesUpdate.original_name,
+                size_bytes: attachedFilesUpdate.size_bytes,
+                extension: attachedFilesUpdate.extension,
+                sort_order: attachedFilesUpdate.sort_order,
+              }
+            : sql<null>`null`.as("attachment"),
           channel_messages_version: channelUpdate.messages_version,
           parent_message: {
             id: validatedParentMessage.id,
@@ -589,7 +983,7 @@ export const messagesRouter = router({
             edited_at: validatedParentMessage.edited_at,
             reply_count: parentMessageUpdate.reply_count,
           },
-          parent_message_author: pickFromShape(
+          parent_message_author: pickByShape(
             replyParentAuthor,
             messageAuthorColumns
           ),
@@ -604,7 +998,14 @@ export const messagesRouter = router({
         .leftJoin(
           replyParentAuthor,
           eq(replyParentAuthor.id, validatedParentMessage.user_id)
-        );
+        )
+        .$dynamic();
+
+      const rows = attachedFilesUpdate
+        ? await query.leftJoin(attachedFilesUpdate, sql`true`)
+        : await query;
+
+      const newData = rows[0];
 
       if (!newData?.message || !newData.channel_messages_version) {
         throw new TRPCError({ code: "NOT_FOUND" });
@@ -612,17 +1013,19 @@ export const messagesRouter = router({
       const newMessage = newData.message as JoinedMessage;
       newMessage.author = author;
       newMessage.parentMessage =
-        newData.parent_message.contentPreview &&
         newData.parent_message.created_at &&
         newData.parent_message.edited_at &&
         newData.parent_message_author
           ? {
               author: newData.parent_message_author,
-              contentPreview: newData.parent_message.contentPreview,
+              contentPreview: newData.parent_message.contentPreview || "",
               created_at: newData.parent_message.created_at,
               edited_at: newData.parent_message.edited_at,
             }
           : null;
+      newMessage.attachments = rows.flatMap((row) =>
+        row.attachment?.id ? [row.attachment] : []
+      );
 
       const parentMessageIdSerialized = newMessage.reply_to_message_id || null;
 
@@ -781,6 +1184,24 @@ export const messagesRouter = router({
           .returning(messageColumns)
       );
 
+      const attachedFilesUpdate = db.$with("attached_files").as(
+        db
+          .update(schema.files)
+          .set({ status: FILE_STATUS.deleted })
+          .from(schema.message_attachments)
+          .where(
+            and(
+              eq(schema.files.id, schema.message_attachments.file_id),
+              eq(
+                schema.message_attachments.message_id,
+                db.select({ id: messageUpdate.id }).from(messageUpdate)
+              ),
+              eq(schema.files.owner_user_id, ctx.user.id),
+              eq(schema.files.status, FILE_STATUS.active)
+            )
+          )
+      );
+
       const channelUpdate = db.$with("channel").as(
         db
           .update(schema.channels)
@@ -816,7 +1237,12 @@ export const messagesRouter = router({
       );
 
       const [updatedData] = await db
-        .with(messageUpdate, channelUpdate, parentMessageUpdate)
+        .with(
+          messageUpdate,
+          attachedFilesUpdate,
+          channelUpdate,
+          parentMessageUpdate
+        )
         .select()
         .from(messageUpdate)
         .innerJoin(channelUpdate, sql`true`)

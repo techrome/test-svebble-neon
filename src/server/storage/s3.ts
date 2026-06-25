@@ -18,11 +18,7 @@ const makeS3Client = () => {
       accessKeyId: env.BACKBLAZE_APP_KEY_ID,
       secretAccessKey: env.BACKBLAZE_APP_KEY,
     },
-    ...(isDev
-      ? {
-          forcePathStyle: true,
-        }
-      : {}),
+    forcePathStyle: true,
   });
 };
 

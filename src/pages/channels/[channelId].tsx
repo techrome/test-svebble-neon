@@ -15,6 +15,8 @@ import ReplyIcon from "@mui/icons-material/Reply";
 import ClearIcon from "@mui/icons-material/Clear";
 import ViewListIcon from "@mui/icons-material/ViewList";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import debounce from "lodash/debounce";
 import z from "@/utils/zod";
@@ -64,7 +66,10 @@ import {
   WebsocketEventName,
 } from "@/trpc/helpers/websockets";
 import ChannelListWrapper from "@/components/Chat/ChannelList";
-import { numericIdSchema } from "@/utils/validators/helpers/custom";
+import {
+  getFileExtension,
+  numericIdSchema,
+} from "@/utils/validators/helpers/custom";
 import { TermsLabel } from "@/components/AuthForm/Helpers";
 import { useWsClient } from "@/components/WebsocketsProvider/WebsocketsProvider";
 import { MessagesSkeleton } from "@/components/Chat/MessagesSkeleton";
@@ -75,6 +80,22 @@ import type { AppRouter } from "@/server";
 import MessageEditor from "@/components/Chat/MessageEditor";
 import { User } from "@/utils/validators/shared/user";
 import { useLatest } from "@/utils/hooks/useLatest";
+import { useDropzone } from "react-dropzone";
+import {
+  allowedMessageAttachmentExtensions,
+  allowedMessageAttachmentExtensionsDropzone,
+  isImageExtension,
+  MESSAGE_ATTACHMENT_MAX_COUNT,
+} from "@/utils/validators/sharedValues/messages";
+import { createImage } from "@/utils/image";
+import {
+  createMessageAttachmentUploadUrlSchema,
+  messageAttachmentImageSchema,
+} from "@/utils/validators/shared/messages";
+import {
+  MessageAttachmentsUpload,
+  type NewMessageAttachmentData,
+} from "@/components/Chat/MessageAttachments";
 
 type JSONIncompatibleMessageFields = Pick<
   MessageSerializable,
@@ -180,6 +201,7 @@ const estimateMessageHeight = (message: RenderedMessage): number => {
     Math.max(0, message.content.length - charsPerLine) / charsPerLine
   );
   const replyCount = message.reply_count ? 24 : 0;
+  const attachments = message.attachments.length ? 150 : 0;
 
   return Math.max(
     32,
@@ -190,7 +212,8 @@ const estimateMessageHeight = (message: RenderedMessage): number => {
         base +
         replyPreview +
         additionalTextLines * lineHeight +
-        replyCount
+        replyCount +
+        attachments
     )
   );
 };
@@ -237,14 +260,10 @@ const messageQuerySelectors = {
     // while having sane limits on how many messages can be collapsed consecutively
     let groupStartCreatedAt: Date | undefined;
     let groupMessageCount = 0;
+    let prevMessage: (typeof data.pages)[number]["items"][number] | undefined;
     for (let pageIndex = 0; pageIndex < data.pages.length; pageIndex++) {
       const page = data.pages[pageIndex];
       for (let itemIndex = 0; itemIndex < page.items.length; itemIndex++) {
-        const prevPage = data.pages[pageIndex - 1];
-        const prevMessage =
-          itemIndex === 0 && prevPage
-            ? prevPage.items[prevPage.items.length - 1]
-            : page.items[itemIndex - 1];
         const message = page.items[itemIndex];
 
         const isFirstMessageOfTheDay =
@@ -286,6 +305,7 @@ const messageQuerySelectors = {
 
         items.push(newItem);
         heightEstimates.push(estimatedHeight);
+        prevMessage = message;
       }
     }
 
@@ -422,6 +442,90 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const [messageToReply, setMessageToReply] = useState<
     (Pick<Message, "id"> & { author: Pick<User, "name"> }) | null
   >(null);
+  const [attachments, setAttachments] = useState<NewMessageAttachmentData[]>(
+    []
+  );
+
+  const onFileAttachmentDrop = async (files: File[]) => {
+    const remainingAvailableFileCount =
+      MESSAGE_ATTACHMENT_MAX_COUNT - attachments.length;
+    const filesToAdd = files.slice(0, remainingAvailableFileCount);
+    if (files.length > remainingAvailableFileCount) {
+      addAppSnackbar({
+        message: `Message cannot have more than ${MESSAGE_ATTACHMENT_MAX_COUNT} files attached.`,
+        variant: "error",
+      });
+    }
+    if (!filesToAdd.length) return;
+    let resultFiles: typeof attachments = [];
+    for (const file of filesToAdd) {
+      const extension = getFileExtension(
+        file.name,
+        allowedMessageAttachmentExtensions
+      );
+
+      const fileId = `${file.name}|${file.size}|${file.lastModified}`;
+      if (attachments.some((a) => a.id === fileId)) {
+        addAppSnackbar({
+          message: `File "${file.name}" is already selected.`,
+          variant: "warning",
+        });
+        continue;
+      }
+
+      const fileCheckResult = createMessageAttachmentUploadUrlSchema.safeParse({
+        fileName: file.name,
+        fileExtension: extension,
+        fileSize: file.size,
+      } satisfies z.input<typeof createMessageAttachmentUploadUrlSchema>);
+      if (!fileCheckResult.success) {
+        addAppSnackbar({
+          message: fileCheckResult.error?.issues?.[0].message,
+          variant: "error",
+        });
+        continue;
+      }
+
+      const isImage = isImageExtension(extension);
+      if (isImage) {
+        const imageInfo = await createImage(file);
+        const imageCheckResult = messageAttachmentImageSchema.safeParse({
+          width: imageInfo.naturalWidth,
+          height: imageInfo.naturalHeight,
+        } satisfies z.input<typeof messageAttachmentImageSchema>);
+        if (!imageCheckResult.success) {
+          addAppSnackbar({
+            message: imageCheckResult.error?.issues?.[0].message,
+            variant: "error",
+          });
+          continue;
+        }
+      }
+
+      resultFiles.push({
+        id: fileId,
+        file,
+        status: "Idle",
+        isImage,
+      });
+    }
+
+    setAttachments((prev) => [...prev, ...resultFiles]);
+  };
+
+  const {
+    getRootProps: getDropzoneRootProps,
+    getInputProps: getDropzoneInputProps,
+    isDragActive,
+    open: openAttachmentFilePicker,
+  } = useDropzone({
+    noClick: true,
+    noKeyboard: true,
+    onDrop: onFileAttachmentDrop,
+    multiple: true,
+    accept: { file: allowedMessageAttachmentExtensionsDropzone },
+  });
+
   const [isIdleTrigger, setIsIdleTrigger] = useState(0);
   const [isInitialScrollHandled, setIsInitialScrollHandled] =
     useState<boolean>(true);
@@ -846,6 +950,59 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     });
   };
 
+  const messageCreateMutation = trpc.messages.create.useMutation({
+    onMutate(variables) {
+      const currentUser = user.data?.user;
+      if (!currentUser) return;
+      const tempId = nextOptimisticIdRef.current;
+      nextOptimisticIdRef.current -= 1;
+      setOptimisticMessages((prev) => [
+        ...prev,
+        {
+          channel_id: variables.channelId,
+          content: variables.content,
+          content_text: variables.content,
+          created_at: new Date(),
+          edited_at: new Date(),
+          deleted_at: null,
+          id: tempId,
+          user_id: currentUser.id,
+          reply_count: 0,
+          reply_to_message_id: variables.reply_to_message_id || null,
+          author: {
+            ...currentUser,
+          },
+          attachments: variables.attachmentIds || [],
+          isOptimistic: true,
+          parentMessage: null,
+        },
+      ]);
+      return {
+        tempId,
+      };
+    },
+    onSuccess(data, _vars, onMutateResult) {
+      if (onMutateResult?.tempId) {
+        deleteOptimisticMessage(onMutateResult.tempId);
+      }
+      if (handleNewMessagesVersion(data.messagesVersion)) {
+        appendMessage(data, appliedMessagesVersion.current);
+      }
+      onOwnMessageActionSuccess();
+    },
+    onError(_error, _variables, onMutateResult) {
+      if (onMutateResult?.tempId) {
+        setOptimisticMessages((prev) =>
+          prev.map((m) =>
+            m.id === onMutateResult.tempId ? { ...m, isFailed: true } : m
+          )
+        );
+      }
+    },
+    meta: { keepDefaultErrorHandling: true },
+  });
+
+  const isFormSubmitted = form.formState.isSubmitted;
   const dependencies = useRef({
     messagesQueryKey,
     firstItemIndex,
@@ -859,6 +1016,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     appendMessage,
     editMessage,
     deleteMessage,
+    form,
+    isFormSubmitted,
   });
 
   dependencies.current = {
@@ -874,6 +1033,8 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     appendMessage,
     editMessage,
     deleteMessage,
+    form,
+    isFormSubmitted,
   };
 
   const wsMessageCreateHandler = useCallback(
@@ -1001,57 +1162,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   //   },
   // });
 
-  const messageCreateMutation = trpc.messages.create.useMutation({
-    onMutate(variables) {
-      const currentUser = user.data?.user;
-      if (!currentUser) return;
-      const tempId = nextOptimisticIdRef.current;
-      nextOptimisticIdRef.current -= 1;
-      setOptimisticMessages((prev) => [
-        ...prev,
-        {
-          channel_id: variables.channelId,
-          content: variables.content,
-          content_text: variables.content,
-          created_at: new Date(),
-          edited_at: new Date(),
-          deleted_at: null,
-          id: tempId,
-          user_id: currentUser.id,
-          reply_count: 0,
-          reply_to_message_id: variables.reply_to_message_id || null,
-          author: {
-            ...currentUser,
-          },
-          isOptimistic: true,
-          parentMessage: null,
-        },
-      ]);
-      return {
-        tempId,
-      };
-    },
-    onSuccess(data, _vars, onMutateResult) {
-      if (onMutateResult?.tempId) {
-        deleteOptimisticMessage(onMutateResult.tempId);
-      }
-      if (handleNewMessagesVersion(data.messagesVersion)) {
-        appendMessage(data, appliedMessagesVersion.current);
-      }
-      onOwnMessageActionSuccess();
-    },
-    onError(_error, _variables, onMutateResult) {
-      if (onMutateResult?.tempId) {
-        setOptimisticMessages((prev) =>
-          prev.map((m) =>
-            m.id === onMutateResult.tempId ? { ...m, isFailed: true } : m
-          )
-        );
-      }
-    },
-    meta: { keepDefaultErrorHandling: true },
-  });
-
   // const commentDeleteAllMutation = trpc.messages.deleteAll.useMutation({
   //   onSuccess: () => {
   //     utils.messages.get.invalidate();
@@ -1082,11 +1192,18 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const onSubmit: SubmitHandler<MessageCreateFormValues> = (values) => {
     form.reset();
+    // second reset because form doesn't get fully reset right away
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        form.reset();
+      })
+    );
     messageCreateMutation.mutate({
       ...values,
       reply_to_message_id: messageToReply?.id,
     });
     setMessageToReply(null);
+    setAttachments([]);
   };
   const onSearchSubmit: SubmitHandler<SearchFormValues> = (values) => {
     setUrlMessageId(values.text);
@@ -1871,6 +1988,15 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     messages.hasNextPage,
   ]);
 
+  useEffect(() => {
+    const { form, isFormSubmitted } = dependencies.current;
+    form.setValue(
+      "attachmentIds",
+      attachments.map((x) => x.remoteId || ""),
+      { shouldValidate: isFormSubmitted }
+    );
+  }, [attachments]);
+
   const virtuosoContext = {
     messages,
     scrollerElRef,
@@ -2107,7 +2233,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           />
         </form>
       </HorizontalStack>
-      <div className="w-full min-h-0 flex flex-col flex-1">
+      <div
+        className={clsx("w-full min-h-0 flex flex-col flex-1 relative")}
+        {...(user.data?.user?.id ? getDropzoneRootProps() : {})}
+      >
         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col relative">
           {shouldRenderList ? (
             <>
@@ -2185,12 +2314,16 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                         onOwnMessageActionSuccess();
                       }}
                       onOptimisticFailedRetry={() => {
-                        deleteOptimisticMessage(message.id);
-                        messageCreateMutation.mutate({
-                          channelId: message.channel_id,
-                          content: message.content,
-                          reply_to_message_id: message.reply_to_message_id,
-                        });
+                        // will be always optimistic anyway but just for TS narrowing
+                        if (message.isOptimistic) {
+                          deleteOptimisticMessage(message.id);
+                          messageCreateMutation.mutate({
+                            channelId: message.channel_id,
+                            content: message.content,
+                            reply_to_message_id: message.reply_to_message_id,
+                            attachmentIds: message.attachments,
+                          });
+                        }
                       }}
                       onOptimisticFailedDelete={() => {
                         deleteOptimisticMessage(message.id);
@@ -2274,8 +2407,13 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 <HorizontalStack
                   addClassName="justify-between items-center pb-2"
                   fullWidth
+                  wrap={false}
                 >
-                  <HorizontalStack addClassName="items-center" spacing="xs">
+                  <HorizontalStack
+                    addClassName="items-center"
+                    spacing="xs"
+                    wrap={false}
+                  >
                     <ReplyIcon fontSize="small" className="-scale-x-100" />
                     <Typography>
                       Replying to{" "}
@@ -2296,11 +2434,43 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                   </Tooltip>
                 </HorizontalStack>
               )}
+              {!!attachments.length && (
+                <MessageAttachmentsUpload
+                  attachments={attachments}
+                  setAttachments={setAttachments}
+                  form={form}
+                />
+              )}
               <MessageEditor
                 control={form.control}
                 name="content"
                 placeholder={`Message #${channel.name}`}
                 hideError
+                startAccessory={
+                  <Tooltip
+                    title={
+                      <>
+                        <Typography>Attach file</Typography>
+                        <Typography>
+                          Allowed extensions:{" "}
+                          {allowedMessageAttachmentExtensions.join(", ")}.
+                        </Typography>
+                      </>
+                    }
+                  >
+                    <IconButton
+                      type="button"
+                      className=""
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openAttachmentFilePicker();
+                      }}
+                    >
+                      <AttachFileIcon />
+                      <input hidden type="file" {...getDropzoneInputProps()} />
+                    </IconButton>
+                  </Tooltip>
+                }
               />
             </form>
           </>
@@ -2346,6 +2516,21 @@ const MessageListOrchestrator = ({ channel }: Props) => {
             <TermsLabel hideMargin />
           </VerticalStack>
         )}
+        <div
+          className={clsx(
+            "light absolute bg-[rgb(var(--mui-palette-text-primaryChannel)/0.5)] pointer-events-none backdrop-blur-[2px] inset-0 z-20 flex justify-center items-center rounded-inherit transition text-mui-background-default",
+            !isDragActive && "opacity-0"
+          )}
+        >
+          <VerticalStack addClassName="items-center">
+            <CloudUploadIcon fontSize="large" />
+            <Typography variant="h6">Drop the file here...</Typography>
+            <Typography variant="body2">
+              Allowed extensions:{" "}
+              {allowedMessageAttachmentExtensions.join(", ")}.
+            </Typography>
+          </VerticalStack>
+        </div>
       </div>
     </Paper>
   );
@@ -2356,6 +2541,7 @@ const Channel: AppPage = () => {
   const channels = trpc.channels.get.useQuery(undefined, {
     staleTime: CACHE_TIME_MS.NORMAL,
   });
+  const user = useUser();
 
   const urlChannelId = useMemo(
     () => getRouterQueryValue(router.query.channelId),
@@ -2375,7 +2561,7 @@ const Channel: AppPage = () => {
         ) : (
           <LoadingBoundary addClassName="min-h-0 h-full flex-1">
             <MessageListOrchestrator
-              key={foundChannel.id}
+              key={`${foundChannel.id}-${user.data?.user?.id || "guest"}`}
               channel={foundChannel}
             />
           </LoadingBoundary>

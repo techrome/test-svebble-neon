@@ -17,12 +17,14 @@ const Tooltip = ({ children, ...props }: TooltipProps) => {
       placement="top"
       arrow
       enterDelay={150}
-      enterTouchDelay={100}
+      enterTouchDelay={300}
       leaveTouchDelay={4000}
       {...props}
       title={
         props.title ? (
-          <Typography variant="body1">{props.title}</Typography>
+          <Typography className="dark" variant="body1">
+            {props.title}
+          </Typography>
         ) : null
       }
     >

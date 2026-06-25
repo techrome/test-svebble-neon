@@ -1,4 +1,4 @@
-import { kibibytes } from "@/utils/storageUnits";
+import { kilobytes } from "@/utils/storageUnits";
 import {
   allowedAvatarExtensions,
   AVATAR_MAX_HEIGHT,
@@ -8,14 +8,19 @@ import {
 import z from "@/utils/zod";
 
 export const avatarUploadUrlSchemaClient = z.object({
-  imageExtension: z.enum(allowedAvatarExtensions, {
-    error: "Unsupported image type.",
-  }),
+  imageExtension: z
+    .string()
+    .nullable()
+    .pipe(
+      z.enum(allowedAvatarExtensions, {
+        error: "Unsupported image type.",
+      })
+    ),
   imageSize: z
     .number()
     .int()
     .positive()
-    .max(kibibytes(AVATAR_MAX_SIZE_KB), {
+    .max(kilobytes(AVATAR_MAX_SIZE_KB), {
       error: `Image size must be less than ${AVATAR_MAX_SIZE_KB}KB.`,
     }),
   imageWidth: z

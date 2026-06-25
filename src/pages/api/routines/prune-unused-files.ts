@@ -7,7 +7,8 @@ import { withCronAuth } from "../../../server/trpc/helpers/cronHelpers";
 
 const handler = async (_req: NextApiRequest, res: NextApiResponse) => {
   const pruneResult = await trpc.routines.pruneFiles({
-    statusesToDelete: [FILE_STATUS.issued, FILE_STATUS.inactive],
+    criteria: "default",
+    statusesToPrune: [FILE_STATUS.issued, FILE_STATUS.inactive],
     howOldMs: hours(1),
   });
   console.log("Prune unused files result:", pruneResult);

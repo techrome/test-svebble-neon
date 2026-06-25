@@ -1,10 +1,10 @@
 import sodium from "libsodium-wrappers";
-import { db } from "../src/server/db";
-import { audit_log } from "../src/server/db/schema";
+// import { db } from "../src/server/db";
+// import { audit_log } from "../src/server/db/schema";
 // import f from "./audit_log.json";
 
-const publicKey = Buffer.from("test1", "base64url");
-const privateKey = Buffer.from("test2", "base64url");
+// const publicKey = Buffer.from("test1", "base64url");
+// const privateKey = Buffer.from("test2", "base64url");
 
 async function main() {
   await sodium.ready;
