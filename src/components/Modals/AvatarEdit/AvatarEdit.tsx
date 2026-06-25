@@ -31,13 +31,9 @@ import { useAppSnackbar } from "@/utils/snackbar";
 import ButtonBase from "@/components/Button/ButtonBase";
 import { useLocalModal } from "@/utils/hooks/useOverlay";
 import Tooltip from "@/components/Tooltip/Tooltip";
-import HelperText from "@/components/Fields/HelperText";
 import IconButton from "@/components/Button/IconButton";
 import clsx from "clsx";
-import {
-  avatarSelectSchema,
-  AvatarSelectSchemaForm,
-} from "@/utils/validators/shared/user";
+import { avatarSelectSchema } from "@/utils/validators/shared/user";
 import {
   allowedAvatarExtensions,
   allowedAvatarMimeTypes,

@@ -43,7 +43,6 @@ import {
 import Tooltip from "@/components/Tooltip/Tooltip";
 import { env } from "@/utils/env";
 import {
-  AvatarUploadUrlSchemaForm,
   BasicProfileFormValues,
   basicProfileSchemaForm,
   makeUsernameSchemaForm,
