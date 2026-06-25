@@ -38,7 +38,7 @@ export const pruneFiles = async (
   props:
     | {
         criteria: "default";
-        statusesToPrune: FileStatus[];
+        statusesToPrune?: FileStatus[];
         howOldMs?: number;
         userId?: string;
       }

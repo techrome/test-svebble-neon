@@ -77,7 +77,10 @@ export const pruneUsers = async ({
   let userIdsToPrune: Array<(typeof user.$inferSelect)["id"]> = [];
 
   await runConcurrently(usersToPrune, 10, async (userRow) => {
-    const userFilesPruneResult = await pruneFiles({ userId: userRow.id });
+    const userFilesPruneResult = await pruneFiles({
+      criteria: "default",
+      userId: userRow.id,
+    });
     const userMessagesPruneResult = await pruneMessages({
       criteria: "by user id",
       userId: userRow.id,
