@@ -28,3 +28,11 @@ export const copyToClipboard = async (text: string) => {
     return false;
   }
 };
+
+// separate helper for the "includes" check so that TS doesn't complain
+export const isOneOf = <T extends readonly unknown[]>(
+  value: unknown,
+  values: T
+): value is T[number] => {
+  return (values as readonly unknown[]).includes(value);
+};
