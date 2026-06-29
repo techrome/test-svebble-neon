@@ -22,6 +22,7 @@ export const store = configureStore({
         ignoredActions: [
           overlaysSlice.actions.setModalState.type,
           overlaysSlice.actions.setDrawerState.type,
+          overlaysSlice.actions.setBaseModalState.type,
           snackbarsSlice.actions.addSnackbar.type,
         ],
         ignoredPaths: [

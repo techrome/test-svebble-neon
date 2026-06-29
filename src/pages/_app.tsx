@@ -32,6 +32,7 @@ import "react-quill-new/dist/quill.snow.css";
 import { authRoutePrefix, privateRoutePrefix } from "@/utils/routes";
 import { AuthPageWrapper } from "@/components/AuthForm/Helpers";
 import { WebsocketsProvider } from "@/components/WebsocketsProvider/WebsocketsProvider";
+import GlobalBaseModal from "@/components/Overlays/GlobalBaseModal";
 
 const PrivateRoute = dynamic(
   () => import("@/components/PrivateRoute/PrivateRoute").then((m) => m.default),
@@ -95,6 +96,7 @@ const App = ({ Component, pageProps }: AppProps) => {
                           )}
                         </Section>
                         <GlobalModal />
+                        <GlobalBaseModal />
                         <GlobalDrawer />
                       </div>
                     </LoadingBoundary>

@@ -5,15 +5,21 @@ import Modal, { type ModalProps } from "@/components/Overlays/Modal";
 import {
   setDrawerState,
   setModalState,
+  setBaseModalState,
   type Overlay,
 } from "@/redux/slices/overlays";
 import { useAppDispatch, useAppSelector } from "@/redux/hooks";
 import { RootState } from "@/redux";
 import Drawer, { type DrawerProps } from "@/components/Overlays/Drawer";
+import BaseModal, {
+  type BaseModalProps,
+} from "@/components/Overlays/BaseModal";
 import Popover, { Props as PopoverProps } from "@/components/Popover/Popover";
 import { PartialFor } from "@/utils/types";
 
-const useGlobalOverlayBase = <Props extends ModalProps | DrawerProps>(
+const useGlobalOverlayBase = <
+  Props extends BaseModalProps | ModalProps | DrawerProps,
+>(
   selector: (state: RootState) => Overlay<Props>,
   setStateAction: ActionCreatorWithPayload<Partial<Overlay<Props>>>
 ) => {
@@ -140,6 +146,86 @@ export const useLocalModal = () => {
     openModal,
     closeModal,
     Modal,
+    // eslint-disable-next-line
+    ReadyComponent: readyComponentRef.current,
+  };
+};
+
+export const useGlobalBaseModal = () => {
+  const {
+    clearOverlay,
+    closeOverlay,
+    isOpen,
+    openOverlay,
+    updateOverlay,
+    state,
+  } = useGlobalOverlayBase<BaseModalProps>(
+    (state) => state.overlays.baseModal,
+    setBaseModalState
+  );
+
+  return {
+    isOpen: isOpen,
+    openModal: openOverlay,
+    updateModal: updateOverlay,
+    closeModal: closeOverlay,
+    clearModal: clearOverlay,
+    modalState: state,
+  };
+};
+
+type BaseModalInitialProps = PartialFor<
+  BaseModalProps,
+  "isOpen" | "onClose" | "children"
+>;
+
+export const useLocalBaseModal = () => {
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const initialPropsRef = useRef<BaseModalInitialProps>({});
+  const readyComponentRef = useRef<React.FC<BaseModalInitialProps> | null>(
+    null
+  );
+
+  const openModal = () => {
+    setIsOpen(true);
+  };
+  const closeModal = () => {
+    setIsOpen(false);
+  };
+
+  // eslint-disable-next-line
+  initialPropsRef.current = {
+    isOpen,
+    onClose: closeModal,
+  };
+
+  // eslint-disable-next-line
+  if (!readyComponentRef.current) {
+    readyComponentRef.current = ({
+      children,
+      onClose,
+      ...props
+    }: BaseModalInitialProps) => {
+      return (
+        <BaseModal
+          isOpen={initialPropsRef.current.isOpen!}
+          onClose={(...args) => {
+            initialPropsRef.current?.onClose?.(...args);
+            onClose?.(...args);
+          }}
+          {...props}
+        >
+          {children}
+        </BaseModal>
+      );
+    };
+  }
+
+  return {
+    isOpen,
+    openModal,
+    closeModal,
+    BaseModal,
     // eslint-disable-next-line
     ReadyComponent: readyComponentRef.current,
   };

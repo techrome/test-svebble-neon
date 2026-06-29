@@ -30,8 +30,11 @@ import { env } from "@/utils/env";
 import clsx from "clsx";
 import useIsDesktop from "@/utils/hooks/useIsDesktop";
 import { UseFormReturn } from "react-hook-form";
-import { MessageCreateFormValues } from "@/utils/validators/client/messages";
+import { type MessageCreateFormValues } from "@/utils/validators/client/messages";
 import HelperText from "@/components/Fields/HelperText";
+import ButtonBase from "@/components/Button/ButtonBase";
+import { useGlobalBaseModal } from "@/utils/hooks/useOverlay";
+import AttachmentModal from "@/components/Chat/AttachmentModal";
 
 const isAbortError = (error: unknown, signal?: AbortSignal) => {
   if (signal?.aborted) return true;
@@ -410,8 +413,10 @@ type MessageAttachmentDisplayListProps = {
   message: RenderedMessage;
 };
 
-const attachmentClass =
+const attachmentClassName =
   "rounded shrink-0 h-[75px] min-w-[75px] max-w-[150px] md:h-[150px] md:min-w-[150px] md:max-w-[300px]";
+
+const mobileButtonArrowClassName = `w-5 border-0 absolute inset-y-0 bg-[rgb(var(--mui-palette-text-primaryChannel)/0.5)] md:hidden flex justify-center items-center transition disabled:opacity-0 disabled:pointer-events-none`;
 
 export const MessageAttachmentDisplayList = ({
   message,
@@ -422,6 +427,7 @@ export const MessageAttachmentDisplayList = ({
     atEnd: false,
   });
   const ref = useRef<HTMLDivElement>(null);
+  const globalBaseModal = useGlobalBaseModal();
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     setScrollState(getHorizontalScrollState(event.currentTarget));
@@ -459,35 +465,71 @@ export const MessageAttachmentDisplayList = ({
                 key={i}
                 variant="rounded"
                 className="h-[75px] min-w-[75px] md:h-[150px] md:min-w-[150px]"
+                withDefaultHeight={false}
               />
             ))
-          : message.attachments.map((x) => {
-              const isIamge = isImageExtension(x.extension);
+          : message.attachments.map((x, index) => {
+              const isImage = isImageExtension(x.extension);
               const fileName = `${x.original_name}.${x.extension}`;
               return (
-                <Tooltip title={fileName} key={x.id}>
-                  {isIamge ? (
-                    // eslint-disable-next-line
-                    <img
-                      alt={fileName}
-                      src={`${env.NEXT_PUBLIC_CDN_URL}/${x.object_key}`}
-                      className={clsx(attachmentClass, "object-cover")}
-                      loading="lazy"
-                      decoding="async"
-                    />
-                  ) : (
-                    <Paper
-                      className={clsx(
-                        attachmentClass,
-                        "flex justify-center items-center border border-mui-divider shadow-none"
-                      )}
-                      elevation={2}
-                    >
-                      <Typography color="textSecondary">
-                        <DescriptionIcon fontSize="large" />
-                      </Typography>
-                    </Paper>
-                  )}
+                <Tooltip
+                  title={
+                    <div>
+                      <strong>Name:</strong> {fileName} <br />
+                      <strong>Size:</strong> {formatBytes(x.size_bytes || 0)}
+                    </div>
+                  }
+                  key={x.id}
+                >
+                  <ButtonBase
+                    focusRipple
+                    className={clsx(
+                      attachmentClassName,
+                      "hover:cursor-pointer group/attachment relative overflow-hidden"
+                    )}
+                    onClick={() => {
+                      globalBaseModal.openModal({
+                        content: (
+                          <AttachmentModal
+                            message={message}
+                            onClose={globalBaseModal.closeModal}
+                            initialAttachmentIndex={index}
+                          />
+                        ),
+                        props: { showCloseButton: false },
+                      });
+                    }}
+                  >
+                    <span className="pointer-events-none absolute inset-0 z-10 transition group-hover/attachment:bg-mui-action-focus" />
+
+                    {isImage ? (
+                      // eslint-disable-next-line
+                      <img
+                        alt={fileName}
+                        src={`${env.NEXT_PUBLIC_CDN_URL}/${x.object_key}`}
+                        className={clsx("w-full h-full object-cover")}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <Paper
+                        className={clsx(
+                          "flex justify-center items-center border border-mui-divider shadow-none w-full h-full"
+                        )}
+                        elevation={2}
+                      >
+                        <Typography color="textSecondary" className="leading-0">
+                          <DescriptionIcon fontSize="large" />
+                          <Typography
+                            variant="subtitle2"
+                            className="text-center uppercase"
+                          >
+                            {x.extension}
+                          </Typography>
+                        </Typography>
+                      </Paper>
+                    )}
+                  </ButtonBase>
                 </Tooltip>
               );
             })}
@@ -496,12 +538,7 @@ export const MessageAttachmentDisplayList = ({
         type="button"
         aria-label="Scroll attachments left"
         onClick={() => scrollAttachments("left")}
-        className={clsx(
-          "border-0 absolute inset-y-0 left-0 w-5 rounded-l",
-          "bg-[rgb(var(--mui-palette-text-primaryChannel)/0.5)]",
-          "md:hidden flex justify-center items-center transition",
-          "disabled:opacity-0 disabled:pointer-events-none"
-        )}
+        className={clsx("left-0 rounded-l", mobileButtonArrowClassName)}
         disabled={scrollState.atStart || isDesktop}
       >
         <ArrowForwardIosIcon
@@ -514,12 +551,7 @@ export const MessageAttachmentDisplayList = ({
         type="button"
         aria-label="Scroll attachments right"
         onClick={() => scrollAttachments("right")}
-        className={clsx(
-          "border-0 absolute inset-y-0 right-0 w-5 rounded-r",
-          "bg-[rgb(var(--mui-palette-text-primaryChannel)/0.5)]",
-          "md:hidden flex justify-center items-center transition",
-          "disabled:opacity-0 disabled:pointer-events-none"
-        )}
+        className={clsx("right-0 rounded-r", mobileButtonArrowClassName)}
         disabled={scrollState.atEnd || isDesktop}
       >
         <ArrowForwardIosIcon
