@@ -2,8 +2,6 @@ import React from "react";
 import {
   Modal as MuiModal,
   type ModalProps as MuiModalProps,
-  Box,
-  Paper,
   Fade,
 } from "@mui/material";
 
