@@ -31,7 +31,7 @@ type AttachmentPreviewItemProps = {
 };
 
 const sliderButtonClassName =
-  "transition p-3 md:p-8 bg-mui-action-focus hover:bg-mui-action-selected hover:cursor-pointer flex justify-center items-center";
+  "transition p-3 md:p-8 bg-[rgb(var(--mui-palette-background-paperChannel)/0.5)] hover:bg-[rgb(var(--mui-palette-background-paperChannel)/0.9)] hover:cursor-pointer flex justify-center items-center";
 
 const AttachmentPreviewItem = ({
   attachment,
@@ -91,6 +91,7 @@ const AttachmentModal = ({
   const fileUrl = `${env.NEXT_PUBLIC_CDN_URL}/${attachment.object_key}`;
 
   const isOwnMessage = message.user_id === user.data?.user?.id;
+  const hasMultipleItems = message.attachments.length > 1;
 
   const closeOnSelfClick = (event: React.MouseEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -150,21 +151,23 @@ const AttachmentModal = ({
         className="flex-1 flex gap-2 justify-between items-stretch min-h-0"
         onClick={closeOnSelfClick}
       >
-        <ButtonBase
-          focusRipple
-          className={sliderButtonClassName}
-          onClick={() => {
-            setCurrentAttachmentIndex((prev) => {
-              const newValue = prev - 1;
-              return newValue < 0 ? message.attachments.length - 1 : newValue;
-            });
-          }}
-        >
-          <ArrowForwardIosIcon
-            color="inherit"
-            className="rotate-180 dark text-mui-text-secondary min-md:text-3xl"
-          />
-        </ButtonBase>
+        {hasMultipleItems && (
+          <ButtonBase
+            focusRipple
+            className={sliderButtonClassName}
+            onClick={() => {
+              setCurrentAttachmentIndex((prev) => {
+                const newValue = prev - 1;
+                return newValue < 0 ? message.attachments.length - 1 : newValue;
+              });
+            }}
+          >
+            <ArrowForwardIosIcon
+              color="inherit"
+              className="rotate-180 text-mui-text-secondary min-md:text-3xl"
+            />
+          </ButtonBase>
+        )}
         <div
           className="my-20 mx-6 md:mx-20 w-full relative flex justify-center items-center"
           onClick={closeOnSelfClick}
@@ -198,7 +201,7 @@ const AttachmentModal = ({
               </Typography>
             </Paper>
           )}
-          {message.attachments.length > 1 && (
+          {hasMultipleItems && (
             <div className="flex justify-center mt-2 gap-1 rounded-md overflow-hidden absolute -bottom-12 left-1/2 -translate-x-1/2">
               {message.attachments.map((attachment, i) => (
                 <AttachmentPreviewItem
@@ -213,21 +216,23 @@ const AttachmentModal = ({
             </div>
           )}
         </div>
-        <ButtonBase
-          focusRipple
-          className={sliderButtonClassName}
-          onClick={() => {
-            setCurrentAttachmentIndex((prev) => {
-              const newValue = prev + 1;
-              return newValue > message.attachments.length - 1 ? 0 : newValue;
-            });
-          }}
-        >
-          <ArrowForwardIosIcon
-            color="inherit"
-            className="dark text-mui-text-secondary min-md:text-3xl"
-          />
-        </ButtonBase>
+        {hasMultipleItems && (
+          <ButtonBase
+            focusRipple
+            className={sliderButtonClassName}
+            onClick={() => {
+              setCurrentAttachmentIndex((prev) => {
+                const newValue = prev + 1;
+                return newValue > message.attachments.length - 1 ? 0 : newValue;
+              });
+            }}
+          >
+            <ArrowForwardIosIcon
+              color="inherit"
+              className="text-mui-text-secondary min-md:text-3xl"
+            />
+          </ButtonBase>
+        )}
       </div>
     </div>
   );
