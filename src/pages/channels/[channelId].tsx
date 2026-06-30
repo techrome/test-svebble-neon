@@ -525,7 +525,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     noKeyboard: true,
     onDrop: onFileAttachmentDrop,
     multiple: true,
-    accept: { file: allowedMessageAttachmentExtensionsDropzone },
+    accept: {
+      "application/x-message-attachment":
+        allowedMessageAttachmentExtensionsDropzone,
+    },
   });
 
   const [isIdleTrigger, setIsIdleTrigger] = useState(0);
@@ -1474,6 +1477,20 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     []
   );
 
+  // resetting messages on mount because when simply remounitng by key
+  // there's not enough time for react query to garbage collect the old query
+  useLayoutEffect(() => {
+    qc.cancelQueries({
+      queryKey: getQueryKey(trpc.messages.get, undefined, "infinite"),
+      exact: false,
+    });
+
+    qc.removeQueries({
+      queryKey: getQueryKey(trpc.messages.get, undefined, "infinite"),
+      exact: false,
+    });
+  }, []);
+
   useEffect(() => {
     return () => {
       debouncedMakeIdle.cancel();
@@ -2109,8 +2126,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       Header: MessagesHeader,
       Footer: MessagesFooter,
     }),
-    // eslint-disable-next-line
-    []
+    [MessagesHeader, MessagesFooter]
   );
 
   const renderedMessages = useMemo<
