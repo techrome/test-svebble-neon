@@ -39,7 +39,7 @@ import { useCooldown } from "@/utils/hooks/useCooldown";
 import {
   BroadcastChannelEvent,
   BroadcastChannels,
-} from "@/pages/app/email-verified";
+} from "@/pages/protected/email-verified";
 import Tooltip from "@/components/Tooltip/Tooltip";
 import { env } from "@/utils/env";
 import {
