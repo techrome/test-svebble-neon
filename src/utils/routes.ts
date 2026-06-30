@@ -2,7 +2,7 @@ import { type Route } from "next";
 
 type DynamicRoute = (...args: string[]) => Route;
 
-export const privateRoutePrefix = "app";
+export const privateRoutePrefix = "protected";
 export const authRoutePrefix = "auth";
 export const oauthRoutePrefix = "oauth";
 
