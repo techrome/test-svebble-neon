@@ -7,6 +7,7 @@ import {
   canonicalizeEmail,
   getEmailDomain,
 } from "@/utils/validators/helpers/custom";
+import { isOneOf } from "@/utils/stringUtils";
 
 export const passwordMinLength = 8;
 export const passwordCheck = z.string().min(passwordMinLength);
@@ -49,7 +50,7 @@ export const zEmail = Text.Title()
       message: "Email aliases using '+' are not allowed.",
     }
   )
-  .refine((email) => allowedEmailDomains.includes(getEmailDomain(email)), {
+  .refine((email) => isOneOf(getEmailDomain(email), allowedEmailDomains), {
     message: `Email domain is not allowed. Allowed domains: ${allowedEmailDomains.join(", ")}.`,
   })
   .transform(canonicalizeEmail);

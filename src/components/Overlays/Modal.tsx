@@ -22,6 +22,7 @@ export type ModalProps = {
   title?: string;
   children: React.ReactNode;
   dialogProps?: PartialFor<DialogProps, "open">;
+  dialogSlotProps?: DialogProps["slotProps"];
   dialogTitleProps?: DialogTitleProps;
   dialogContentProps?: DialogContentProps;
 };
@@ -33,6 +34,7 @@ const Modal = ({
   children,
   onExited,
   dialogProps,
+  dialogSlotProps,
   dialogTitleProps,
   dialogContentProps,
 }: ModalProps) => {
@@ -41,7 +43,11 @@ const Modal = ({
       open={isOpen}
       onClose={onClose}
       fullWidth
-      slotProps={{ transition: { onExited }, paper: { elevation: 16 } }}
+      slotProps={{
+        transition: { onExited },
+        paper: { elevation: 16 },
+        ...dialogSlotProps,
+      }}
       disableEnforceFocus
       {...dialogProps}
     >

@@ -2,6 +2,7 @@ import z from "@/utils/zod";
 import { Dayjs } from "dayjs";
 
 import dayjs from "@/utils/dayjs";
+import { isOneOf } from "@/utils/stringUtils";
 
 export const zDayjs = z.custom<Dayjs>((v) => dayjs.isDayjs(v) && v.isValid(), {
   error: "Invalid date",
@@ -58,6 +59,18 @@ export const getFileName = (filename: string): string | null => {
   return name || null;
 };
 
+export const allowedEmailDomains = [
+  "gmail.com",
+  "outlook.com",
+  "hotmail.com",
+  "live.com",
+  "icloud.com",
+  "me.com",
+  "yahoo.com",
+  "proton.me",
+  "protonmail.com",
+] as const;
+
 export const canonicalizeEmail = (email: string) => {
   const normalized = email.trim().toLowerCase();
 
@@ -70,8 +83,14 @@ export const canonicalizeEmail = (email: string) => {
   let local = rawLocal;
   let domain = rawDomain;
 
-  if (domain === "gmail.com") {
-    local = local.replaceAll(".", "");
+  if (
+    isOneOf(domain, [
+      "gmail.com",
+      "proton.me",
+      "protonmail.com",
+    ] satisfies (typeof allowedEmailDomains)[number][])
+  ) {
+    local = local.replace(/[._\-]/g, "");
   }
 
   return `${local}@${domain}`;
@@ -79,15 +98,3 @@ export const canonicalizeEmail = (email: string) => {
 
 export const getEmailDomain = (email: string) =>
   email.split("@").at(-1)?.toLowerCase() || "";
-
-export const allowedEmailDomains = [
-  "gmail.com",
-  "outlook.com",
-  "hotmail.com",
-  "live.com",
-  "icloud.com",
-  "me.com",
-  "yahoo.com",
-  "proton.me",
-  "protonmail.com",
-];

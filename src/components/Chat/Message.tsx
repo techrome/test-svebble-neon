@@ -95,7 +95,7 @@ type RenderedMessageFlags = {
   isFailed?: true;
 };
 
-type ServerRenderedMessage = Message &
+export type ServerRenderedMessage = Message &
   RenderedMessageFlags & {
     isOptimistic?: false;
   };

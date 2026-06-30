@@ -96,6 +96,8 @@ import {
   MessageAttachmentsUpload,
   type NewMessageAttachmentData,
 } from "@/components/Chat/MessageAttachments";
+import { hasPermissions } from "@/utils/hasPermissions";
+import { P } from "@/utils/permissions";
 
 type JSONIncompatibleMessageFields = Pick<
   MessageSerializable,
@@ -656,6 +658,12 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const [firstItemIndex, setFirstItemIndex] = useState<number | null>(null);
 
   const totalItems = messages.data?.items.length || 0;
+
+  const canUploadAttachments = useMemo(() => {
+    if (!user.data?.user) return false;
+
+    return hasPermissions(user.data?.user, [P.messageAttachments.create]);
+  }, [user.data?.user]);
 
   const urlMessageId = useMemo(() => {
     const queryValue = Number(getRouterQueryValue(router.query.messageId));
@@ -2449,13 +2457,17 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 startAccessory={
                   <Tooltip
                     title={
-                      <>
-                        <Typography>Attach file</Typography>
-                        <Typography>
-                          Allowed extensions:{" "}
-                          {allowedMessageAttachmentExtensions.join(", ")}.
-                        </Typography>
-                      </>
+                      canUploadAttachments ? (
+                        <>
+                          <Typography>Attach file</Typography>
+                          <Typography>
+                            Allowed extensions:{" "}
+                            {allowedMessageAttachmentExtensions.join(", ")}.
+                          </Typography>
+                        </>
+                      ) : (
+                        "Attachment uploads require a verified email address."
+                      )
                     }
                   >
                     <IconButton
@@ -2465,6 +2477,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                         e.stopPropagation();
                         openAttachmentFilePicker();
                       }}
+                      disabled={!canUploadAttachments}
                     >
                       <AttachFileIcon />
                       <input hidden type="file" {...getDropzoneInputProps()} />

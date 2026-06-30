@@ -3,6 +3,7 @@ import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
 import { type ModalProps } from "@/components/Overlays/Modal";
 import { type DrawerProps } from "@/components/Overlays/Drawer";
+import { type BaseModalProps } from "@/components/Overlays/BaseModal";
 
 export type Overlay<Props> = {
   isOpen: boolean;
@@ -12,11 +13,13 @@ export type Overlay<Props> = {
 
 export type OverlaysState = {
   modal: Overlay<ModalProps>;
+  baseModal: Overlay<BaseModalProps>;
   drawer: Overlay<DrawerProps>;
 };
 
 const initialState: OverlaysState = {
   modal: { content: null, props: {}, isOpen: false },
+  baseModal: { content: null, props: {}, isOpen: false },
   drawer: { content: null, props: {}, isOpen: false },
 };
 
@@ -30,6 +33,12 @@ export const overlaysSlice = createSlice({
     ) => {
       Object.assign(state.modal, action.payload);
     },
+    setBaseModalState: (
+      state,
+      action: PayloadAction<Partial<OverlaysState["baseModal"]>>
+    ) => {
+      Object.assign(state.baseModal, action.payload);
+    },
     setDrawerState: (
       state,
       action: PayloadAction<Partial<OverlaysState["drawer"]>>
@@ -39,6 +48,7 @@ export const overlaysSlice = createSlice({
   },
 });
 
-export const { setModalState, setDrawerState } = overlaysSlice.actions;
+export const { setModalState, setDrawerState, setBaseModalState } =
+  overlaysSlice.actions;
 
 export default overlaysSlice.reducer;
