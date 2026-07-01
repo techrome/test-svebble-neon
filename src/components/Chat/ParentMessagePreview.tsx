@@ -52,7 +52,6 @@ const ParentMessagePreview = ({
     </HorizontalStack>
   ) : (
     <ButtonBase
-      focusRipple
       className="no-underline w-full hover:cursor-pointer hover:bg-mui-action-selected text-mui-text-secondary"
       component={Link}
       href={`?messageId=${message.reply_to_message_id}`}

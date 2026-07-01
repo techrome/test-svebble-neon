@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Paper, Typography } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -43,7 +43,6 @@ const AttachmentPreviewItem = ({
 
   return (
     <ButtonBase
-      focusRipple
       className={clsx(
         "transition bg-mui-action-hover hover:opacity-80 hover:cursor-pointer size-6 max-w-6 max-h-6 md:size-10 md:max-w-10 md:max-h-10",
         !isActive && "opacity-50"
@@ -84,20 +83,28 @@ const AttachmentModal = ({
     initialAttachmentIndex
   );
   const user = useUser();
-  const attachment = message.attachments[currentAttachmentIndex];
+  const attachment =
+    message.attachments[currentAttachmentIndex] || message.attachments[0];
 
   const isImage = isImageExtension(attachment.extension);
   const fileName = `${attachment.original_name}.${attachment.extension}`;
   const fileUrl = `${env.NEXT_PUBLIC_CDN_URL}/${attachment.object_key}`;
 
   const isOwnMessage = message.user_id === user.data?.user?.id;
-  const hasMultipleItems = message.attachments.length > 1;
+  const itemCount = message.attachments.length;
+  const hasMultipleItems = itemCount > 1;
 
   const closeOnSelfClick = (event: React.MouseEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return;
 
     onClose();
   };
+
+  useEffect(() => {
+    if (currentAttachmentIndex > itemCount - 1) {
+      setCurrentAttachmentIndex(Math.max(0, itemCount - 1));
+    }
+  }, [itemCount, currentAttachmentIndex]);
 
   return (
     <div className="flex flex-col h-full">
@@ -153,12 +160,11 @@ const AttachmentModal = ({
       >
         {hasMultipleItems && (
           <ButtonBase
-            focusRipple
             className={sliderButtonClassName}
             onClick={() => {
               setCurrentAttachmentIndex((prev) => {
                 const newValue = prev - 1;
-                return newValue < 0 ? message.attachments.length - 1 : newValue;
+                return newValue < 0 ? itemCount - 1 : newValue;
               });
             }}
           >
@@ -218,12 +224,11 @@ const AttachmentModal = ({
         </div>
         {hasMultipleItems && (
           <ButtonBase
-            focusRipple
             className={sliderButtonClassName}
             onClick={() => {
               setCurrentAttachmentIndex((prev) => {
                 const newValue = prev + 1;
-                return newValue > message.attachments.length - 1 ? 0 : newValue;
+                return newValue > itemCount - 1 ? 0 : newValue;
               });
             }}
           >

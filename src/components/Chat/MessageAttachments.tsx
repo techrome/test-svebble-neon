@@ -473,6 +473,7 @@ export const MessageAttachmentDisplayList = ({
               const fileName = `${x.original_name}.${x.extension}`;
               return (
                 <Tooltip
+                  enterDelay={750}
                   title={
                     <div>
                       <strong>Name:</strong> {fileName} <br />
@@ -482,7 +483,6 @@ export const MessageAttachmentDisplayList = ({
                   key={x.id}
                 >
                   <ButtonBase
-                    focusRipple
                     className={clsx(
                       attachmentClassName,
                       "hover:cursor-pointer group/attachment relative overflow-hidden"

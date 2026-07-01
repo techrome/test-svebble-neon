@@ -30,6 +30,7 @@ import clsx from "clsx";
 import {
   defaultPadding,
   HorizontalStack,
+  Section,
   VerticalStack,
 } from "@/components/Layout/Containers";
 import UserAvatar from "@/components/Avatar/UserAvatar";
@@ -59,6 +60,7 @@ import ReplyCountButton from "@/components/Chat/ReplyCountButton";
 import ParentMessagePreview from "@/components/Chat/ParentMessagePreview";
 import { StrictOmit } from "@/utils/types";
 import { MessageAttachmentDisplayList } from "@/components/Chat/MessageAttachments";
+import ButtonBase from "@/components/Button/ButtonBase";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -141,6 +143,7 @@ const Message = ({
 }: Props) => {
   const user = useUser();
   const menuPopover = useLocalPopover();
+  const userPopover = useLocalPopover();
   const externalLinkConfirmationPopover = useLocalPopover({ useTarget: true });
   const staticDependencies = useLatest({ externalLinkConfirmationPopover });
   const isDesktop = useIsDesktop();
@@ -299,6 +302,19 @@ const Message = ({
     totalItems,
   ]);
 
+  const truncatedUsername = useMemo(() => {
+    const username = message.author.username;
+    if (!username) return username;
+
+    const maxSideCharacters = 3;
+    const shouldTruncate = username.length > maxSideCharacters * 2 + 3; // 3 dots
+    if (!shouldTruncate) return username;
+
+    const start = username.slice(0, maxSideCharacters);
+    const end = username.slice(-maxSideCharacters);
+    return `${start}...${end}`;
+  }, [message.author.username]);
+
   const shouldDisplayAvatar = Boolean(!message.isCompact);
 
   const onHTMLContentClick = useCallback(
@@ -430,9 +446,12 @@ const Message = ({
                 )}
               >
                 {shouldDisplayAvatar ? (
-                  <div className="pt-1">
+                  <ButtonBase
+                    className="p-1 transition hover:bg-mui-action-focus cursor-pointer rounded-md h-fit"
+                    onClick={userPopover.openPopover}
+                  >
                     <UserAvatar user={message.author} size="md" />
-                  </div>
+                  </ButtonBase>
                 ) : !message.isOptimistic ? (
                   <Tooltip title={createdAtFull}>
                     <Typography
@@ -452,10 +471,24 @@ const Message = ({
                 addClassName="flex-1"
               >
                 {!message.isCompact && (
-                  <HorizontalStack addClassName="items-center" spacing="xs">
-                    <Typography>
-                      <strong>{message.author.name}</strong>
-                    </Typography>
+                  <HorizontalStack
+                    addClassName="items-center pb-1"
+                    spacing="xs"
+                  >
+                    <Button
+                      variant="text"
+                      color="inherit"
+                      className="-ml-1 p-0 hover:bg-mui-action-focus"
+                      innerClassName="py-0 px-1 flex gap-1 items-center normal-case group/user"
+                      onClick={userPopover.openPopover}
+                    >
+                      <Typography className="group-hover/user:underline">
+                        <strong>{message.author.name}</strong>
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary">
+                        {truncatedUsername}
+                      </Typography>
+                    </Button>
                     <Tooltip title={createdAtFull}>
                       <Typography variant="caption" color="textDisabled">
                         {createdAtShort}
@@ -681,6 +714,16 @@ const Message = ({
           </HorizontalStack>
         </VerticalStack>
       </externalLinkConfirmationPopover.ReadyComponent>
+      <userPopover.ReadyComponent placement="right">
+        <Section fullWidth={false} addClassName="min-w-xs max-w-sm">
+          <VerticalStack>
+            <Typography>{message.author.name}</Typography>
+            <Typography color="textSecondary">
+              {message.author.username}
+            </Typography>
+          </VerticalStack>
+        </Section>
+      </userPopover.ReadyComponent>
     </div>
   );
 };

@@ -68,10 +68,7 @@ const ReplyMessage = ({ message, onReplyClick }: ReplyMessageProps) => {
       className="w-full md:w-1/2 no-underline text-mui-text-primary"
       onClick={onReplyClick}
     >
-      <ButtonBase
-        focusRipple
-        className="w-full p-2 hover:cursor-pointer hover:bg-mui-action-focus text-left"
-      >
+      <ButtonBase className="w-full p-2 hover:cursor-pointer hover:bg-mui-action-focus text-left">
         <HorizontalStack wrap={false} addClassName="w-full items-center">
           <UserAvatar user={message.author} size="sm" />
           <div className="flex flex-col overflow-hidden">
@@ -247,10 +244,7 @@ const ReplyCountButton = ({ message }: Props) => {
 
   return (
     <>
-      <ButtonBase
-        focusRipple
-        className="w-full hover:cursor-pointer hover:bg-mui-action-selected text-left"
-      >
+      <ButtonBase className="w-full hover:cursor-pointer hover:bg-mui-action-selected text-left">
         <HorizontalStack
           addClassName="pl-3 pr-1 items-center"
           fullWidth

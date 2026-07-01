@@ -228,7 +228,6 @@ const BasicProfileForm = () => {
                 <DefaultAvatar name={userData.username} seed={userData.id} />
               )}
               <ButtonBase
-                focusRipple
                 className="opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 bg-[rgb(var(--mui-palette-background-defaultChannel)/0.6)] text-mui-text-primary transition absolute inset-0 rounded-full flex justify-center items-center"
                 type="button"
                 onClick={avatarEditModal.openModal}
