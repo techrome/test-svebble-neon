@@ -78,6 +78,7 @@ const closestWithin = <T extends HTMLElement>(
   return null;
 };
 
+const usernameMaxSideCharacters = 4;
 const hoverChildHiddenClass = "opacity-0 pointer-events-none";
 const hoverChildHoveredClass =
   "group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto";
@@ -306,12 +307,11 @@ const Message = ({
     const username = message.author.username;
     if (!username) return username;
 
-    const maxSideCharacters = 3;
-    const shouldTruncate = username.length > maxSideCharacters * 2 + 3; // 3 dots
+    const shouldTruncate = username.length > usernameMaxSideCharacters * 2 + 3; // 3 dots
     if (!shouldTruncate) return username;
 
-    const start = username.slice(0, maxSideCharacters);
-    const end = username.slice(-maxSideCharacters);
+    const start = username.slice(0, usernameMaxSideCharacters);
+    const end = username.slice(-usernameMaxSideCharacters);
     return `${start}...${end}`;
   }, [message.author.username]);
 
@@ -479,13 +479,17 @@ const Message = ({
                       variant="text"
                       color="inherit"
                       className="-ml-1 p-0 hover:bg-mui-action-focus"
-                      innerClassName="py-0 px-1 flex gap-1 items-center normal-case group/user"
+                      innerClassName="py-0 px-1 flex gap-1 items-center normal-case min-w-0"
                       onClick={userPopover.openPopover}
                     >
-                      <Typography className="group-hover/user:underline">
+                      <Typography className="overflow-hidden whitespace-nowrap text-ellipsis">
                         <strong>{message.author.name}</strong>
                       </Typography>
-                      <Typography variant="caption" color="textSecondary">
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        className="whitespace-nowrap"
+                      >
                         {truncatedUsername}
                       </Typography>
                     </Button>

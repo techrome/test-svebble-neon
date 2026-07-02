@@ -35,6 +35,8 @@ import HelperText from "@/components/Fields/HelperText";
 import ButtonBase from "@/components/Button/ButtonBase";
 import { useGlobalBaseModal } from "@/utils/hooks/useOverlay";
 import AttachmentModal from "@/components/Chat/AttachmentModal";
+import Popconfirm from "@/components/Popover/Popconfirm";
+import { useUser } from "@/trpc/hooks/useUser";
 
 const isAbortError = (error: unknown, signal?: AbortSignal) => {
   if (signal?.aborted) return true;
@@ -428,6 +430,8 @@ export const MessageAttachmentDisplayList = ({
   });
   const ref = useRef<HTMLDivElement>(null);
   const globalBaseModal = useGlobalBaseModal();
+  const user = useUser();
+  const isOwnMessage = message.user_id === user.data?.user?.id;
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     setScrollState(getHorizontalScrollState(event.currentTarget));
@@ -482,54 +486,81 @@ export const MessageAttachmentDisplayList = ({
                   }
                   key={x.id}
                 >
-                  <ButtonBase
-                    className={clsx(
-                      attachmentClassName,
-                      "hover:cursor-pointer group/attachment relative overflow-hidden"
-                    )}
-                    onClick={() => {
-                      globalBaseModal.openModal({
-                        content: (
-                          <AttachmentModal
-                            message={message}
-                            onClose={globalBaseModal.closeModal}
-                            initialAttachmentIndex={index}
-                          />
-                        ),
-                        props: { showCloseButton: false },
-                      });
-                    }}
-                  >
-                    <span className="pointer-events-none absolute inset-0 z-10 transition group-hover/attachment:bg-mui-action-focus" />
+                  <div className="relative group/attachment">
+                    <ButtonBase
+                      className={clsx(
+                        attachmentClassName,
+                        "hover:cursor-pointer relative overflow-hidden"
+                      )}
+                      onClick={() => {
+                        globalBaseModal.openModal({
+                          content: (
+                            <AttachmentModal
+                              message={message}
+                              onClose={globalBaseModal.closeModal}
+                              initialAttachmentIndex={index}
+                            />
+                          ),
+                          props: { showCloseButton: false },
+                        });
+                      }}
+                    >
+                      <span className="pointer-events-none absolute inset-0 z-10 transition group-hover/attachment:bg-mui-action-focus" />
 
-                    {isImage ? (
-                      // eslint-disable-next-line
-                      <img
-                        alt={fileName}
-                        src={`${env.NEXT_PUBLIC_CDN_URL}/${x.object_key}`}
-                        className={clsx("w-full h-full object-cover")}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <Paper
-                        className={clsx(
-                          "flex justify-center items-center border border-mui-divider shadow-none w-full h-full"
-                        )}
-                        elevation={2}
-                      >
-                        <Typography color="textSecondary" className="leading-0">
-                          <DescriptionIcon fontSize="large" />
+                      {isImage ? (
+                        // eslint-disable-next-line
+                        <img
+                          alt={fileName}
+                          src={`${env.NEXT_PUBLIC_CDN_URL}/${x.object_key}`}
+                          className={clsx("w-full h-full object-cover")}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <Paper
+                          className={clsx(
+                            "flex justify-center items-center border border-mui-divider shadow-none w-full h-full"
+                          )}
+                          elevation={2}
+                        >
                           <Typography
-                            variant="subtitle2"
-                            className="text-center uppercase"
+                            color="textSecondary"
+                            className="leading-0"
                           >
-                            {x.extension}
+                            <DescriptionIcon fontSize="large" />
+                            <Typography
+                              variant="subtitle2"
+                              className="text-center uppercase"
+                            >
+                              {x.extension}
+                            </Typography>
                           </Typography>
-                        </Typography>
+                        </Paper>
+                      )}
+                    </ButtonBase>
+                    {isOwnMessage && (
+                      <Paper
+                        elevation={4}
+                        className={clsx(
+                          "flex gap-1 absolute top-0.5 right-0.5 rounded-full group-hover/attachment:opacity-100 group-focus-within/attachment:opacity-100 transition z-20",
+                          isDesktop && "opacity-0"
+                        )}
+                      >
+                        <Popconfirm
+                          title="Are you sure you want to delete this file?"
+                          onConfirm={() => {
+                            console.log("deleted");
+                          }}
+                        >
+                          <Tooltip title={"Delete file"}>
+                            <IconButton size="small" color="error">
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </Popconfirm>
                       </Paper>
                     )}
-                  </ButtonBase>
+                  </div>
                 </Tooltip>
               );
             })}
