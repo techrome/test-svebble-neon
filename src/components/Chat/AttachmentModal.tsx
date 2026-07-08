@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Paper, Typography } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -20,8 +20,11 @@ import { useUser } from "@/trpc/hooks/useUser";
 
 type Props = {
   message: ServerRenderedMessage;
-  initialAttachmentIndex: number;
   onClose: () => void;
+  onDelete: (id: string) => void;
+  deletingAttachmentIds: Set<string>;
+  viewingAttachmentIndex: number;
+  setViewingAttachmentIndex: React.Dispatch<React.SetStateAction<number>>;
 };
 
 type AttachmentPreviewItemProps = {
@@ -77,14 +80,14 @@ const AttachmentPreviewItem = ({
 const AttachmentModal = ({
   message,
   onClose,
-  initialAttachmentIndex,
+  onDelete,
+  deletingAttachmentIds,
+  viewingAttachmentIndex,
+  setViewingAttachmentIndex,
 }: Props) => {
-  const [currentAttachmentIndex, setCurrentAttachmentIndex] = useState(
-    initialAttachmentIndex
-  );
   const user = useUser();
   const attachment =
-    message.attachments[currentAttachmentIndex] || message.attachments[0];
+    message.attachments[viewingAttachmentIndex] || message.attachments[0];
 
   const isImage = isImageExtension(attachment.extension);
   const fileName = `${attachment.original_name}.${attachment.extension}`;
@@ -94,17 +97,13 @@ const AttachmentModal = ({
   const itemCount = message.attachments.length;
   const hasMultipleItems = itemCount > 1;
 
+  const isCurrentAttachmentDeleting = deletingAttachmentIds.has(attachment.id);
+
   const closeOnSelfClick = (event: React.MouseEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return;
 
     onClose();
   };
-
-  useEffect(() => {
-    if (currentAttachmentIndex > itemCount - 1) {
-      setCurrentAttachmentIndex(Math.max(0, itemCount - 1));
-    }
-  }, [itemCount, currentAttachmentIndex]);
 
   return (
     <div className="flex flex-col h-full">
@@ -119,7 +118,7 @@ const AttachmentModal = ({
                 <Popconfirm
                   title="Are you sure you want to delete this file?"
                   onConfirm={() => {
-                    console.log("deleted");
+                    onDelete(attachment.id);
                   }}
                 >
                   <Tooltip title="Delete file">
@@ -127,6 +126,7 @@ const AttachmentModal = ({
                       size="large"
                       color="error"
                       aria-label="delete file"
+                      loading={isCurrentAttachmentDeleting}
                     >
                       <DeleteIcon />
                     </IconButton>
@@ -134,20 +134,18 @@ const AttachmentModal = ({
                 </Popconfirm>
               )}
               <Tooltip title="Download file">
-                <a
-                  href={fileUrl}
-                  download
+                <IconButton
+                  component={"a"}
                   target="_blank"
-                  className="text-inherit"
+                  download
+                  href={fileUrl}
+                  size="large"
+                  color="inherit"
+                  aria-label="download file"
+                  disabled={isCurrentAttachmentDeleting}
                 >
-                  <IconButton
-                    size="large"
-                    color="inherit"
-                    aria-label="download file"
-                  >
-                    <DownloadIcon />
-                  </IconButton>
-                </a>
+                  <DownloadIcon />
+                </IconButton>
               </Tooltip>
               <CloseModalButton onClose={onClose} />
             </HorizontalStack>
@@ -162,7 +160,7 @@ const AttachmentModal = ({
           <ButtonBase
             className={sliderButtonClassName}
             onClick={() => {
-              setCurrentAttachmentIndex((prev) => {
+              setViewingAttachmentIndex((prev) => {
                 const newValue = prev - 1;
                 return newValue < 0 ? itemCount - 1 : newValue;
               });
@@ -213,9 +211,9 @@ const AttachmentModal = ({
                 <AttachmentPreviewItem
                   key={attachment.id}
                   attachment={attachment}
-                  isActive={currentAttachmentIndex === i}
+                  isActive={viewingAttachmentIndex === i}
                   onClick={() => {
-                    setCurrentAttachmentIndex(i);
+                    setViewingAttachmentIndex(i);
                   }}
                 />
               ))}
@@ -226,7 +224,7 @@ const AttachmentModal = ({
           <ButtonBase
             className={sliderButtonClassName}
             onClick={() => {
-              setCurrentAttachmentIndex((prev) => {
+              setViewingAttachmentIndex((prev) => {
                 const newValue = prev + 1;
                 return newValue > itemCount - 1 ? 0 : newValue;
               });
