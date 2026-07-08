@@ -1,6 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import z from "@/utils/zod";
 import { allowedMessageAttachmentExtensions } from "@/utils/validators/sharedValues/messages";
+import { uuidRegex, uuidSchema } from "@/utils/validators/helpers/custom";
 
 export const throwIfZodError: <TInput>(
   parseResult: z.ZodSafeParseResult<TInput>
@@ -13,8 +14,6 @@ export const throwIfZodError: <TInput>(
   }
 };
 
-const uuidSchema = z.uuid();
-const uuidRegex = "([0-9a-fA-F-]{36})";
 const buildUserFileRegex = (allowedExtensions: string[]) =>
   new RegExp(
     `^users/${uuidRegex}/${uuidRegex}\\.(?:${allowedExtensions.join("|")})$`,

@@ -98,3 +98,6 @@ export const canonicalizeEmail = (email: string) => {
 
 export const getEmailDomain = (email: string) =>
   email.split("@").at(-1)?.toLowerCase() || "";
+
+export const uuidSchema = z.uuid();
+export const uuidRegex = "([0-9a-fA-F-]{36})";
