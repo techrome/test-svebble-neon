@@ -46,6 +46,11 @@ type WebsocketEventsOf<TFull extends MessageBase> = {
     false
   >;
   "messages:delete": MessageMutationResponse<TFull, Pick<TFull, "id">>;
+  "messageAttachments:delete": MessageMutationResponse<
+    TFull,
+    Pick<TFull, "id">,
+    false
+  > & { fileId: string };
 };
 
 export type WebsocketEventsOriginal = WebsocketEventsOf<Message>;
