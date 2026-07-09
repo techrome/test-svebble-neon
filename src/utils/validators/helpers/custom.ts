@@ -11,18 +11,8 @@ export const zDayjs = z.custom<Dayjs>((v) => dayjs.isDayjs(v) && v.isValid(), {
 export const numericIdSchema = z.int().min(0);
 export const versionSchema = z.int().min(0);
 
-type ZodShape = z.ZodRawShape;
-type MaskFor<TShape extends ZodShape> = Partial<Record<keyof TShape, true>>;
-
-export const omitStrict = <S extends ZodShape, M extends MaskFor<S>>(
-  schema: z.ZodObject<S>,
-  mask: M
-) => {
-  return schema.omit(mask);
-};
-
 export const extendExisting = <
-  S extends ZodShape,
+  S extends z.ZodRawShape,
   O extends Partial<Record<keyof S, z.ZodType>>,
 >(
   schema: z.ZodObject<S>,
