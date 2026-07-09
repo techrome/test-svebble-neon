@@ -34,7 +34,7 @@ type AttachmentPreviewItemProps = {
 };
 
 const sliderButtonClassName =
-  "transition p-3 md:p-8 bg-[rgb(var(--mui-palette-background-paperChannel)/0.5)] hover:bg-[rgb(var(--mui-palette-background-paperChannel)/0.9)] hover:cursor-pointer flex justify-center items-center";
+  "transition p-3 md:p-8 bg-[rgb(var(--mui-palette-background-paperChannel)/0.5)] hover:bg-[rgb(var(--mui-palette-background-paperChannel)/0.9)] dark:bg-[rgb(var(--mui-palette-text-secondaryChannel)/0.1)] dark:hover:bg-[rgb(var(--mui-palette-text-secondaryChannel)/0.5)] text-mui-text-secondary dark:hover:text-mui-background-paper hover:cursor-pointer flex justify-center items-center";
 
 const AttachmentPreviewItem = ({
   attachment,
@@ -47,8 +47,8 @@ const AttachmentPreviewItem = ({
   return (
     <ButtonBase
       className={clsx(
-        "transition bg-mui-action-hover hover:opacity-80 hover:cursor-pointer size-6 max-w-6 max-h-6 md:size-10 md:max-w-10 md:max-h-10",
-        !isActive && "opacity-50"
+        "bg-mui-background-paper transition hover:brightness-100 hover:cursor-pointer size-6 max-w-6 max-h-6 md:size-10 md:max-w-10 md:max-h-10",
+        !isActive && "brightness-50"
       )}
       onClick={onClick}
     >
@@ -168,7 +168,7 @@ const AttachmentModal = ({
           >
             <ArrowForwardIosIcon
               color="inherit"
-              className="rotate-180 text-mui-text-secondary min-md:text-3xl"
+              className="rotate-180 min-md:text-3xl"
             />
           </ButtonBase>
         )}
@@ -230,10 +230,7 @@ const AttachmentModal = ({
               });
             }}
           >
-            <ArrowForwardIosIcon
-              color="inherit"
-              className="text-mui-text-secondary min-md:text-3xl"
-            />
+            <ArrowForwardIosIcon color="inherit" className="min-md:text-3xl" />
           </ButtonBase>
         )}
       </div>

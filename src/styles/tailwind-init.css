@@ -4,3 +4,5 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 
 @import "./generated-tw-mui-css-vars.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
