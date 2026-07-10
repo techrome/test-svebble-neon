@@ -25,6 +25,7 @@ type Props = {
   deletingAttachmentIds: Set<string>;
   viewingAttachmentIndex: number;
   setViewingAttachmentIndex: React.Dispatch<React.SetStateAction<number>>;
+  isLastAttachmentAndNoContent: boolean;
 };
 
 type AttachmentPreviewItemProps = {
@@ -84,6 +85,7 @@ const AttachmentModal = ({
   deletingAttachmentIds,
   viewingAttachmentIndex,
   setViewingAttachmentIndex,
+  isLastAttachmentAndNoContent,
 }: Props) => {
   const user = useUser();
   const attachment =
@@ -116,7 +118,7 @@ const AttachmentModal = ({
             <HorizontalStack wrap={false} addClassName="ml-auto">
               {isOwnMessage && (
                 <Popconfirm
-                  title="Are you sure you want to delete this file?"
+                  title={`Are you sure you want to delete this file?${isLastAttachmentAndNoContent ? " This will also delete the message because it has no other content." : ""}`}
                   onConfirm={() => {
                     onDelete(attachment.id);
                   }}

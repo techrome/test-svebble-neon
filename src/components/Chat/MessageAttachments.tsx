@@ -567,6 +567,8 @@ export const MessageAttachmentDisplayList = ({
     () => Boolean(htmlToText(message.content)),
     [message.content]
   );
+  const isLastAttachmentAndNoContent =
+    message.attachments.length === 1 && !hasContent;
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     setScrollState(getHorizontalScrollState(event.currentTarget));
@@ -632,9 +634,7 @@ export const MessageAttachmentDisplayList = ({
                   isOwnMessage={isOwnMessage}
                   isDesktop={isDesktop}
                   isDeleting={deletingAttachmentIds.has(x.id)}
-                  isLastAttachmentAndNoContent={
-                    message.attachments.length === 1 && !hasContent
-                  }
+                  isLastAttachmentAndNoContent={isLastAttachmentAndNoContent}
                 />
               );
             })}
@@ -652,6 +652,7 @@ export const MessageAttachmentDisplayList = ({
               deletingAttachmentIds={deletingAttachmentIds}
               viewingAttachmentIndex={viewingAttachmentIndex}
               setViewingAttachmentIndex={setViewingAttachmentIndex}
+              isLastAttachmentAndNoContent={isLastAttachmentAndNoContent}
             />
           </localBaseModal.ReadyComponent>
         )}
