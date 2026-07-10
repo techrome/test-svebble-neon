@@ -59,7 +59,10 @@ import { useLatest } from "@/utils/hooks/useLatest";
 import ReplyCountButton from "@/components/Chat/ReplyCountButton";
 import ParentMessagePreview from "@/components/Chat/ParentMessagePreview";
 import { StrictOmit } from "@/utils/types";
-import { MessageAttachmentDisplayList } from "@/components/Chat/MessageAttachments";
+import {
+  MessageAttachmentDisplayList,
+  type MessageAttachmentDeleteMutationOptions,
+} from "@/components/Chat/MessageAttachments";
 import ButtonBase from "@/components/Button/ButtonBase";
 
 const closestWithin = <T extends HTMLElement>(
@@ -124,6 +127,7 @@ type Props = {
   onOptimisticFailedDelete: React.MouseEventHandler<HTMLButtonElement>;
   onReportClick: React.MouseEventHandler<HTMLElement>;
   onReplyClick: React.MouseEventHandler<HTMLElement>;
+  onAttachmentDeleteSuccess: MessageAttachmentDeleteMutationOptions["onSuccess"];
 };
 
 type FormValues = z.input<ReturnType<typeof makeMessageUpdateSchemaForm>>;
@@ -141,6 +145,7 @@ const Message = ({
   onOptimisticFailedDelete,
   onReportClick,
   onReplyClick,
+  onAttachmentDeleteSuccess,
 }: Props) => {
   const user = useUser();
   const menuPopover = useLocalPopover();
@@ -519,7 +524,10 @@ const Message = ({
                     </Tooltip>
                   ) : null}
                 </Typography>
-                <MessageAttachmentDisplayList message={message} />
+                <MessageAttachmentDisplayList
+                  message={message}
+                  onAttachmentDeleteSuccess={onAttachmentDeleteSuccess}
+                />
               </VerticalStack>
             </HorizontalStack>
             {message.isOptimistic ? null : isDesktop ? (

@@ -40,6 +40,7 @@ import { useLocalBaseModal } from "@/utils/hooks/useOverlay";
 import AttachmentModal from "@/components/Chat/AttachmentModal";
 import Popconfirm from "@/components/Popover/Popconfirm";
 import { useUser } from "@/trpc/hooks/useUser";
+import { htmlToText } from "@/utils/htmlToText";
 
 const isAbortError = (error: unknown, signal?: AbortSignal) => {
   if (signal?.aborted) return true;
@@ -417,6 +418,7 @@ type MessageAttachmentItemProps = {
   isOwnMessage: boolean;
   isDesktop: boolean;
   isDeleting: boolean;
+  isLastAttachmentAndNoContent: boolean;
 };
 
 const MessageAttachmentItem = ({
@@ -426,6 +428,7 @@ const MessageAttachmentItem = ({
   isOwnMessage,
   isDesktop,
   isDeleting,
+  isLastAttachmentAndNoContent,
 }: MessageAttachmentItemProps) => {
   const isImage = isImageExtension(attachment.extension);
   const fileName = `${attachment.original_name}.${attachment.extension}`;
@@ -488,7 +491,7 @@ const MessageAttachmentItem = ({
             )}
           >
             <Popconfirm
-              title="Are you sure you want to delete this file?"
+              title={`Are you sure you want to delete this file?${isLastAttachmentAndNoContent ? " This will also delete the message because it has no other content." : ""}`}
               onConfirm={onAttachmentDeleteClick}
             >
               <Tooltip title={"Delete file"}>
@@ -560,6 +563,11 @@ export const MessageAttachmentDisplayList = ({
   const isOwnMessage = message.user_id === user.data?.user?.id;
   const attachmentCount = message.attachments.length;
 
+  const hasContent = useMemo(
+    () => Boolean(htmlToText(message.content)),
+    [message.content]
+  );
+
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     setScrollState(getHorizontalScrollState(event.currentTarget));
   };
@@ -624,6 +632,9 @@ export const MessageAttachmentDisplayList = ({
                   isOwnMessage={isOwnMessage}
                   isDesktop={isDesktop}
                   isDeleting={deletingAttachmentIds.has(x.id)}
+                  isLastAttachmentAndNoContent={
+                    message.attachments.length === 1 && !hasContent
+                  }
                 />
               );
             })}
