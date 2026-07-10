@@ -32,6 +32,7 @@ const Popover = ({
   timeout,
   anchorEl,
   paperProps,
+  modifiers = [],
   ...props
 }: Props) => {
   const theme = useTheme();
@@ -62,6 +63,18 @@ const Popover = ({
       placement={placement}
       transition
       anchorEl={anchorEl}
+      modifiers={[
+        {
+          name: "flip",
+          enabled: true,
+          options: {
+            fallbackPlacements: ["bottom", "left", "top"],
+            padding: 8,
+            rootBoundary: "viewport",
+          },
+        },
+        ...modifiers,
+      ]}
       {...props}
       className="z-[calc(var(--mui-zIndex-modal)+1)] max-w-full"
     >

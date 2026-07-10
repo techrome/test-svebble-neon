@@ -13,6 +13,9 @@ import {
   inArray,
   count,
   SQLWrapper,
+  ne,
+  notExists,
+  or,
 } from "drizzle-orm";
 import { DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
@@ -38,6 +41,7 @@ import { s3Client } from "../../storage/s3";
 import {
   createChannelSubscribeTokenRequest,
   publishChannelEvent,
+  type PublishChannelEventOpts,
 } from "../../websockets/core";
 import { rateLimitMiddlewares } from "../ratelimit";
 import {
@@ -64,7 +68,7 @@ import { isDev } from "@/utils/isDev";
 import { moderateImage } from "../helpers/openai";
 import { probeImageDimensionsAndType } from "../helpers/probeImage";
 import { emptyJsonArray, jsonAggBuildArray } from "../helpers/jsonSQL";
-import { firstNonNull, sqlAny, sqlArray } from "../../db/helpers/sql";
+import { firstNonNull, sqlAny, sqlArray, sqlNow } from "../../db/helpers/sql";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -1084,7 +1088,7 @@ export const messagesRouter = router({
           .set({
             content: input.content.html,
             content_text: input.content.text,
-            edited_at: sql`now()`,
+            edited_at: sqlNow(),
           })
           .from(schema.channels)
           .where(
@@ -1170,7 +1174,7 @@ export const messagesRouter = router({
       const messageUpdate = db.$with("message").as(
         db
           .update(schema.messages)
-          .set({ deleted_at: sql`now()` })
+          .set({ deleted_at: sqlNow() })
           .from(schema.channels)
           .where(
             and(
@@ -1252,45 +1256,247 @@ export const messagesRouter = router({
       if (!updatedMessage) throw new TRPCError({ code: "NOT_FOUND" });
 
       const parentMessage = updatedData.parent_message;
+      const payload = {
+        message: { id: updatedMessage.id },
+        messagesVersion: updatedData.channel.messages_version,
+        parentMessageUpdate:
+          parentMessage?.id && typeof parentMessage.reply_count === "number"
+            ? {
+                reply_count: parentMessage.reply_count,
+                id: parentMessage.id,
+              }
+            : null,
+      } satisfies WebsocketEventsOriginal["messages:delete"];
+
       waitUntil(
         publishChannelEvent({
-          data: {
-            message: {
-              id: updatedMessage.id,
-            },
-            messagesVersion: updatedData.channel.messages_version,
-            parentMessageUpdate:
-              parentMessage?.id && typeof parentMessage.reply_count === "number"
-                ? {
-                    reply_count: parentMessage.reply_count,
-                    id: parentMessage.id,
-                  }
-                : null,
-          },
+          data: payload,
           eventName: "messages:delete",
           channelId: updatedMessage.channel_id,
         }).catch((e) => console.error("Ably message delete publish failed", e))
       );
-      return {
-        message: { id: updatedMessage.id },
-        messagesVersion: updatedData.channel.messages_version,
-        parentMessageUpdate:
-          updatedData.parent_message?.id &&
-          typeof updatedData.parent_message?.reply_count === "number"
-            ? {
-                reply_count: updatedData.parent_message.reply_count,
-                id: updatedData.parent_message.id,
-              }
-            : null,
-      };
+      return payload;
     }),
   deleteAll: privateProcedure([P.messages.delete])
     .input(sharedMessagesValidations.messageBulkDeleteSchemaForm)
     .mutation(async ({ input }) => {
       await db
         .update(schema.messages)
-        .set({ deleted_at: sql`now()` })
+        .set({ deleted_at: sqlNow() })
         .where(eq(schema.messages.channel_id, input.channelId));
+    }),
+  deleteAttachment: privateProcedure(
+    [P.messageAttachments.delete],
+    rateLimitMiddlewares.auth_messagesWrite
+  )
+    .input(sharedMessagesValidations.deleteMessageAttachmentSchema)
+    .output(
+      z.custom<
+        | PublishChannelEventOpts<"messageAttachments:delete">
+        | PublishChannelEventOpts<"messages:delete">
+      >()
+    )
+    .mutation(async ({ input, ctx }) => {
+      //throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
+
+      const otherAttachments = alias(
+        schema.message_attachments,
+        "other_attachments"
+      );
+      const otherFiles = alias(schema.files, "other_files");
+
+      const targetAttachment = db.$with("target_attachment").as(
+        db
+          .select({
+            file_id: schema.message_attachments.file_id,
+            message_id: schema.message_attachments.message_id,
+            channel_id: schema.messages.channel_id,
+          })
+          .from(schema.message_attachments)
+          .innerJoin(
+            schema.messages,
+            eq(schema.messages.id, schema.message_attachments.message_id)
+          )
+          .innerJoin(
+            schema.channels,
+            eq(schema.channels.id, schema.messages.channel_id)
+          )
+          .where(
+            and(
+              eq(schema.message_attachments.message_id, input.messageId),
+              eq(schema.message_attachments.file_id, input.fileId),
+
+              eq(schema.messages.user_id, ctx.user.id),
+
+              isNull(schema.messages.deleted_at),
+              isNull(schema.channels.deleted_at)
+            )
+          )
+      );
+
+      const fileUpdate = db.$with("file_update").as(
+        db
+          .update(schema.files)
+          .set({
+            status: FILE_STATUS.deleted,
+          })
+          .from(targetAttachment)
+          .where(
+            and(
+              eq(schema.files.id, targetAttachment.file_id),
+              eq(schema.files.id, input.fileId),
+              eq(schema.files.owner_user_id, ctx.user.id),
+              eq(schema.files.status, FILE_STATUS.active),
+              eq(schema.files.purpose, FILE_PURPOSE.message_attachment)
+            )
+          )
+          .returning({
+            file_id: schema.files.id,
+            message_id: targetAttachment.message_id,
+            channel_id: targetAttachment.channel_id,
+          })
+      );
+
+      // todo use normal schema
+      const otherActiveAttachmentsSubquery = db
+        .select({
+          one: sql`1`,
+        })
+        .from(otherAttachments)
+        .innerJoin(otherFiles, eq(otherFiles.id, otherAttachments.file_id))
+        .where(
+          and(
+            eq(otherAttachments.message_id, fileUpdate.message_id),
+            eq(otherFiles.status, FILE_STATUS.active),
+            ne(otherAttachments.file_id, fileUpdate.file_id)
+          )
+        )
+        .limit(1);
+
+      const messageUpdate = db.$with("message_update").as(
+        db
+          .update(schema.messages)
+          .set({
+            deleted_at: sqlNow(),
+          })
+          .from(fileUpdate)
+          .where(
+            and(
+              eq(schema.messages.id, fileUpdate.message_id),
+              isNull(schema.messages.deleted_at),
+              notExists(otherActiveAttachmentsSubquery),
+              or(
+                isNull(schema.messages.content_text),
+                eq(sql`trim(${schema.messages.content_text})`, "")
+              )
+            )
+          )
+          .returning({
+            id: schema.messages.id,
+            channel_id: schema.messages.channel_id,
+            reply_to_message_id: schema.messages.reply_to_message_id,
+          })
+      );
+
+      const parentMessageUpdate = db.$with("parent_message_update").as(
+        db
+          .update(schema.messages)
+          .set({
+            reply_count: sql`greatest(${schema.messages.reply_count} - 1, 0)`,
+          })
+          .from(messageUpdate)
+          .where(eq(schema.messages.id, messageUpdate.reply_to_message_id))
+          .returning({
+            id: schema.messages.id,
+            reply_count: schema.messages.reply_count,
+          })
+      );
+
+      const channelUpdate = db.$with("channel_update").as(
+        db
+          .update(schema.channels)
+          .set({
+            messages_version: sql`${schema.channels.messages_version} + 1`,
+          })
+          .from(fileUpdate)
+          .where(
+            and(
+              eq(schema.channels.id, fileUpdate.channel_id),
+              isNull(schema.channels.deleted_at)
+            )
+          )
+          .returning({
+            messages_version: schema.channels.messages_version,
+            file_id: fileUpdate.file_id,
+            message_id: fileUpdate.message_id,
+            channel_id: fileUpdate.channel_id,
+          })
+      );
+
+      const query = db
+        .with(
+          targetAttachment,
+          fileUpdate,
+          messageUpdate,
+          parentMessageUpdate,
+          channelUpdate
+        )
+        .select({
+          messages_version: channelUpdate.messages_version,
+          file_id: channelUpdate.file_id,
+          message_id: channelUpdate.message_id,
+          channel_id: channelUpdate.channel_id,
+
+          deleted_message_id: messageUpdate.id,
+
+          parent_message_id: parentMessageUpdate.id,
+          parent_message_reply_count: parentMessageUpdate.reply_count,
+        })
+        .from(channelUpdate)
+        .leftJoin(messageUpdate, sql`true`)
+        .leftJoin(parentMessageUpdate, sql`true`);
+
+      console.log({ query: query.toSQL() });
+      // return;
+
+      const [deletedData] = await query;
+
+      if (!deletedData) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const payload = deletedData.deleted_message_id
+        ? ({
+            data: {
+              message: { id: deletedData.deleted_message_id },
+              messagesVersion: deletedData.messages_version,
+              parentMessageUpdate:
+                deletedData.parent_message_id &&
+                typeof deletedData.parent_message_reply_count === "number"
+                  ? {
+                      reply_count: deletedData.parent_message_reply_count,
+                      id: deletedData.parent_message_id,
+                    }
+                  : null,
+            },
+            eventName: "messages:delete",
+            channelId: deletedData.channel_id,
+          } satisfies PublishChannelEventOpts<"messages:delete">)
+        : ({
+            data: {
+              fileId: deletedData.file_id,
+              message: { id: deletedData.message_id },
+              messagesVersion: deletedData.messages_version,
+            },
+            eventName: "messageAttachments:delete",
+            channelId: deletedData.channel_id,
+          } satisfies PublishChannelEventOpts<"messageAttachments:delete">);
+
+      waitUntil(
+        publishChannelEvent(payload).catch((e) =>
+          console.error("Ably message attachment delete publish failed", e)
+        )
+      );
+
+      return payload;
     }),
   getReplies: publicProcedure()
     .input(sharedMessagesValidations.messagesGetRepliesSchemaForm)

@@ -122,6 +122,7 @@ const deserializeMessageData = <K extends WebsocketEventName>(
   payload: WebsocketEvents[K]
 ) =>
   ({
+    ...payload,
     message: {
       ...deserializeMessage(payload.message),
       parentMessage:
@@ -129,7 +130,6 @@ const deserializeMessageData = <K extends WebsocketEventName>(
           ? deserializeMessage(payload.message.parentMessage)
           : null,
     },
-    messagesVersion: payload.messagesVersion,
     parentMessageUpdate: payload.parentMessageUpdate
       ? deserializeMessage(payload.parentMessageUpdate)
       : null,
@@ -961,6 +961,70 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     });
   };
 
+  const deleteMessageAttachment = (
+    data: WebsocketEventsOriginal["messageAttachments:delete"],
+    newMessagesVersion: number
+  ) => {
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      const pagesCount = queryData?.pages.length;
+      if (!queryData || !pagesCount) return queryData;
+      const messageId = data.message.id;
+      const fileIdToDelete = data.fileId;
+      let anythingChanged = false;
+
+      let updatedPages = [...queryData.pages];
+      let foundMessageIdPageIndex = -1;
+      let foundMessageIdIndex = -1;
+
+      const idBounds = getLoadedMessagesIdBounds(queryData);
+
+      if (
+        !idBounds ||
+        messageId < idBounds.lowestId ||
+        messageId > idBounds.highestId
+      ) {
+        return queryData;
+      }
+
+      for (let i = 0; i < updatedPages.length; i++) {
+        const page = updatedPages[i];
+
+        for (let j = 0; j < page.items.length; j++) {
+          const item = page.items[j];
+
+          if (item.id === messageId) {
+            foundMessageIdPageIndex = i;
+            foundMessageIdIndex = j;
+          }
+        }
+      }
+      if (foundMessageIdIndex >= 0 && foundMessageIdPageIndex >= 0) {
+        let updatedItems = [...updatedPages[foundMessageIdPageIndex].items];
+
+        anythingChanged = true;
+
+        updatedItems[foundMessageIdIndex] = {
+          ...updatedItems[foundMessageIdIndex],
+          attachments: updatedItems[foundMessageIdIndex].attachments.filter(
+            (x) => x.id !== fileIdToDelete
+          ),
+        };
+
+        updatedPages[foundMessageIdPageIndex] = {
+          ...updatedPages[foundMessageIdPageIndex],
+          items: updatedItems,
+          messages_version: newMessagesVersion,
+        };
+      }
+      return anythingChanged
+        ? {
+            ...queryData,
+            pages: updatedPages,
+          }
+        : queryData;
+    });
+  };
+
   const messageCreateMutation = trpc.messages.create.useMutation({
     onMutate(variables) {
       const currentUser = user.data?.user;
@@ -1027,6 +1091,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     appendMessage,
     editMessage,
     deleteMessage,
+    deleteMessageAttachment,
     form,
     isFormSubmitted,
   });
@@ -1044,6 +1109,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     appendMessage,
     editMessage,
     deleteMessage,
+    deleteMessageAttachment,
     form,
     isFormSubmitted,
   };
@@ -1150,6 +1216,40 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
       deleteMessage(
         deserializeMessageData<"messages:delete">(data),
+        newMessagesVersion
+      );
+    },
+    []
+  );
+
+  const wsMessageDeleteAttachmentHandler = useCallback(
+    (
+      data: WebsocketPayload<"messageAttachments:delete">,
+      isApplyingBufferedEvents?: boolean
+    ) => {
+      const {
+        isWsSyncing,
+        isPolling,
+        handleNewMessagesVersion,
+        deleteMessageAttachment,
+      } = dependencies.current;
+      const newMessagesVersion = data.messagesVersion;
+      if (isPolling) return;
+      if (isWsSyncing && !isApplyingBufferedEvents) {
+        websocketsMessageQueue.current.push({
+          eventName: "messageAttachments:delete",
+          data,
+        });
+        return;
+      }
+      if (
+        !handleNewMessagesVersion(newMessagesVersion, isApplyingBufferedEvents)
+      ) {
+        return;
+      }
+
+      deleteMessageAttachment(
+        deserializeMessageData<"messageAttachments:delete">(data),
         newMessagesVersion
       );
     },
@@ -1596,6 +1696,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           wsMessageDeleteHandler(event.data, true);
           break;
         }
+        case "messageAttachments:delete": {
+          wsMessageDeleteAttachmentHandler(event.data, true);
+          break;
+        }
         default: {
           break;
         }
@@ -1673,6 +1777,9 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       }),
       subscribeWs(websocketsChannel, "messages:delete", (data) => {
         wsMessageDeleteHandler(data);
+      }),
+      subscribeWs(websocketsChannel, "messageAttachments:delete", (data) => {
+        wsMessageDeleteAttachmentHandler(data);
       }),
     ];
 
@@ -2334,6 +2441,24 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                       onDeleteSuccess={(data) => {
                         if (handleNewMessagesVersion(data.messagesVersion)) {
                           deleteMessage(data, appliedMessagesVersion.current);
+                        }
+                        onOwnMessageActionSuccess();
+                      }}
+                      onAttachmentDeleteSuccess={(data) => {
+                        if (
+                          handleNewMessagesVersion(data.data.messagesVersion)
+                        ) {
+                          if (data.eventName === "messages:delete") {
+                            deleteMessage(
+                              data.data,
+                              appliedMessagesVersion.current
+                            );
+                          } else {
+                            deleteMessageAttachment(
+                              data.data,
+                              appliedMessagesVersion.current
+                            );
+                          }
                         }
                         onOwnMessageActionSuccess();
                       }}

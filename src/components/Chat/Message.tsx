@@ -30,6 +30,7 @@ import clsx from "clsx";
 import {
   defaultPadding,
   HorizontalStack,
+  Section,
   VerticalStack,
 } from "@/components/Layout/Containers";
 import UserAvatar from "@/components/Avatar/UserAvatar";
@@ -58,7 +59,11 @@ import { useLatest } from "@/utils/hooks/useLatest";
 import ReplyCountButton from "@/components/Chat/ReplyCountButton";
 import ParentMessagePreview from "@/components/Chat/ParentMessagePreview";
 import { StrictOmit } from "@/utils/types";
-import { MessageAttachmentDisplayList } from "@/components/Chat/MessageAttachments";
+import {
+  MessageAttachmentDisplayList,
+  type MessageAttachmentDeleteMutationOptions,
+} from "@/components/Chat/MessageAttachments";
+import ButtonBase from "@/components/Button/ButtonBase";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -76,6 +81,7 @@ const closestWithin = <T extends HTMLElement>(
   return null;
 };
 
+const usernameMaxSideCharacters = 4;
 const hoverChildHiddenClass = "opacity-0 pointer-events-none";
 const hoverChildHoveredClass =
   "group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto";
@@ -121,6 +127,7 @@ type Props = {
   onOptimisticFailedDelete: React.MouseEventHandler<HTMLButtonElement>;
   onReportClick: React.MouseEventHandler<HTMLElement>;
   onReplyClick: React.MouseEventHandler<HTMLElement>;
+  onAttachmentDeleteSuccess: MessageAttachmentDeleteMutationOptions["onSuccess"];
 };
 
 type FormValues = z.input<ReturnType<typeof makeMessageUpdateSchemaForm>>;
@@ -138,9 +145,11 @@ const Message = ({
   onOptimisticFailedDelete,
   onReportClick,
   onReplyClick,
+  onAttachmentDeleteSuccess,
 }: Props) => {
   const user = useUser();
   const menuPopover = useLocalPopover();
+  const userPopover = useLocalPopover();
   const externalLinkConfirmationPopover = useLocalPopover({ useTarget: true });
   const staticDependencies = useLatest({ externalLinkConfirmationPopover });
   const isDesktop = useIsDesktop();
@@ -299,6 +308,18 @@ const Message = ({
     totalItems,
   ]);
 
+  const truncatedUsername = useMemo(() => {
+    const username = message.author.username;
+    if (!username) return username;
+
+    const shouldTruncate = username.length > usernameMaxSideCharacters * 2 + 3; // 3 dots
+    if (!shouldTruncate) return username;
+
+    const start = username.slice(0, usernameMaxSideCharacters);
+    const end = username.slice(-usernameMaxSideCharacters);
+    return `${start}...${end}`;
+  }, [message.author.username]);
+
   const shouldDisplayAvatar = Boolean(!message.isCompact);
 
   const onHTMLContentClick = useCallback(
@@ -430,9 +451,12 @@ const Message = ({
                 )}
               >
                 {shouldDisplayAvatar ? (
-                  <div className="pt-1">
+                  <ButtonBase
+                    className="p-1 transition hover:bg-mui-action-focus cursor-pointer rounded-md h-fit"
+                    onClick={userPopover.openPopover}
+                  >
                     <UserAvatar user={message.author} size="md" />
-                  </div>
+                  </ButtonBase>
                 ) : !message.isOptimistic ? (
                   <Tooltip title={createdAtFull}>
                     <Typography
@@ -452,10 +476,28 @@ const Message = ({
                 addClassName="flex-1"
               >
                 {!message.isCompact && (
-                  <HorizontalStack addClassName="items-center" spacing="xs">
-                    <Typography>
-                      <strong>{message.author.name}</strong>
-                    </Typography>
+                  <HorizontalStack
+                    addClassName="items-center pb-1"
+                    spacing="xs"
+                  >
+                    <Button
+                      variant="text"
+                      color="inherit"
+                      className="-ml-1 p-0 hover:bg-mui-action-focus"
+                      innerClassName="py-0 px-1 flex gap-1 items-center normal-case min-w-0"
+                      onClick={userPopover.openPopover}
+                    >
+                      <Typography className="overflow-hidden whitespace-nowrap text-ellipsis">
+                        <strong>{message.author.name}</strong>
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        color="textSecondary"
+                        className="whitespace-nowrap"
+                      >
+                        {truncatedUsername}
+                      </Typography>
+                    </Button>
                     <Tooltip title={createdAtFull}>
                       <Typography variant="caption" color="textDisabled">
                         {createdAtShort}
@@ -482,7 +524,10 @@ const Message = ({
                     </Tooltip>
                   ) : null}
                 </Typography>
-                <MessageAttachmentDisplayList message={message} />
+                <MessageAttachmentDisplayList
+                  message={message}
+                  onAttachmentDeleteSuccess={onAttachmentDeleteSuccess}
+                />
               </VerticalStack>
             </HorizontalStack>
             {message.isOptimistic ? null : isDesktop ? (
@@ -681,6 +726,16 @@ const Message = ({
           </HorizontalStack>
         </VerticalStack>
       </externalLinkConfirmationPopover.ReadyComponent>
+      <userPopover.ReadyComponent placement="right">
+        <Section fullWidth={false} addClassName="min-w-xs max-w-sm">
+          <VerticalStack>
+            <Typography>{message.author.name}</Typography>
+            <Typography color="textSecondary">
+              {message.author.username}
+            </Typography>
+          </VerticalStack>
+        </Section>
+      </userPopover.ReadyComponent>
     </div>
   );
 };

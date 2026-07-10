@@ -24,7 +24,10 @@ import { getFileExtension } from "@/utils/validators/helpers/custom";
 import { TRPCClientError } from "@trpc/client";
 import { axios } from "@/trpc/axios";
 import { useQueryClient } from "@tanstack/react-query";
-import { RenderedMessage } from "@/components/Chat/Message";
+import {
+  RenderedMessage,
+  type ServerRenderedMessage,
+} from "@/components/Chat/Message";
 import Skeleton from "@/components/Skeleton/Skeleton";
 import { env } from "@/utils/env";
 import clsx from "clsx";
@@ -33,8 +36,11 @@ import { UseFormReturn } from "react-hook-form";
 import { type MessageCreateFormValues } from "@/utils/validators/client/messages";
 import HelperText from "@/components/Fields/HelperText";
 import ButtonBase from "@/components/Button/ButtonBase";
-import { useGlobalBaseModal } from "@/utils/hooks/useOverlay";
+import { useLocalBaseModal } from "@/utils/hooks/useOverlay";
 import AttachmentModal from "@/components/Chat/AttachmentModal";
+import Popconfirm from "@/components/Popover/Popconfirm";
+import { useUser } from "@/trpc/hooks/useUser";
+import { htmlToText } from "@/utils/htmlToText";
 
 const isAbortError = (error: unknown, signal?: AbortSignal) => {
   if (signal?.aborted) return true;
@@ -400,6 +406,107 @@ export const MessageAttachmentsUpload = ({
   );
 };
 
+export type MessageAttachmentDeleteMutationOptions = NonNullable<
+  Parameters<typeof trpc.messages.deleteAttachment.useMutation>[0]
+>;
+
+type MessageAttachmentItemProps = {
+  onAttachmentClick: () => void;
+  onAttachmentDeleteClick: () => void;
+  message: ServerRenderedMessage;
+  attachment: ServerRenderedMessage["attachments"][number];
+  isOwnMessage: boolean;
+  isDesktop: boolean;
+  isDeleting: boolean;
+  isLastAttachmentAndNoContent: boolean;
+};
+
+const MessageAttachmentItem = ({
+  onAttachmentClick,
+  onAttachmentDeleteClick,
+  attachment,
+  isOwnMessage,
+  isDesktop,
+  isDeleting,
+  isLastAttachmentAndNoContent,
+}: MessageAttachmentItemProps) => {
+  const isImage = isImageExtension(attachment.extension);
+  const fileName = `${attachment.original_name}.${attachment.extension}`;
+
+  return (
+    <Tooltip
+      enterDelay={750}
+      title={
+        <div>
+          <strong>Name:</strong> {fileName} <br />
+          <strong>Size:</strong> {formatBytes(attachment.size_bytes || 0)}
+        </div>
+      }
+      key={attachment.id}
+    >
+      <div className="relative group/attachment">
+        <ButtonBase
+          className={clsx(
+            attachmentClassName,
+            "hover:cursor-pointer relative overflow-hidden"
+          )}
+          onClick={onAttachmentClick}
+        >
+          <span className="pointer-events-none absolute inset-0 z-10 transition group-hover/attachment:bg-mui-action-focus" />
+
+          {isImage ? (
+            // eslint-disable-next-line
+            <img
+              alt={fileName}
+              src={`${env.NEXT_PUBLIC_CDN_URL}/${attachment.object_key}`}
+              className={clsx("w-full h-full object-cover")}
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            <Paper
+              className={clsx(
+                "flex justify-center items-center border border-mui-divider shadow-none w-full h-full"
+              )}
+              elevation={2}
+            >
+              <Typography color="textSecondary" className="leading-0">
+                <DescriptionIcon fontSize="large" />
+                <Typography
+                  variant="subtitle2"
+                  className="text-center uppercase"
+                >
+                  {attachment.extension}
+                </Typography>
+              </Typography>
+            </Paper>
+          )}
+        </ButtonBase>
+        {isOwnMessage && (
+          <Paper
+            elevation={4}
+            className={clsx(
+              "flex gap-1 absolute top-0.5 right-0.5 rounded-full group-hover/attachment:opacity-100 group-focus-within/attachment:opacity-100 transition z-20",
+              isDesktop && "opacity-0"
+            )}
+          >
+            <Popconfirm
+              title={`Are you sure you want to delete this file?${isLastAttachmentAndNoContent ? " This will also delete the message because it has no other content." : ""}`}
+              onConfirm={onAttachmentDeleteClick}
+            >
+              <Tooltip title={"Delete file"}>
+                <IconButton size="small" color="error" loading={isDeleting}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Popconfirm>
+          </Paper>
+        )}
+      </div>
+    </Tooltip>
+  );
+};
+
 const getHorizontalScrollState = (el: HTMLElement) => {
   const threshold = 1;
 
@@ -411,6 +518,7 @@ const getHorizontalScrollState = (el: HTMLElement) => {
 
 type MessageAttachmentDisplayListProps = {
   message: RenderedMessage;
+  onAttachmentDeleteSuccess: MessageAttachmentDeleteMutationOptions["onSuccess"];
 };
 
 const attachmentClassName =
@@ -420,6 +528,7 @@ const mobileButtonArrowClassName = `w-5 border-0 absolute inset-y-0 bg-[rgb(var(
 
 export const MessageAttachmentDisplayList = ({
   message,
+  onAttachmentDeleteSuccess,
 }: MessageAttachmentDisplayListProps) => {
   const isDesktop = useIsDesktop();
   const [scrollState, setScrollState] = useState({
@@ -427,7 +536,39 @@ export const MessageAttachmentDisplayList = ({
     atEnd: false,
   });
   const ref = useRef<HTMLDivElement>(null);
-  const globalBaseModal = useGlobalBaseModal();
+  const localBaseModal = useLocalBaseModal();
+  const [deletingAttachmentIds, setDeletingAttachmentIds] = useState(
+    new Set<string>()
+  );
+  const [viewingAttachmentIndex, setViewingAttachmentIndex] =
+    useState<number>(0);
+  const attachmentDeleteMutation = trpc.messages.deleteAttachment.useMutation({
+    onMutate(variables) {
+      setDeletingAttachmentIds((prev) => {
+        const next = new Set(prev);
+        next.add(variables.fileId);
+        return next;
+      });
+    },
+    onSuccess: onAttachmentDeleteSuccess,
+    onSettled(_data, _error, variables) {
+      setDeletingAttachmentIds((prev) => {
+        const next = new Set(prev);
+        next.delete(variables.fileId);
+        return next;
+      });
+    },
+  });
+  const user = useUser();
+  const isOwnMessage = message.user_id === user.data?.user?.id;
+  const attachmentCount = message.attachments.length;
+
+  const hasContent = useMemo(
+    () => Boolean(htmlToText(message.content)),
+    [message.content]
+  );
+  const isLastAttachmentAndNoContent =
+    message.attachments.length === 1 && !hasContent;
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     setScrollState(getHorizontalScrollState(event.currentTarget));
@@ -449,6 +590,12 @@ export const MessageAttachmentDisplayList = ({
     }
   }, [message.attachments]);
 
+  useEffect(() => {
+    if (viewingAttachmentIndex > attachmentCount - 1) {
+      setViewingAttachmentIndex(Math.max(0, attachmentCount - 1));
+    }
+  }, [attachmentCount, viewingAttachmentIndex]);
+
   if (!message.attachments.length) return null;
 
   return (
@@ -469,70 +616,46 @@ export const MessageAttachmentDisplayList = ({
               />
             ))
           : message.attachments.map((x, index) => {
-              const isImage = isImageExtension(x.extension);
-              const fileName = `${x.original_name}.${x.extension}`;
               return (
-                <Tooltip
-                  title={
-                    <div>
-                      <strong>Name:</strong> {fileName} <br />
-                      <strong>Size:</strong> {formatBytes(x.size_bytes || 0)}
-                    </div>
-                  }
+                <MessageAttachmentItem
                   key={x.id}
-                >
-                  <ButtonBase
-                    focusRipple
-                    className={clsx(
-                      attachmentClassName,
-                      "hover:cursor-pointer group/attachment relative overflow-hidden"
-                    )}
-                    onClick={() => {
-                      globalBaseModal.openModal({
-                        content: (
-                          <AttachmentModal
-                            message={message}
-                            onClose={globalBaseModal.closeModal}
-                            initialAttachmentIndex={index}
-                          />
-                        ),
-                        props: { showCloseButton: false },
-                      });
-                    }}
-                  >
-                    <span className="pointer-events-none absolute inset-0 z-10 transition group-hover/attachment:bg-mui-action-focus" />
-
-                    {isImage ? (
-                      // eslint-disable-next-line
-                      <img
-                        alt={fileName}
-                        src={`${env.NEXT_PUBLIC_CDN_URL}/${x.object_key}`}
-                        className={clsx("w-full h-full object-cover")}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <Paper
-                        className={clsx(
-                          "flex justify-center items-center border border-mui-divider shadow-none w-full h-full"
-                        )}
-                        elevation={2}
-                      >
-                        <Typography color="textSecondary" className="leading-0">
-                          <DescriptionIcon fontSize="large" />
-                          <Typography
-                            variant="subtitle2"
-                            className="text-center uppercase"
-                          >
-                            {x.extension}
-                          </Typography>
-                        </Typography>
-                      </Paper>
-                    )}
-                  </ButtonBase>
-                </Tooltip>
+                  message={message}
+                  onAttachmentDeleteClick={() => {
+                    attachmentDeleteMutation.mutate({
+                      fileId: x.id,
+                      messageId: message.id,
+                    });
+                  }}
+                  attachment={x}
+                  onAttachmentClick={() => {
+                    setViewingAttachmentIndex(index);
+                    localBaseModal.openModal();
+                  }}
+                  isOwnMessage={isOwnMessage}
+                  isDesktop={isDesktop}
+                  isDeleting={deletingAttachmentIds.has(x.id)}
+                  isLastAttachmentAndNoContent={isLastAttachmentAndNoContent}
+                />
               );
             })}
+        {!message.isOptimistic && (
+          <localBaseModal.ReadyComponent showCloseButton={false}>
+            <AttachmentModal
+              message={message}
+              onClose={localBaseModal.closeModal}
+              onDelete={(id) => {
+                attachmentDeleteMutation.mutate({
+                  fileId: id,
+                  messageId: message.id,
+                });
+              }}
+              deletingAttachmentIds={deletingAttachmentIds}
+              viewingAttachmentIndex={viewingAttachmentIndex}
+              setViewingAttachmentIndex={setViewingAttachmentIndex}
+              isLastAttachmentAndNoContent={isLastAttachmentAndNoContent}
+            />
+          </localBaseModal.ReadyComponent>
+        )}
       </HorizontalStack>
       <button
         type="button"

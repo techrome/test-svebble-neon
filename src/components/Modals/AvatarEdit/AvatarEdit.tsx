@@ -262,7 +262,6 @@ const AvatarChangeModal = ({
     <VerticalStack>
       <div className="flex justify-center">
         <ButtonBase
-          focusRipple
           className={clsx(
             "w-full h-64 border-2 border-dashed text-mui-text-primary border-mui-text-secondary transition inset-0 rounded-xl flex justify-center items-center p-2",
             isDragActive ? "bg-mui-action-focus" : "hover:bg-mui-action-focus"

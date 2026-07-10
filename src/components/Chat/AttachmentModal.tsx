@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import { Paper, Typography } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -20,8 +20,12 @@ import { useUser } from "@/trpc/hooks/useUser";
 
 type Props = {
   message: ServerRenderedMessage;
-  initialAttachmentIndex: number;
   onClose: () => void;
+  onDelete: (id: string) => void;
+  deletingAttachmentIds: Set<string>;
+  viewingAttachmentIndex: number;
+  setViewingAttachmentIndex: React.Dispatch<React.SetStateAction<number>>;
+  isLastAttachmentAndNoContent: boolean;
 };
 
 type AttachmentPreviewItemProps = {
@@ -31,7 +35,7 @@ type AttachmentPreviewItemProps = {
 };
 
 const sliderButtonClassName =
-  "transition p-3 md:p-8 bg-[rgb(var(--mui-palette-background-paperChannel)/0.5)] hover:bg-[rgb(var(--mui-palette-background-paperChannel)/0.9)] hover:cursor-pointer flex justify-center items-center";
+  "transition p-3 md:p-8 bg-[rgb(var(--mui-palette-background-paperChannel)/0.5)] hover:bg-[rgb(var(--mui-palette-background-paperChannel)/0.9)] dark:bg-[rgb(var(--mui-palette-text-secondaryChannel)/0.1)] dark:hover:bg-[rgb(var(--mui-palette-text-secondaryChannel)/0.5)] text-mui-text-secondary dark:hover:text-mui-background-paper hover:cursor-pointer flex justify-center items-center";
 
 const AttachmentPreviewItem = ({
   attachment,
@@ -43,10 +47,9 @@ const AttachmentPreviewItem = ({
 
   return (
     <ButtonBase
-      focusRipple
       className={clsx(
-        "transition bg-mui-action-hover hover:opacity-80 hover:cursor-pointer size-6 max-w-6 max-h-6 md:size-10 md:max-w-10 md:max-h-10",
-        !isActive && "opacity-50"
+        "bg-mui-background-paper transition hover:brightness-100 hover:cursor-pointer size-6 max-w-6 max-h-6 md:size-10 md:max-w-10 md:max-h-10",
+        !isActive && "brightness-50"
       )}
       onClick={onClick}
     >
@@ -78,20 +81,25 @@ const AttachmentPreviewItem = ({
 const AttachmentModal = ({
   message,
   onClose,
-  initialAttachmentIndex,
+  onDelete,
+  deletingAttachmentIds,
+  viewingAttachmentIndex,
+  setViewingAttachmentIndex,
+  isLastAttachmentAndNoContent,
 }: Props) => {
-  const [currentAttachmentIndex, setCurrentAttachmentIndex] = useState(
-    initialAttachmentIndex
-  );
   const user = useUser();
-  const attachment = message.attachments[currentAttachmentIndex];
+  const attachment =
+    message.attachments[viewingAttachmentIndex] || message.attachments[0];
 
   const isImage = isImageExtension(attachment.extension);
   const fileName = `${attachment.original_name}.${attachment.extension}`;
   const fileUrl = `${env.NEXT_PUBLIC_CDN_URL}/${attachment.object_key}`;
 
   const isOwnMessage = message.user_id === user.data?.user?.id;
-  const hasMultipleItems = message.attachments.length > 1;
+  const itemCount = message.attachments.length;
+  const hasMultipleItems = itemCount > 1;
+
+  const isCurrentAttachmentDeleting = deletingAttachmentIds.has(attachment.id);
 
   const closeOnSelfClick = (event: React.MouseEvent<HTMLElement>) => {
     if (event.target !== event.currentTarget) return;
@@ -110,9 +118,9 @@ const AttachmentModal = ({
             <HorizontalStack wrap={false} addClassName="ml-auto">
               {isOwnMessage && (
                 <Popconfirm
-                  title="Are you sure you want to delete this file?"
+                  title={`Are you sure you want to delete this file?${isLastAttachmentAndNoContent ? " This will also delete the message because it has no other content." : ""}`}
                   onConfirm={() => {
-                    console.log("deleted");
+                    onDelete(attachment.id);
                   }}
                 >
                   <Tooltip title="Delete file">
@@ -120,6 +128,7 @@ const AttachmentModal = ({
                       size="large"
                       color="error"
                       aria-label="delete file"
+                      loading={isCurrentAttachmentDeleting}
                     >
                       <DeleteIcon />
                     </IconButton>
@@ -127,20 +136,18 @@ const AttachmentModal = ({
                 </Popconfirm>
               )}
               <Tooltip title="Download file">
-                <a
-                  href={fileUrl}
-                  download
+                <IconButton
+                  component={"a"}
                   target="_blank"
-                  className="text-inherit"
+                  download
+                  href={fileUrl}
+                  size="large"
+                  color="inherit"
+                  aria-label="download file"
+                  disabled={isCurrentAttachmentDeleting}
                 >
-                  <IconButton
-                    size="large"
-                    color="inherit"
-                    aria-label="download file"
-                  >
-                    <DownloadIcon />
-                  </IconButton>
-                </a>
+                  <DownloadIcon />
+                </IconButton>
               </Tooltip>
               <CloseModalButton onClose={onClose} />
             </HorizontalStack>
@@ -153,18 +160,17 @@ const AttachmentModal = ({
       >
         {hasMultipleItems && (
           <ButtonBase
-            focusRipple
             className={sliderButtonClassName}
             onClick={() => {
-              setCurrentAttachmentIndex((prev) => {
+              setViewingAttachmentIndex((prev) => {
                 const newValue = prev - 1;
-                return newValue < 0 ? message.attachments.length - 1 : newValue;
+                return newValue < 0 ? itemCount - 1 : newValue;
               });
             }}
           >
             <ArrowForwardIosIcon
               color="inherit"
-              className="rotate-180 text-mui-text-secondary min-md:text-3xl"
+              className="rotate-180 min-md:text-3xl"
             />
           </ButtonBase>
         )}
@@ -207,9 +213,9 @@ const AttachmentModal = ({
                 <AttachmentPreviewItem
                   key={attachment.id}
                   attachment={attachment}
-                  isActive={currentAttachmentIndex === i}
+                  isActive={viewingAttachmentIndex === i}
                   onClick={() => {
-                    setCurrentAttachmentIndex(i);
+                    setViewingAttachmentIndex(i);
                   }}
                 />
               ))}
@@ -218,19 +224,15 @@ const AttachmentModal = ({
         </div>
         {hasMultipleItems && (
           <ButtonBase
-            focusRipple
             className={sliderButtonClassName}
             onClick={() => {
-              setCurrentAttachmentIndex((prev) => {
+              setViewingAttachmentIndex((prev) => {
                 const newValue = prev + 1;
-                return newValue > message.attachments.length - 1 ? 0 : newValue;
+                return newValue > itemCount - 1 ? 0 : newValue;
               });
             }}
           >
-            <ArrowForwardIosIcon
-              color="inherit"
-              className="text-mui-text-secondary min-md:text-3xl"
-            />
+            <ArrowForwardIosIcon color="inherit" className="min-md:text-3xl" />
           </ButtonBase>
         )}
       </div>

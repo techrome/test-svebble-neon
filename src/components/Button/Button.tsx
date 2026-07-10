@@ -8,12 +8,19 @@ import clsx from "clsx";
 
 type Props = MuiButtonProps & {
   isLoading?: boolean;
+  innerClassName?: string;
 };
 
-const Button = ({ children, isLoading, ...props }: Props) => {
+const Button = ({ children, isLoading, innerClassName, ...props }: Props) => {
   return (
     <MuiButton {...props} {...(isLoading ? { disabled: true } : {})}>
-      <div className={clsx("transition-all", isLoading && "opacity-50")}>
+      <div
+        className={clsx(
+          "transition-all",
+          isLoading && "opacity-50",
+          innerClassName
+        )}
+      >
         {children}
       </div>
 

@@ -36,13 +36,15 @@ export const createChannelSubscribeTokenRequest = async (opts: {
   });
 };
 
-export const publishChannelEvent = async <
-  EventName extends WebsocketEventName,
->(opts: {
+export type PublishChannelEventOpts<EventName extends WebsocketEventName> = {
   channelId: number;
   eventName: EventName;
   data: WebsocketPayload<EventName>;
-}): Promise<void> => {
+};
+
+export const publishChannelEvent = async <EventName extends WebsocketEventName>(
+  opts: PublishChannelEventOpts<EventName>
+): Promise<void> => {
   if (!ablyRest) return;
 
   await ablyRest.channels

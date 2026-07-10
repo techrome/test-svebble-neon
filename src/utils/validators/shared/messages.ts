@@ -2,6 +2,7 @@ import { megabytes } from "@/utils/storageUnits";
 import {
   getFileName,
   numericIdSchema,
+  uuidSchema,
 } from "@/utils/validators/helpers/custom";
 import { Text } from "@/utils/validators/helpers/text";
 import {
@@ -115,4 +116,9 @@ export const messageAttachmentImageSchema = z.object({
 
 export const finalizeMessageAttachmentSchema = z.object({
   fileObjectKey: Text.Long({ required: true }),
+});
+
+export const deleteMessageAttachmentSchema = z.object({
+  fileId: uuidSchema,
+  messageId: numericIdSchema,
 });

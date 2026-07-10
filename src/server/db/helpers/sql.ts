@@ -13,3 +13,4 @@ export const firstNonNull = <T>(
 export const sqlAny = (command: SQLWrapper) => sql`ANY(${command.getSQL()})`;
 export const sqlArray = (command: SQLWrapper) =>
   sql`ARRAY(${command.getSQL()})`;
+export const sqlNow = () => sql`now()`;

@@ -51,3 +51,5 @@ next-env.d.ts
 /rsa-keys
 !/rsa-keys_example
 !/rsa-keys_example/**
+
+/sql-test

@@ -16,7 +16,7 @@ const Tooltip = ({ children, ...props }: TooltipProps) => {
     <MuiTooltip
       placement="top"
       arrow
-      enterDelay={150}
+      enterDelay={250}
       enterTouchDelay={300}
       leaveTouchDelay={4000}
       {...props}
