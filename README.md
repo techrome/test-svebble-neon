@@ -12,3 +12,13 @@ Setup process (dev):
 - Run Docker containers `npm run docker-run`
 - Run Postgres migrations `npm run db:m`
 - Run Next.js `npm run dev`
+
+## CDN Worker
+
+File attachments are served through a separate Cloudflare Worker backed by
+Backblaze B2:
+
+https://github.com/techrome/cloudflare-b2
+
+The Worker repository contains its own deployment instructions and required
+environment variables.

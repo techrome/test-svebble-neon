@@ -57,7 +57,7 @@ const AttachmentPreviewItem = ({
         // eslint-disable-next-line
         <img
           alt={fileName}
-          src={`${env.NEXT_PUBLIC_CDN_URL}/${attachment.object_key}`}
+          src={`${env.NEXT_PUBLIC_CDN_URL}/${attachment.object_key}?preview=1`}
           className={clsx("w-full h-full object-cover")}
           loading="lazy"
           decoding="async"
