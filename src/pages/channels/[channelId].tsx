@@ -142,7 +142,7 @@ const COMPACT_GAP_MS = minutes(5);
 const MAX_GROUP_AGE_MS = minutes(20);
 const MAX_GROUP_MESSAGES = 15;
 const FETCH_MORE_THRESHOLD = 1;
-const JUMP_TO_BOTTOM_THRESHOLD_ITEMS = 25;
+const JUMP_TO_BOTTOM_THRESHOLD_ITEMS = 10;
 
 const searchSchemaForm = z.object({
   text: Text.Long(),
@@ -1589,6 +1589,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       queryKey: getQueryKey(trpc.messages.get, undefined, "infinite"),
       exact: false,
     });
+    // eslint-disable-next-line
   }, []);
 
   useEffect(() => {

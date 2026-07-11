@@ -1299,12 +1299,6 @@ export const messagesRouter = router({
     .mutation(async ({ input, ctx }) => {
       //throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
 
-      const otherAttachments = alias(
-        schema.message_attachments,
-        "other_attachments"
-      );
-      const otherFiles = alias(schema.files, "other_files");
-
       const targetAttachment = db.$with("target_attachment").as(
         db
           .select({
@@ -1357,18 +1351,20 @@ export const messagesRouter = router({
           })
       );
 
-      // todo use normal schema
       const otherActiveAttachmentsSubquery = db
         .select({
           one: sql`1`,
         })
-        .from(otherAttachments)
-        .innerJoin(otherFiles, eq(otherFiles.id, otherAttachments.file_id))
+        .from(schema.message_attachments)
+        .innerJoin(
+          schema.files,
+          eq(schema.files.id, schema.message_attachments.file_id)
+        )
         .where(
           and(
-            eq(otherAttachments.message_id, fileUpdate.message_id),
-            eq(otherFiles.status, FILE_STATUS.active),
-            ne(otherAttachments.file_id, fileUpdate.file_id)
+            eq(schema.message_attachments.message_id, fileUpdate.message_id),
+            eq(schema.files.status, FILE_STATUS.active),
+            ne(schema.message_attachments.file_id, fileUpdate.file_id)
           )
         )
         .limit(1);
@@ -1433,7 +1429,7 @@ export const messagesRouter = router({
           })
       );
 
-      const query = db
+      const [deletedData] = await db
         .with(
           targetAttachment,
           fileUpdate,
@@ -1455,11 +1451,6 @@ export const messagesRouter = router({
         .from(channelUpdate)
         .leftJoin(messageUpdate, sql`true`)
         .leftJoin(parentMessageUpdate, sql`true`);
-
-      console.log({ query: query.toSQL() });
-      // return;
-
-      const [deletedData] = await query;
 
       if (!deletedData) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -1524,7 +1515,7 @@ export const messagesRouter = router({
           and(
             eq(replyScan.reply_to_message_id, parentMessage.id),
             isNull(replyScan.deleted_at),
-            gt(parentMessage.reply_count, offset)
+            gt(parentMessage.reply_count, offset) // optimization to avoid ever going beyond reply count
           )
         )
         .orderBy(asc(replyScan.id))
