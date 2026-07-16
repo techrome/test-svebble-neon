@@ -1,43 +1,25 @@
-import {
-  pgTable,
-  uuid,
-  index,
-  uniqueIndex,
-  bigint,
-  integer,
-} from "drizzle-orm/pg-core";
+import { pgTable, uuid, uniqueIndex, bigint, index } from "drizzle-orm/pg-core";
 
-import { messages } from "./messages";
-import { reactions } from "./reactions";
-import { withDefaultColumns } from "../helpers/withDefaultColumns";
 import { user } from "./auth";
+import { message_reaction_groups } from "./message_reaction_groups";
 
 export const message_reactions = pgTable(
   "message_reactions",
-  withDefaultColumns(
-    {
-      reaction_id: integer()
-        .notNull()
-        .references(() => reactions.id),
-      message_id: bigint("message_id", { mode: "number" })
-        .notNull()
-        .references(() => messages.id),
-      user_id: uuid()
-        .notNull()
-        .references(() => user.id),
-    },
-    { id: false, updated_at: false }
-  ),
+
+  {
+    id: bigint("id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    group_id: bigint("group_id", { mode: "number" })
+      .notNull()
+      .references(() => message_reaction_groups.id),
+    user_id: uuid()
+      .notNull()
+      .references(() => user.id),
+  },
   (table) => [
-    uniqueIndex("message_reactions_unique").on(
-      table.message_id,
-      table.reaction_id,
-      table.user_id
-    ),
-    index("message_reactions_user_message_index").on(
-      table.user_id,
-      table.message_id
-    ),
-    index("message_reactions_reaction_index").on(table.reaction_id),
+    uniqueIndex("message_reactions_unique").on(table.group_id, table.user_id),
+    index("message_reactions_group_id_index").on(table.group_id, table.id),
+    index("message_reactions_user_index").on(table.user_id),
   ]
 );
