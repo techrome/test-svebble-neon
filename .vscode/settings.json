@@ -45,6 +45,12 @@
   "editor.snippetSuggestions": "bottom",
   "editor.suggestSelection": "first",
   "editor.suggest.localityBonus": true,
+  "editor.unicodeHighlight.invisibleCharacters": true,
+  "editor.unicodeHighlight.ambiguousCharacters": true,
+  "editor.unicodeHighlight.nonBasicASCII": true,
+  "editor.unicodeHighlight.includeComments": true,
+  "editor.unicodeHighlight.includeStrings": true,
+  "editor.renderControlCharacters": true,
   "workbench.colorCustomizations": {
     "folderPathColor.custom1": "#ff9d2e"
   },
