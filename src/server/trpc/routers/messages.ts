@@ -6,7 +6,6 @@ import {
   and,
   isNull,
   sql,
-  getTableColumns,
   type SQL,
   isNotNull,
   gt,
@@ -68,7 +67,15 @@ import { isDev } from "@/utils/isDev";
 import { moderateImage } from "../helpers/openai";
 import { probeImageDimensionsAndType } from "../helpers/probeImage";
 import { emptyJsonArray, jsonAggBuildArray } from "../helpers/jsonSQL";
-import { firstNonNull, sqlAny, sqlArray, sqlNow } from "../../db/helpers/sql";
+import {
+  aliasColumns,
+  existsFrom,
+  firstNonNull,
+  scalarSelect,
+  sqlAny,
+  sqlArray,
+  sqlNow,
+} from "../../db/helpers/sql";
 
 const alphanumeric =
   "ABCDEFGHIJKL MNOPQRSTUVWXYZ abcdefghijklmnop qrstuvwxyz0123456789 ";
@@ -125,11 +132,16 @@ const pickByShape = <
   return result;
 };
 
-const {
-  deleted_at: _deleted_at,
-  content_text: _content_text,
-  ...messageColumns
-} = getTableColumns(schema.messages);
+const messageColumns = {
+  content: schema.messages.content,
+  channel_id: schema.messages.channel_id,
+  created_at: schema.messages.created_at,
+  edited_at: schema.messages.edited_at,
+  id: schema.messages.id,
+  reply_count: schema.messages.reply_count,
+  reply_to_message_id: schema.messages.reply_to_message_id,
+  user_id: schema.messages.user_id,
+};
 
 const messageAuthorColumns = {
   id: schema.user.id,
@@ -148,18 +160,41 @@ const messageFileColumns = {
   size_bytes: schema.files.size_bytes,
 };
 
+const reactionsColumns = {
+  emoji: schema.reactions.emoji,
+  file_id: schema.reactions.file_id,
+  id: schema.reactions.id,
+  kind: schema.reactions.kind,
+  slug: schema.reactions.slug,
+  sort_order: schema.reactions.sort_order,
+};
+
+const messageReactionGroupsSummaryColumns = {
+  reaction_count: schema.message_reaction_groups.reaction_count,
+  reaction_id: schema.message_reaction_groups.reaction_id,
+};
+
 export type FullMessage = typeof schema.messages.$inferSelect;
 export type FullFile = typeof schema.files.$inferSelect;
 export type FullMessageAttachment =
   typeof schema.message_attachments.$inferSelect;
 type FullUser = typeof schema.user.$inferSelect;
+type FullReaction = typeof schema.reactions.$inferSelect;
+type FullMessageReactionGroup =
+  typeof schema.message_reaction_groups.$inferSelect;
 
 type Message = Pick<FullMessage, keyof typeof messageColumns>;
-
 type MessageAuthor = PartialFor<
   Pick<FullUser, keyof typeof messageAuthorColumns>,
   "username" | "displayUsername" | "image"
 >;
+type MessageReactionSummary = Pick<
+  FullMessageReactionGroup,
+  keyof typeof messageReactionGroupsSummaryColumns
+> & {
+  reacted_by_me: boolean;
+};
+
 type JoinedMessage = Message & {
   author: MessageAuthor;
   parentMessage: {
@@ -175,10 +210,16 @@ type JoinedMessage = Message & {
     > &
       Pick<FullMessageAttachment, "sort_order">
   >;
+  reactions: MessageReactionSummary[];
 };
-type ReplyMessage = StrictOmit<JoinedMessage, "content" | "attachments"> & {
+type ReplyMessage = StrictOmit<
+  JoinedMessage,
+  "content" | "attachments" | "reactions"
+> & {
   contentPreview: FullMessage["content_text"];
 };
+
+type Reaction = Pick<FullReaction, keyof typeof reactionsColumns>;
 
 const pickMessageAuthor = (
   user: NonNullable<AuthSession>["user"]
@@ -194,8 +235,8 @@ const pickMessageAuthor = (
 const toMessagesPayload = (
   rows: Array<{
     messages_version: number;
-    message: NullableFields<Message> | null;
-    author: NullableFields<MessageAuthor> | null;
+    message: Message | null;
+    author: MessageAuthor | null;
     parent_message: NullableFields<
       Pick<FullMessage, "created_at" | "edited_at"> & {
         contentPreview: FullMessage["content_text"];
@@ -203,6 +244,7 @@ const toMessagesPayload = (
     > | null;
     parent_message_author: MessageAuthor | null;
     attachments: JoinedMessage["attachments"] | null;
+    reactions: JoinedMessage["reactions"] | null;
   }>
 ) => {
   if (!rows.length) throw new TRPCError({ code: "NOT_FOUND" });
@@ -210,22 +252,26 @@ const toMessagesPayload = (
   let items: JoinedMessage[] = [];
   for (const row of rows) {
     if (row.message?.id && row.author?.id) {
-      let newItem = row.message as JoinedMessage;
-      newItem.author = row.author as MessageAuthor;
-      newItem.attachments = row.attachments?.length ? row.attachments : [];
-
-      newItem.parentMessage =
-        row.message.reply_to_message_id &&
-        row.parent_message?.created_at &&
-        row.parent_message?.edited_at &&
-        row.parent_message_author
-          ? {
-              author: row.parent_message_author,
-              contentPreview: row.parent_message.contentPreview || "",
-              created_at: row.parent_message.created_at,
-              edited_at: row.parent_message.edited_at,
-            }
-          : null;
+      const newItem = Object.assign(row.message, {
+        author: row.author,
+        parentMessage:
+          row.message.reply_to_message_id &&
+          row.parent_message?.created_at &&
+          row.parent_message?.edited_at &&
+          row.parent_message_author
+            ? {
+                author: row.parent_message_author,
+                contentPreview: row.parent_message.contentPreview || "",
+                created_at: row.parent_message.created_at,
+                edited_at: row.parent_message.edited_at,
+              }
+            : null,
+        attachments: row.attachments || [],
+        reactions: row.reactions || [],
+      } satisfies StrictOmit<
+        JoinedMessage,
+        keyof typeof row.message
+      >) satisfies JoinedMessage;
 
       items.push(newItem);
     }
@@ -249,10 +295,12 @@ export const messagesRouter = router({
   get: publicProcedure()
     .input(sharedMessagesValidations.messagesGetSchemaForm)
     .output(messagesGetOutputSchema)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const rate = 0;
       const cursor = input.cursor;
       //await new Promise((r) => setTimeout(r, 500));
+      const cachedAuth = await ctx.getCachedAuth();
+      const cachedCurrentUserId = cachedAuth?.response?.user.id || null;
 
       const channelFilter = and(
         eq(schema.channels.id, input.channelId),
@@ -394,12 +442,79 @@ export const messagesRouter = router({
               .groupBy(attachmentsSubquery.message_id)
           );
 
+        const messageReactionGroupsSubquery = db
+          .$with("message_reaction_groups_subquery")
+          .as(
+            db
+              .select({
+                message_id: schema.message_reaction_groups.message_id,
+                reaction_id: schema.message_reaction_groups.reaction_id,
+                reaction_count: schema.message_reaction_groups.reaction_count,
+                group_id: schema.message_reaction_groups.id,
+                reacted_by_me: isNotNull(schema.message_reactions.id).as(
+                  "reacted_by_me"
+                ),
+              })
+              .from(schema.message_reaction_groups)
+              .leftJoin(
+                schema.message_reactions,
+                cachedCurrentUserId
+                  ? and(
+                      eq(schema.message_reactions.user_id, cachedCurrentUserId),
+                      eq(
+                        schema.message_reactions.group_id,
+                        schema.message_reaction_groups.id
+                      )
+                    )
+                  : sql`false`
+              )
+              .where(
+                eq(
+                  schema.message_reaction_groups.message_id,
+                  sqlAny(
+                    sqlArray(
+                      db
+                        .select({ id: messagesSubquery.id })
+                        .from(messagesSubquery)
+                    )
+                  )
+                )
+              )
+          );
+
+        const reactionsByMessageSubquery = db
+          .$with("reactions_by_message_subquery")
+          // .materialized()
+          .as(
+            db
+              .select({
+                message_id: messageReactionGroupsSubquery.message_id,
+                reactions: jsonAggBuildArray<JoinedMessage["reactions"]>(
+                  {
+                    ...pickByShape(
+                      messageReactionGroupsSubquery,
+                      messageReactionGroupsSummaryColumns
+                    ),
+                    reacted_by_me: messageReactionGroupsSubquery.reacted_by_me,
+                  },
+                  {
+                    orderBy: messageReactionGroupsSubquery.group_id,
+                    noFallbackArray: true,
+                  }
+                ).as("reactions"),
+              })
+              .from(messageReactionGroupsSubquery)
+              .groupBy(messageReactionGroupsSubquery.message_id)
+          );
+
         return db
           .with(
             messagesSubquery,
             attachmentsSubquery,
             filesSubquery,
-            attachmentsByMessageSubquery
+            attachmentsByMessageSubquery,
+            messageReactionGroupsSubquery,
+            reactionsByMessageSubquery
           )
           .select({
             messages_version: schema.channels.messages_version,
@@ -407,8 +522,11 @@ export const messagesRouter = router({
             attachments: firstNonNull<JoinedMessage["attachments"]>(
               attachmentsByMessageSubquery.attachments,
               emptyJsonArray()
-            ).as("attachments"),
-
+            ).as("attachments_select"),
+            reactions: firstNonNull<JoinedMessage["reactions"]>(
+              reactionsByMessageSubquery.reactions,
+              emptyJsonArray()
+            ).as("reactions_select"),
             author: messageAuthorColumns,
             parent_message: {
               contentPreview: leftText(
@@ -428,6 +546,10 @@ export const messagesRouter = router({
           .leftJoin(
             attachmentsByMessageSubquery,
             eq(attachmentsByMessageSubquery.message_id, messagesSubquery.id)
+          )
+          .leftJoin(
+            reactionsByMessageSubquery,
+            eq(reactionsByMessageSubquery.message_id, messagesSubquery.id)
           )
           .leftJoin(schema.user, eq(schema.user.id, messagesSubquery.user_id))
           .leftJoin(
@@ -788,7 +910,7 @@ export const messagesRouter = router({
       // if (Math.random() < 0.7) throw new Error("Test error");
       const userId = ctx.user.id;
       const author = pickMessageAuthor(ctx.user);
-      const isReply = Boolean(input.reply_to_message_id);
+      const replyToMessageId = input.reply_to_message_id;
       const attachmentIds = input.attachmentIds;
       const attachmentCount = attachmentIds.length;
 
@@ -838,9 +960,9 @@ export const messagesRouter = router({
           })
           .from(replyParentMessage)
           .where(
-            isReply
+            replyToMessageId
               ? and(
-                  eq(replyParentMessage.id, input.reply_to_message_id!),
+                  eq(replyParentMessage.id, replyToMessageId),
                   eq(replyParentMessage.channel_id, input.channelId),
                   isNull(replyParentMessage.deleted_at)
                 )
@@ -863,7 +985,9 @@ export const messagesRouter = router({
               attachmentCount
                 ? eq(validatedAttachmentCount.count, attachmentCount)
                 : undefined,
-              isReply ? isNotNull(validatedParentMessage.id) : undefined
+              replyToMessageId
+                ? isNotNull(validatedParentMessage.id)
+                : undefined
             )
           )
       );
@@ -875,9 +999,9 @@ export const messagesRouter = router({
             content: input.content.html,
             content_text: input.content.text,
             user_id: ctx.user.id,
-            channel_id: sql`(select ${validatedChannel.id} from ${validatedChannel})`, // the whole validation relies on this check
-            reply_to_message_id: isReply
-              ? sql`(select ${validatedParentMessage.id} from ${validatedParentMessage})`
+            channel_id: scalarSelect(validatedChannel.id, validatedChannel), // the whole validation relies on this check
+            reply_to_message_id: replyToMessageId
+              ? scalarSelect(validatedParentMessage.id, validatedParentMessage)
               : null,
           })
           .returning(messageColumns)
@@ -889,7 +1013,7 @@ export const messagesRouter = router({
               .insert(schema.message_attachments)
               .values(
                 attachmentIds.map((fileId, index) => ({
-                  message_id: sql`(select ${messageInsert.id} from ${messageInsert})`,
+                  message_id: scalarSelect(messageInsert.id, messageInsert),
                   file_id: fileId,
                   sort_order: index,
                 }))
@@ -1014,49 +1138,30 @@ export const messagesRouter = router({
       if (!newData?.message || !newData.channel_messages_version) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
-      const newMessage = newData.message as JoinedMessage;
-      newMessage.author = author;
-      newMessage.parentMessage =
-        newData.parent_message.created_at &&
-        newData.parent_message.edited_at &&
-        newData.parent_message_author
-          ? {
-              author: newData.parent_message_author,
-              contentPreview: newData.parent_message.contentPreview || "",
-              created_at: newData.parent_message.created_at,
-              edited_at: newData.parent_message.edited_at,
-            }
-          : null;
-      newMessage.attachments = rows.flatMap((row) =>
-        row.attachment?.id ? [row.attachment] : []
-      );
 
-      const parentMessageIdSerialized = newMessage.reply_to_message_id || null;
+      const newMessage = Object.assign(newData.message, {
+        author,
+        parentMessage:
+          newData.parent_message.created_at &&
+          newData.parent_message.edited_at &&
+          newData.parent_message_author
+            ? {
+                author: newData.parent_message_author,
+                contentPreview: newData.parent_message.contentPreview || "",
+                created_at: newData.parent_message.created_at,
+                edited_at: newData.parent_message.edited_at,
+              }
+            : null,
+        attachments: rows.flatMap((row) =>
+          row.attachment?.id ? [row.attachment] : []
+        ),
+        reactions: [],
+      } satisfies StrictOmit<
+        JoinedMessage,
+        keyof typeof newData.message
+      >) satisfies JoinedMessage;
 
-      waitUntil(
-        publishChannelEvent({
-          data: {
-            message: {
-              ...newMessage,
-              channel_id: newMessage.channel_id,
-              id: newMessage.id,
-              reply_to_message_id: parentMessageIdSerialized,
-            },
-            messagesVersion: newData.channel_messages_version,
-            parentMessageUpdate:
-              parentMessageIdSerialized &&
-              typeof newData.parent_message.reply_count === "number"
-                ? {
-                    reply_count: newData.parent_message.reply_count,
-                    id: parentMessageIdSerialized,
-                  }
-                : null,
-          },
-          eventName: "messages:create",
-          channelId: newMessage.channel_id,
-        }).catch((e) => console.error("Ably message create publish failed", e))
-      );
-      return {
+      const eventData = {
         message: newMessage,
         messagesVersion: newData.channel_messages_version,
         parentMessageUpdate:
@@ -1067,7 +1172,16 @@ export const messagesRouter = router({
                 id: newData.parent_message.id,
               }
             : null,
-      };
+      } satisfies WebsocketEventsOriginal["messages:create"];
+
+      waitUntil(
+        publishChannelEvent({
+          data: eventData,
+          eventName: "messages:create",
+          channelId: newMessage.channel_id,
+        }).catch((e) => console.error("Ably message create publish failed", e))
+      );
+      return eventData;
     }),
   update: privateProcedure(
     [P.messages.update],
@@ -1567,9 +1681,13 @@ export const messagesRouter = router({
       for (const row of rows) {
         if (!row.message?.id || !row.author?.id) continue;
 
-        let newItem = row.message as ReplyMessage;
-        newItem.author = row.author as ReplyMessage["author"];
-        newItem.parentMessage = null;
+        const newItem = Object.assign(row.message, {
+          author: row.author,
+          parentMessage: null,
+        } satisfies StrictOmit<
+          ReplyMessage,
+          keyof typeof row.message
+        >) satisfies ReplyMessage;
 
         items.push(newItem);
       }
@@ -1579,5 +1697,316 @@ export const messagesRouter = router({
         totalItems,
         page,
       };
+    }),
+  getReactions: publicProcedure()
+    .output(
+      z.object({
+        items: z.custom<Reaction[]>(),
+      })
+    )
+    .query(async () => {
+      const rows = await db
+        .select(reactionsColumns)
+        .from(schema.reactions)
+        .where(isNull(schema.reactions.disabled_at))
+        .limit(1000);
+
+      return {
+        items: rows,
+      };
+    }),
+  toggleReaction: privateProcedure(
+    [P.messageReactions.toggle],
+    rateLimitMiddlewares.auth_messagesToggleReactions
+  )
+    .input(sharedMessagesValidations.toggleMessageReactionSchema)
+    .output(z.custom<WebsocketEventsOriginal["messageReactions:toggle"]>())
+    .mutation(async ({ input, ctx }) => {
+      const validatedTarget = db.$with("validated_target").as(
+        db
+          .select(
+            aliasColumns({
+              validated_message_id: schema.messages.id,
+              validated_reaction_id: schema.reactions.id,
+              validated_channel_id: schema.channels.id,
+            })
+          )
+          .from(schema.messages)
+          .innerJoin(
+            schema.channels,
+            eq(schema.channels.id, schema.messages.channel_id)
+          )
+          .innerJoin(
+            schema.reactions,
+            eq(schema.reactions.id, input.reactionId)
+          )
+          .where(
+            and(
+              eq(schema.messages.id, input.messageId),
+              isNull(schema.messages.deleted_at),
+              isNull(schema.channels.deleted_at),
+              isNull(schema.reactions.disabled_at)
+            )
+          )
+      );
+
+      if (input.shouldReact) {
+        const reactionGroup = db.$with("reaction_group").as(
+          db
+            .insert(schema.message_reaction_groups)
+            .values({
+              message_id: scalarSelect(
+                validatedTarget.validated_message_id,
+                validatedTarget
+              ),
+              reaction_id: scalarSelect(
+                validatedTarget.validated_reaction_id,
+                validatedTarget
+              ),
+              reaction_count: 1,
+            })
+            // safe to increment because the whole query will rollback if the reaction insert fails
+            .onConflictDoUpdate({
+              target: [
+                schema.message_reaction_groups.message_id,
+                schema.message_reaction_groups.reaction_id,
+              ],
+              set: {
+                reaction_count: sql`${schema.message_reaction_groups.reaction_count} + 1`,
+              },
+            })
+            .returning({
+              id: schema.message_reaction_groups.id,
+              reaction_count: schema.message_reaction_groups.reaction_count,
+            })
+        );
+
+        const reactionInsert = db.$with("reaction_insert").as(
+          db
+            .insert(schema.message_reactions)
+            .values({
+              group_id: scalarSelect(reactionGroup.id, reactionGroup),
+              user_id: ctx.user.id,
+            })
+            // don't add "on conflict do nothing" here
+            // if it fails, it will safely rollback the whole query
+            .returning({
+              id: schema.message_reactions.id,
+              group_id: schema.message_reactions.group_id,
+            })
+        );
+
+        const channelUpdate = db.$with("channel_update").as(
+          db
+            .update(schema.channels)
+            .set({
+              messages_version: sql`${schema.channels.messages_version} + 1`,
+            })
+            .where(
+              and(
+                eq(
+                  schema.channels.id,
+                  scalarSelect(
+                    validatedTarget.validated_channel_id,
+                    validatedTarget
+                  )
+                ),
+                existsFrom(reactionInsert)
+              )
+            )
+            .returning({
+              messages_version: schema.channels.messages_version,
+            })
+        );
+
+        const [result] = await db
+          .with(validatedTarget, reactionGroup, reactionInsert, channelUpdate)
+          .select({
+            messageId: validatedTarget.validated_message_id,
+            channelId: validatedTarget.validated_channel_id,
+            reactionId: validatedTarget.validated_reaction_id,
+            reactionCount: reactionGroup.reaction_count,
+            messagesVersion: channelUpdate.messages_version,
+          })
+          .from(validatedTarget)
+          .innerJoin(reactionGroup, sql`true`)
+          .innerJoin(
+            reactionInsert,
+            eq(reactionInsert.group_id, reactionGroup.id)
+          )
+          .innerJoin(channelUpdate, sql`true`);
+
+        if (!result) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Message or reaction not found.",
+          });
+        }
+        const response: WebsocketEventsOriginal["messageReactions:toggle"] = {
+          message: { id: result.messageId },
+          messagesVersion: result.messagesVersion,
+          reactionId: result.reactionId,
+          isReacted: true,
+          actorUserId: ctx.user.id,
+          reactionCount: result.reactionCount,
+        };
+
+        return response;
+      }
+
+      const reactionGroup = db.$with("reaction_group").as(
+        db
+          .select({
+            id: schema.message_reaction_groups.id,
+            reaction_count: schema.message_reaction_groups.reaction_count,
+          })
+          .from(schema.message_reaction_groups)
+          .innerJoin(
+            validatedTarget,
+            and(
+              eq(
+                schema.message_reaction_groups.message_id,
+                validatedTarget.validated_message_id
+              ),
+              eq(
+                schema.message_reaction_groups.reaction_id,
+                validatedTarget.validated_reaction_id
+              )
+            )
+          )
+          // locking this row to avoid a rare race condition when two simultaneous requests try to delete the reaction. only needed in this path because it's a select
+          .for("update", { of: schema.message_reaction_groups })
+      );
+
+      const reactionDelete = db.$with("reaction_delete").as(
+        db
+          .delete(schema.message_reactions)
+          .where(
+            and(
+              eq(
+                schema.message_reactions.group_id,
+                scalarSelect(reactionGroup.id, reactionGroup)
+              ),
+              eq(schema.message_reactions.user_id, ctx.user.id)
+            )
+          )
+          .returning({
+            id: schema.message_reactions.id,
+            group_id: schema.message_reactions.group_id,
+          })
+      );
+
+      const groupUpdate = db.$with("group_update").as(
+        db
+          .update(schema.message_reaction_groups)
+          .set({
+            reaction_count: sql`${schema.message_reaction_groups.reaction_count} - 1`,
+          })
+          .where(
+            and(
+              eq(
+                schema.message_reaction_groups.id,
+                scalarSelect(reactionGroup.id, reactionGroup)
+              ),
+              sql`(select ${reactionGroup.reaction_count} from ${reactionGroup}) > 1`,
+              existsFrom(reactionDelete)
+            )
+          )
+          .returning({
+            reaction_count: schema.message_reaction_groups.reaction_count,
+          })
+      );
+
+      // If this was the last reaction in the group, remove the whole group
+      const groupDelete = db.$with("group_delete").as(
+        db
+          .delete(schema.message_reaction_groups)
+          .where(
+            and(
+              eq(
+                schema.message_reaction_groups.id,
+                scalarSelect(reactionGroup.id, reactionGroup)
+              ),
+              sql`(select ${reactionGroup.reaction_count} from ${reactionGroup}) <= 1`,
+              existsFrom(reactionDelete)
+            )
+          )
+          .returning({
+            id: schema.message_reaction_groups.id,
+          })
+      );
+
+      const channelUpdate = db.$with("channel_update").as(
+        db
+          .update(schema.channels)
+          .set({
+            messages_version: sql`${schema.channels.messages_version} + 1`,
+          })
+          .where(
+            and(
+              eq(
+                schema.channels.id,
+                scalarSelect(
+                  validatedTarget.validated_channel_id,
+                  validatedTarget
+                )
+              ),
+              existsFrom(reactionDelete)
+            )
+          )
+          .returning({
+            messages_version: schema.channels.messages_version,
+          })
+      );
+      const [result] = await db
+        .with(
+          validatedTarget,
+          reactionGroup,
+          reactionDelete,
+          groupUpdate,
+          groupDelete,
+          channelUpdate
+        )
+        .select({
+          messageId: validatedTarget.validated_message_id,
+          channelId: validatedTarget.validated_channel_id,
+          reactionId: validatedTarget.validated_reaction_id,
+          reactionCount:
+            sql<number>`case when ${isNotNull(groupDelete.id)} then 0 else ${firstNonNull(groupUpdate.reaction_count, reactionGroup.reaction_count, sql`0`)} end`.mapWith(
+              schema.message_reaction_groups.reaction_count
+            ),
+          messagesVersion: firstNonNull(
+            channelUpdate.messages_version,
+            schema.channels.messages_version
+          ).mapWith(schema.channels.messages_version), // can be a string sometimes, so I need to explicitly convert it to number
+        })
+        .from(validatedTarget)
+        .innerJoin(
+          schema.channels,
+          eq(schema.channels.id, validatedTarget.validated_channel_id)
+        )
+        .leftJoin(reactionGroup, sql`true`)
+        .leftJoin(reactionDelete, sql`true`)
+        .leftJoin(groupUpdate, sql`true`)
+        .leftJoin(groupDelete, sql`true`)
+        .leftJoin(channelUpdate, sql`true`);
+
+      if (!result) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Message or reaction not found.",
+        });
+      }
+
+      const response: WebsocketEventsOriginal["messageReactions:toggle"] = {
+        message: { id: result.messageId },
+        messagesVersion: result.messagesVersion,
+        reactionId: result.reactionId,
+        isReacted: false,
+        actorUserId: ctx.user.id,
+        reactionCount: result.reactionCount,
+      };
+
+      return response;
     }),
 });
