@@ -244,12 +244,14 @@ const ReplyCountButton = ({ message }: Props) => {
 
   return (
     <>
-      <ButtonBase className="w-full hover:cursor-pointer hover:bg-mui-action-selected text-left">
+      <ButtonBase
+        className="w-full hover:cursor-pointer hover:bg-mui-action-selected text-left"
+        onClick={popover.openPopover}
+      >
         <HorizontalStack
           addClassName="pl-3 pr-1 items-center"
           fullWidth
           spacing="xs"
-          onClick={popover.openPopover}
         >
           <Typography color="textSecondary" className="flex items-center">
             Replies: {message.reply_count}

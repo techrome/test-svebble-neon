@@ -3,6 +3,7 @@ import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import overlays, { overlaysSlice } from "./slices/overlays";
 import snackbars, { snackbarsSlice } from "./slices/snackbars";
 import misc from "./slices/misc";
+import messageReactionsUI from "./slices/messageReactionsUI";
 import { isDev } from "@/utils/isDev";
 import { GetObjectPaths } from "@/utils/types";
 
@@ -10,6 +11,7 @@ const rootReducer = combineReducers({
   overlays,
   snackbars,
   misc,
+  messageReactionsUI,
 });
 
 export type RootState = ReturnType<typeof rootReducer>;

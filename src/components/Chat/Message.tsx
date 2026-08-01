@@ -64,6 +64,11 @@ import {
   type MessageAttachmentDeleteMutationOptions,
 } from "@/components/Chat/MessageAttachments";
 import ButtonBase from "@/components/Button/ButtonBase";
+import MessageReactionPicker from "@/components/Chat/MessageReactionPicker";
+import MessageReactionList from "@/components/Chat/MessageReactionList";
+import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
+import { useAppDispatch } from "@/redux/hooks";
+import { deleteAllPendingMessageReactions } from "@/redux/slices/messageReactionsUI";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -94,6 +99,10 @@ type MessageDeleteMutationOptions = NonNullable<
 >;
 
 export type Message = RouterOutput["messages"]["get"]["items"][number];
+
+export type ToggleMessageReaction = ReturnType<
+  typeof trpc.messages.toggleReaction.useMutation
+>["mutate"];
 
 type RenderedMessageFlags = {
   isCompact?: true;
@@ -128,6 +137,7 @@ type Props = {
   onReportClick: React.MouseEventHandler<HTMLElement>;
   onReplyClick: React.MouseEventHandler<HTMLElement>;
   onAttachmentDeleteSuccess: MessageAttachmentDeleteMutationOptions["onSuccess"];
+  onReactionClick: ToggleMessageReaction;
 };
 
 type FormValues = z.input<ReturnType<typeof makeMessageUpdateSchemaForm>>;
@@ -146,10 +156,13 @@ const Message = ({
   onReportClick,
   onReplyClick,
   onAttachmentDeleteSuccess,
+  onReactionClick,
 }: Props) => {
   const user = useUser();
+  const dispatch = useAppDispatch();
   const menuPopover = useLocalPopover();
   const userPopover = useLocalPopover();
+  const reactionsPopover = useLocalPopover();
   const externalLinkConfirmationPopover = useLocalPopover({ useTarget: true });
   const staticDependencies = useLatest({ externalLinkConfirmationPopover });
   const isDesktop = useIsDesktop();
@@ -223,6 +236,12 @@ const Message = ({
     utils.messages.getReplies.invalidate({ messageId: message.id });
     // eslint-disable-next-line
   }, [message.reply_count]);
+
+  useEffect(() => {
+    return () => {
+      dispatch(deleteAllPendingMessageReactions({ messageId: message.id }));
+    };
+  }, [dispatch, message.id]);
 
   const MoreButton = (
     <Tooltip title="More">
@@ -528,6 +547,12 @@ const Message = ({
                   message={message}
                   onAttachmentDeleteSuccess={onAttachmentDeleteSuccess}
                 />
+                {!message.isOptimistic && (
+                  <MessageReactionList
+                    message={message}
+                    toggleReaction={onReactionClick}
+                  />
+                )}
               </VerticalStack>
             </HorizontalStack>
             {message.isOptimistic ? null : isDesktop ? (
@@ -541,7 +566,10 @@ const Message = ({
               >
                 <HorizontalStack addClassName="p-1" spacing="none">
                   <Tooltip title="Add reaction">
-                    <IconButton size="small">
+                    <IconButton
+                      size="small"
+                      onClick={reactionsPopover.openPopover}
+                    >
                       <AddReactionIcon />
                     </IconButton>
                   </Tooltip>
@@ -602,7 +630,7 @@ const Message = ({
       <menuPopover.ReadyComponent>
         <Paper>
           <MenuList>
-            <MenuItem>
+            <MenuItem onClick={reactionsPopover.openPopover}>
               <ListItemIcon>
                 <AddReactionIcon />
               </ListItemIcon>
@@ -736,6 +764,16 @@ const Message = ({
           </VerticalStack>
         </Section>
       </userPopover.ReadyComponent>
+      <reactionsPopover.ReadyComponent>
+        <LoadingBoundary>
+          {!message.isOptimistic && (
+            <MessageReactionPicker
+              message={message}
+              onReactionClick={onReactionClick}
+            />
+          )}
+        </LoadingBoundary>
+      </reactionsPopover.ReadyComponent>
     </div>
   );
 };

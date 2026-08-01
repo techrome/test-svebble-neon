@@ -5,7 +5,7 @@ import {
   Typography,
 } from "@mui/material";
 
-type TooltipProps = MuiTooltipProps;
+export type TooltipProps = MuiTooltipProps;
 
 const Tooltip = ({ children, ...props }: TooltipProps) => {
   const isChildDisabled = Boolean(
