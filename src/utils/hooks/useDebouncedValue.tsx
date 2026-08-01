@@ -3,9 +3,13 @@ import { useEffect, useState } from "react";
 export const useDebouncedValue = <T,>(
   value: T,
   timeoutMs: number,
-  options?: { instantOnFalsyValue?: boolean; instantOnTruthyValue?: boolean }
+  options?: {
+    instantOnFalsyValue?: boolean;
+    instantOnTruthyValue?: boolean;
+    initialValue?: T;
+  }
 ): T => {
-  const [debounced, setDebounced] = useState(value);
+  const [debounced, setDebounced] = useState(options?.initialValue ?? value);
 
   useEffect(() => {
     if (

@@ -11,11 +11,12 @@ type BaseSectionProps = {
   children?: React.ReactNode;
   addClassName?: string;
   fullWidth?: boolean;
+  padding?: "md" | "xs";
 } & React.ComponentProps<"div">;
 
 type ContainerProps = MuiContainerProps;
 
-type LayoutBreakpoints = Partial<Record<Breakpoints | "none", string>>;
+type LayoutBreakpoints = Partial<Record<Breakpoints | "xxs" | "none", string>>;
 
 const switchingStackBreakpoints = {
   sm: "sm:flex-row sm:flex-wrap",
@@ -30,11 +31,16 @@ export const Section = ({
   children,
   addClassName,
   fullWidth = true,
+  padding = "md",
   ...props
 }: BaseSectionProps) => {
   return (
     <div
-      className={clsx(fullWidth && "w-full", defaultPadding, addClassName)}
+      className={clsx(
+        fullWidth && "w-full",
+        padding === "md" ? defaultPadding : defaultPaddingXs,
+        addClassName
+      )}
       {...props}
     >
       {children}
@@ -43,6 +49,7 @@ export const Section = ({
 };
 
 export const spacingMapping = {
+  xxs: "gap-0.5",
   xs: "gap-1 sm:gap-2",
   sm: "gap-2 sm:gap-3",
   md: "gap-4 sm:gap-6",
