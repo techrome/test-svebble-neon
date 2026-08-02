@@ -48,7 +48,7 @@ const getErrorInfo = (
     ? "Your session has expired. Please log in again."
     : hasZodError
       ? `Error: ${error?.data?.zodError?.issues?.[0].message} (${error?.data?.zodError?.issues?.[0].path.join(".")})`
-      : error.message;
+      : error.message || "Something went wrong.";
 
   const details = (
     <VerticalStack>

@@ -51,6 +51,16 @@ type WebsocketEventsOf<TFull extends MessageBase> = {
     Pick<TFull, "id">,
     false
   > & { fileId: string };
+  "messageReactions:toggle": MessageMutationResponse<
+    TFull,
+    Pick<TFull, "id">,
+    false
+  > & {
+    reactionId: number;
+    isReacted: boolean;
+    actorUserId: string;
+    reactionCount: number;
+  };
 };
 
 export type WebsocketEventsOriginal = WebsocketEventsOf<Message>;

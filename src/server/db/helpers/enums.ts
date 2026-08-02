@@ -25,4 +25,8 @@ export const AUDIT_LOG_ACTION_ENUM = ["signup", "login", "logout"] as const;
 export const AUDIT_LOG_ACTION = toObject(AUDIT_LOG_ACTION_ENUM);
 export type AuditLogAction = (typeof AUDIT_LOG_ACTION_ENUM)[number];
 
+export const REACTIONS_KINDS_ENUM = ["unicode", "custom"] as const;
+export const REACTION_KIND = toObject(REACTIONS_KINDS_ENUM);
+export type ReactionKind = (typeof REACTIONS_KINDS_ENUM)[number];
+
 export const literal = (s: string) => sql.raw(`'${s.replace(/'/g, "''")}'`);

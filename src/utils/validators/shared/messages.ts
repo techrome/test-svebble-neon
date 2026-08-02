@@ -122,3 +122,9 @@ export const deleteMessageAttachmentSchema = z.object({
   fileId: uuidSchema,
   messageId: numericIdSchema,
 });
+
+export const toggleMessageReactionSchema = z.object({
+  messageId: numericIdSchema,
+  reactionId: numericIdSchema,
+  shouldReact: z.boolean(),
+});

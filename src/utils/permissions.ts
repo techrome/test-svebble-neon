@@ -56,6 +56,9 @@ const basePermissions = {
     create: true,
     delete: true,
   },
+  messageReactions: {
+    toggle: true,
+  },
   channels: {
     create: true,
     update: true,

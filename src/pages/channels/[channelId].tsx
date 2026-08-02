@@ -98,6 +98,8 @@ import {
 } from "@/components/Chat/MessageAttachments";
 import { hasPermissions } from "@/utils/hasPermissions";
 import { P } from "@/utils/permissions";
+import { setPendingReaction } from "@/redux/slices/messageReactionsUI";
+import { useAppDispatch } from "@/redux/hooks";
 
 type JSONIncompatibleMessageFields = Pick<
   MessageSerializable,
@@ -415,6 +417,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const qc = useQueryClient();
   const utils = trpc.useUtils();
   const router = useRouter();
+  const dispatch = useAppDispatch();
 
   const messageCreateSchema = useMemo(
     () => makeMessageCreateSchemaForm(user.data?.user?.emailVerified),
@@ -537,7 +540,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   const [isMessageHighlightConsumed, setIsMessageHighlightConsumed] =
     useState<boolean>(false);
   const hasCompletedFirstInit = useRef<boolean>(false);
-  const hasStartedWsSyncRefetch = useRef<boolean>(false);
+  const [hasStartedWsSyncRefetch, setHasStartedWsSyncRefetch] = useState(false);
+  const [shouldStartWsSyncRefetch, setShouldStartWsSyncRefetch] =
+    useState(false);
+
   const nextOptimisticIdRef = useRef<number>(-1);
   // gating initial load to avoid unnecessary refetch when waiting for websockets
   // in most cases it should be: ws connected -> start fetching initial page
@@ -1025,6 +1031,101 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     });
   };
 
+  const setMessageReaction = (
+    data: WebsocketEventsOriginal["messageReactions:toggle"],
+    newMessagesVersion: number
+  ) => {
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      const pagesCount = queryData?.pages.length;
+      if (!queryData || !pagesCount) return queryData;
+      const messageId = data.message.id;
+      let anythingChanged = false;
+
+      let updatedPages = [...queryData.pages];
+      let foundMessageIdPageIndex = -1;
+      let foundMessageIdIndex = -1;
+
+      const idBounds = getLoadedMessagesIdBounds(queryData);
+
+      if (
+        !idBounds ||
+        messageId < idBounds.lowestId ||
+        messageId > idBounds.highestId
+      ) {
+        return queryData;
+      }
+
+      for (let i = 0; i < updatedPages.length; i++) {
+        const page = updatedPages[i];
+
+        for (let j = 0; j < page.items.length; j++) {
+          const item = page.items[j];
+
+          if (item.id === messageId) {
+            foundMessageIdPageIndex = i;
+            foundMessageIdIndex = j;
+          }
+        }
+      }
+      if (foundMessageIdIndex >= 0 && foundMessageIdPageIndex >= 0) {
+        let updatedItems = [...updatedPages[foundMessageIdPageIndex].items];
+
+        anythingChanged = true;
+
+        let shouldAddReaction = true;
+        let updatedReactions = updatedItems[foundMessageIdIndex].reactions
+          .map((x) => {
+            if (x.reaction_id === data.reactionId) {
+              shouldAddReaction = false;
+              return {
+                ...x,
+                reacted_by_me:
+                  data.actorUserId === user.data?.user?.id
+                    ? data.isReacted
+                    : x.reacted_by_me,
+                reaction_count: data.reactionCount,
+              };
+            } else return x;
+          })
+          .filter((x) => x.reaction_count > 0);
+
+        if (shouldAddReaction) {
+          updatedReactions.push({
+            reacted_by_me:
+              data.actorUserId === user.data?.user?.id && data.isReacted,
+            reaction_count: data.reactionCount,
+            reaction_id: data.reactionId,
+          });
+        }
+
+        updatedItems[foundMessageIdIndex] = {
+          ...updatedItems[foundMessageIdIndex],
+          reactions: updatedReactions,
+        };
+
+        updatedPages[foundMessageIdPageIndex] = {
+          ...updatedPages[foundMessageIdPageIndex],
+          items: updatedItems,
+          messages_version: newMessagesVersion,
+        };
+      }
+
+      return anythingChanged
+        ? {
+            ...queryData,
+            pages: updatedPages,
+          }
+        : queryData;
+    });
+  };
+
+  const onOwnMessageActionSuccess = () => {
+    if (isPolling) {
+      refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
+      utils.messages.get.invalidate();
+    }
+  };
+
   const messageCreateMutation = trpc.messages.create.useMutation({
     onMutate(variables) {
       const currentUser = user.data?.user;
@@ -1050,6 +1151,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           attachments: variables.attachmentIds || [],
           isOptimistic: true,
           parentMessage: null,
+          reactions: [],
         },
       ]);
       return {
@@ -1077,6 +1179,32 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     meta: { keepDefaultErrorHandling: true },
   });
 
+  const toggleReactionMutation = trpc.messages.toggleReaction.useMutation({
+    onMutate(variables) {
+      dispatch(
+        setPendingReaction({
+          ...variables,
+          isPending: true,
+        })
+      );
+    },
+    onSuccess(data) {
+      if (handleNewMessagesVersion(data.messagesVersion)) {
+        setMessageReaction(data, appliedMessagesVersion.current);
+      }
+      onOwnMessageActionSuccess();
+    },
+    onError(error, variables) {
+      dispatch(
+        setPendingReaction({
+          ...variables,
+          isPending: false,
+        })
+      );
+    },
+    meta: { keepDefaultErrorHandling: true },
+  });
+
   const isFormSubmitted = form.formState.isSubmitted;
   const dependencies = useRef({
     messagesQueryKey,
@@ -1092,6 +1220,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     editMessage,
     deleteMessage,
     deleteMessageAttachment,
+    setMessageReaction,
     form,
     isFormSubmitted,
   });
@@ -1110,6 +1239,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     editMessage,
     deleteMessage,
     deleteMessageAttachment,
+    setMessageReaction,
     form,
     isFormSubmitted,
   };
@@ -1256,15 +1386,42 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     []
   );
 
+  const wsMessageSetReactionHandler = useCallback(
+    (
+      data: WebsocketPayload<"messageReactions:toggle">,
+      isApplyingBufferedEvents?: boolean
+    ) => {
+      const {
+        isWsSyncing,
+        isPolling,
+        handleNewMessagesVersion,
+        setMessageReaction,
+      } = dependencies.current;
+      const newMessagesVersion = data.messagesVersion;
+      if (isPolling) return;
+      if (isWsSyncing && !isApplyingBufferedEvents) {
+        websocketsMessageQueue.current.push({
+          eventName: "messageReactions:toggle",
+          data,
+        });
+        return;
+      }
+      if (
+        !handleNewMessagesVersion(newMessagesVersion, isApplyingBufferedEvents)
+      ) {
+        return;
+      }
+
+      setMessageReaction(
+        deserializeMessageData<"messageReactions:toggle">(data),
+        newMessagesVersion
+      );
+    },
+    []
+  );
+
   const deleteOptimisticMessage = (id: number) => {
     setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
-  };
-
-  const onOwnMessageActionSuccess = () => {
-    if (isPolling) {
-      refetchIntervalVars.current.currentIntervalMs = baseIntervalMs;
-      utils.messages.get.invalidate();
-    }
   };
 
   // const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
@@ -1371,6 +1528,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       isWsConnectedRef: isWsConnectedRef.current,
       websocketsMessageQueue: websocketsMessageQueue.current,
       appliedMessagesVersion: appliedMessagesVersion.current,
+      hasStartedWsSyncRefetch: hasStartedWsSyncRefetch,
     }
   );
 
@@ -1701,14 +1859,18 @@ const MessageListOrchestrator = ({ channel }: Props) => {
           wsMessageDeleteAttachmentHandler(event.data, true);
           break;
         }
+        case "messageReactions:toggle": {
+          wsMessageSetReactionHandler(event.data, true);
+          break;
+        }
         default: {
           break;
         }
       }
     });
 
-    hasStartedWsSyncRefetch.current = false;
     websocketsMessageQueue.current = [];
+    setHasStartedWsSyncRefetch(false);
     setWsSyncFailedCount(0);
     setSyncMode("ws-live");
   };
@@ -1782,6 +1944,9 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       subscribeWs(websocketsChannel, "messageAttachments:delete", (data) => {
         wsMessageDeleteAttachmentHandler(data);
       }),
+      subscribeWs(websocketsChannel, "messageReactions:toggle", (data) => {
+        wsMessageSetReactionHandler(data);
+      }),
     ];
 
     return () => {
@@ -1801,20 +1966,36 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   useLayoutEffect(() => {
     if (isWsSyncing) {
-      hasStartedWsSyncRefetch.current = false;
+      setHasStartedWsSyncRefetch(false);
     }
   }, [isWsSyncing]);
 
-  const shouldStartWsSyncRefetch =
-    isWsSyncing &&
-    !messages.isFetching &&
-    (!shouldRenderList || isIdleRef.current) &&
-    initialGateOpenedReason === "default" &&
-    !hasStartedWsSyncRefetch.current;
+  useEffect(() => {
+    setShouldStartWsSyncRefetch(
+      isWsSyncing &&
+        !messages.isFetching &&
+        (!shouldRenderList || isIdleRef.current) &&
+        (hasQueryLoadedInitialData.current
+          ? Boolean(initialGateOpenedReason)
+          : initialGateOpenedReason === "default") &&
+        !hasStartedWsSyncRefetch
+    );
+  }, [
+    isWsSyncing,
+    messages.isFetching,
+    shouldRenderList,
+    isIdleTrigger,
+    initialGateOpenedReason,
+    hasStartedWsSyncRefetch,
+  ]);
 
   useEffect(() => {
     if (shouldStartWsSyncRefetch) {
-      hasStartedWsSyncRefetch.current = true;
+      if (hasQueryLoadedInitialData.current) {
+        repairEmptyPageParams();
+        trimPagesAroundViewport();
+      }
+      setHasStartedWsSyncRefetch(true);
       messages.refetch();
     }
     // eslint-disable-next-line
@@ -1910,7 +2091,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     wasRefetching.current = false;
     userInteractedRef.current = false;
     websocketsMessageQueue.current = [];
-    hasStartedWsSyncRefetch.current = false;
+    setHasStartedWsSyncRefetch(false);
     clearInitialTimerToOpenGate();
     setWsSyncFailedCount(0);
     setIsPreparingQuery(true);
@@ -2497,6 +2678,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                           ),
                         });
                       }}
+                      onReactionClick={toggleReactionMutation.mutate}
                     />
                   );
                 }}

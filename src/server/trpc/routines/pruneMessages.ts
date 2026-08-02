@@ -58,6 +58,7 @@ export const pruneMessages = async (
     isByUserId ? eq(schema.messages.user_id, props.userId) : undefined
   );
 
+  type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
   type QueryTx = typeof db | Tx;
 
   const buildBaseQuery = (tx: QueryTx) =>
@@ -66,8 +67,6 @@ export const pruneMessages = async (
       .from(schema.messages)
       .where(filter)
       .orderBy(asc(schema.messages.deleted_at), asc(schema.messages.id));
-
-  type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
   const buildFullQuery = (tx: QueryTx = db, messagesLimit: number = limit) => {
     const messagesSubquery = tx

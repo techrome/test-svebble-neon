@@ -560,3 +560,44 @@ div:has(> .virtuoso-messages-header) {
     }
   }
 }
+
+.animated-number {
+  display: inline-grid;
+  overflow: hidden;
+}
+
+.animated-number > span {
+  grid-area: 1 / 1;
+}
+
+.animated-number__old {
+  animation: animated-number-out var(--counter-duration) ease-out both;
+}
+
+.animated-number__new {
+  animation: animated-number-in var(--counter-duration) ease-out both;
+}
+
+@keyframes animated-number-out {
+  to {
+    transform: translateY(var(--counter-exit));
+    opacity: 0;
+  }
+}
+
+@keyframes animated-number-in {
+  from {
+    transform: translateY(var(--counter-enter));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-number__old {
+    display: none;
+  }
+
+  .animated-number__new {
+    animation: none;
+  }
+}

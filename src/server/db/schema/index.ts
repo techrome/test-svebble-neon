@@ -5,3 +5,6 @@ export * from "./audit_log";
 export * from "./messages";
 export * from "./channels";
 export * from "./message_attachments";
+export * from "./reactions";
+export * from "./message_reactions";
+export * from "./message_reaction_groups";

@@ -55,7 +55,9 @@ _theme = {
       },
     },
     MuiTooltip: {
-      styleOverrides: { tooltip: { maxWidth: "450px" } },
+      styleOverrides: {
+        tooltip: { maxWidth: "min(450px, calc(100vw))" },
+      },
     },
     MuiListItemIcon: {
       styleOverrides: {
