@@ -1851,6 +1851,16 @@ export const messagesRouter = router({
           reactionCount: result.reactionCount,
         };
 
+        waitUntil(
+          publishChannelEvent({
+            eventName: "messageReactions:toggle",
+            channelId: result.channelId,
+            data: response,
+          }).catch((e) =>
+            console.error("Ably message reaction toggle ON publish failed", e)
+          )
+        );
+
         return response;
       }
 
@@ -2006,6 +2016,16 @@ export const messagesRouter = router({
         actorUserId: ctx.user.id,
         reactionCount: result.reactionCount,
       };
+
+      waitUntil(
+        publishChannelEvent({
+          eventName: "messageReactions:toggle",
+          channelId: result.channelId,
+          data: response,
+        }).catch((e) =>
+          console.error("Ably message reaction toggle OFF publish failed", e)
+        )
+      );
 
       return response;
     }),
