@@ -69,6 +69,8 @@ import MessageReactionList from "@/components/Chat/MessageReactionList";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { useAppDispatch } from "@/redux/hooks";
 import { deleteAllPendingMessageReactions } from "@/redux/slices/messageReactionsUI";
+import { hasPermissions } from "@/utils/hasPermissions";
+import { P } from "@/utils/permissions";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -275,6 +277,18 @@ const Message = ({
   const exitEditMode = () => {
     setIsEdit(false);
   };
+
+  const { canToggleReaction, canCreateMessage, canReportMessage } =
+    useMemo(() => {
+      const userData = user.data?.user;
+      return {
+        canToggleReaction: hasPermissions(userData, [
+          P.messageReactions.toggle,
+        ]),
+        canCreateMessage: hasPermissions(userData, [P.messages.create]),
+        canReportMessage: hasPermissions(userData, [P.messages.report]),
+      };
+    }, [user.data?.user]);
 
   const {
     createdAtShort,
@@ -565,14 +579,16 @@ const Message = ({
                 )}
               >
                 <HorizontalStack addClassName="p-1" spacing="none">
-                  <Tooltip title="Add reaction">
-                    <IconButton
-                      size="small"
-                      onClick={reactionsPopover.openPopover}
-                    >
-                      <AddReactionIcon />
-                    </IconButton>
-                  </Tooltip>
+                  {canToggleReaction && (
+                    <Tooltip title="Add reaction">
+                      <IconButton
+                        size="small"
+                        onClick={reactionsPopover.openPopover}
+                      >
+                        <AddReactionIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   {isOwnMessage && (
                     <Tooltip title="Edit message">
                       <IconButton
@@ -585,11 +601,13 @@ const Message = ({
                       </IconButton>
                     </Tooltip>
                   )}
-                  <Tooltip title="Reply">
-                    <IconButton size="small" onClick={handleReplyClick}>
-                      <ReplyIcon />
-                    </IconButton>
-                  </Tooltip>
+                  {canCreateMessage && (
+                    <Tooltip title="Reply">
+                      <IconButton size="small" onClick={handleReplyClick}>
+                        <ReplyIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   {MoreButton}
                 </HorizontalStack>
               </Paper>
@@ -630,18 +648,22 @@ const Message = ({
       <menuPopover.ReadyComponent>
         <Paper>
           <MenuList>
-            <MenuItem onClick={reactionsPopover.openPopover}>
-              <ListItemIcon>
-                <AddReactionIcon />
-              </ListItemIcon>
-              <ListItemText>Add Reaction</ListItemText>
-            </MenuItem>
-            <MenuItem onClick={handleReplyClick}>
-              <ListItemIcon>
-                <ReplyIcon />
-              </ListItemIcon>
-              <ListItemText>Reply</ListItemText>
-            </MenuItem>
+            {canToggleReaction && (
+              <MenuItem onClick={reactionsPopover.openPopover}>
+                <ListItemIcon>
+                  <AddReactionIcon />
+                </ListItemIcon>
+                <ListItemText>Add Reaction</ListItemText>
+              </MenuItem>
+            )}
+            {canCreateMessage && (
+              <MenuItem onClick={handleReplyClick}>
+                <ListItemIcon>
+                  <ReplyIcon />
+                </ListItemIcon>
+                <ListItemText>Reply</ListItemText>
+              </MenuItem>
+            )}
             <MenuItem
               onClick={async () => {
                 const copySuccess = await copyToClipboard(
@@ -663,57 +685,61 @@ const Message = ({
               </ListItemIcon>
               <ListItemText>Copy Message Link</ListItemText>
             </MenuItem>
-            <Divider />
-            {isOwnMessage ? (
-              [
-                <MenuItem
-                  key={1}
-                  onClick={() => {
-                    setIsEdit(true);
-                    menuPopover.closePopover();
-                  }}
-                >
-                  <ListItemIcon>
-                    <EditIcon />
-                  </ListItemIcon>
-                  <ListItemText>Edit Message</ListItemText>
-                </MenuItem>,
-                <Popconfirm
-                  key={2}
-                  title="Are you sure you want to delete this message?"
-                  onConfirm={() => {
-                    messagesDeleteMutation.mutate({ id: message.id });
-                  }}
-                >
+            {(isOwnMessage || canReportMessage) && <Divider />}
+            {isOwnMessage
+              ? [
                   <MenuItem
-                    sx={(theme) => ({ color: theme.vars?.palette.error.main })}
-                    disabled={messagesDeleteMutation.isPending}
+                    key={1}
+                    onClick={() => {
+                      setIsEdit(true);
+                      menuPopover.closePopover();
+                    }}
                   >
                     <ListItemIcon>
-                      {messagesDeleteMutation.isPending ? (
-                        <CircularProgress size={24} color="error" />
-                      ) : (
-                        <DeleteIcon color="error" />
-                      )}
+                      <EditIcon />
                     </ListItemIcon>
-                    <ListItemText>Delete Message</ListItemText>
+                    <ListItemText>Edit Message</ListItemText>
+                  </MenuItem>,
+                  <Popconfirm
+                    key={2}
+                    title="Are you sure you want to delete this message?"
+                    onConfirm={() => {
+                      messagesDeleteMutation.mutate({ id: message.id });
+                    }}
+                  >
+                    <MenuItem
+                      sx={(theme) => ({
+                        color: theme.vars?.palette.error.main,
+                      })}
+                      disabled={messagesDeleteMutation.isPending}
+                    >
+                      <ListItemIcon>
+                        {messagesDeleteMutation.isPending ? (
+                          <CircularProgress size={24} color="error" />
+                        ) : (
+                          <DeleteIcon color="error" />
+                        )}
+                      </ListItemIcon>
+                      <ListItemText>Delete Message</ListItemText>
+                    </MenuItem>
+                  </Popconfirm>,
+                ]
+              : canReportMessage && (
+                  <MenuItem
+                    sx={(theme) => ({
+                      color: theme.vars?.palette.warning.main,
+                    })}
+                    onClick={(e) => {
+                      onReportClick(e);
+                      menuPopover.closePopover();
+                    }}
+                  >
+                    <ListItemIcon>
+                      <FlagIcon color="warning" />
+                    </ListItemIcon>
+                    <ListItemText>Report Message</ListItemText>
                   </MenuItem>
-                </Popconfirm>,
-              ]
-            ) : (
-              <MenuItem
-                sx={(theme) => ({ color: theme.vars?.palette.warning.main })}
-                onClick={(e) => {
-                  onReportClick(e);
-                  menuPopover.closePopover();
-                }}
-              >
-                <ListItemIcon>
-                  <FlagIcon color="warning" />
-                </ListItemIcon>
-                <ListItemText>Report Message</ListItemText>
-              </MenuItem>
-            )}
+                )}
           </MenuList>
         </Paper>
       </menuPopover.ReadyComponent>
@@ -764,7 +790,7 @@ const Message = ({
           </VerticalStack>
         </Section>
       </userPopover.ReadyComponent>
-      <reactionsPopover.ReadyComponent>
+      <reactionsPopover.ReadyComponent disablePortal>
         <LoadingBoundary>
           {!message.isOptimistic && (
             <MessageReactionPicker

@@ -668,11 +668,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const totalItems = messages.data?.items.length || 0;
 
-  const canUploadAttachments = useMemo(() => {
-    if (!user.data?.user) return false;
-
-    return hasPermissions(user.data?.user, [P.messageAttachments.create]);
-  }, [user.data?.user]);
+  const canUploadAttachments = useMemo(
+    () => hasPermissions(user.data?.user, [P.messageAttachments.create]),
+    [user.data?.user]
+  );
 
   const urlMessageId = useMemo(() => {
     const queryValue = Number(getRouterQueryValue(router.query.messageId));
@@ -2672,7 +2671,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                           content: (
                             <ReportMessageForm
                               message={message}
-                              onCancel={() => {}}
+                              onCancel={globalModal.closeModal}
                               onConfirm={() => {}}
                             />
                           ),

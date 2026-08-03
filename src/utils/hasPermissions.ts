@@ -9,6 +9,7 @@ const guestPermissions = [
   P.messages.update,
   P.messages.delete,
   P.user.delete,
+  P.messages.report,
   P.messageReactions.toggle,
 ] as const satisfies RolePermissions;
 
@@ -47,7 +48,11 @@ const getPermissionSet = (user: User) => {
   return new Set<Permission>();
 };
 
-export const hasPermissions = (user: User, neededPerms: RolePermissions) => {
+export const hasPermissions = (
+  user: User | undefined,
+  neededPerms: RolePermissions
+) => {
+  if (!user) return false;
   if (user.role === "admin") return true;
 
   const effectivePerms = getPermissionSet(user);
