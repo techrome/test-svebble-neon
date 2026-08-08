@@ -2029,4 +2029,63 @@ export const messagesRouter = router({
 
       return response;
     }),
+  getMessageReactions: publicProcedure()
+    .input(sharedMessagesValidations.messagesGetReactionsSchemaForm)
+    .output(
+      z.object({
+        items: z.array(
+          z.object({
+            message_reaction_id: numericIdSchema,
+            author: z.custom<MessageAuthor>(),
+          })
+        ),
+      })
+    )
+    .query(async ({ input }) => {
+      const rate = 0;
+      const cursor = input.cursor;
+
+      const items = await db
+        .select({
+          message_reaction_id: schema.message_reactions.id,
+          author: messageAuthorColumns,
+        })
+        .from(schema.message_reactions)
+        .innerJoin(
+          schema.message_reaction_groups,
+          eq(
+            schema.message_reaction_groups.id,
+            schema.message_reactions.group_id
+          )
+        )
+        .innerJoin(
+          schema.messages,
+          eq(schema.messages.id, schema.message_reaction_groups.message_id)
+        )
+        .innerJoin(
+          schema.channels,
+          eq(schema.channels.id, schema.messages.channel_id)
+        )
+        .innerJoin(
+          schema.user,
+          eq(schema.user.id, schema.message_reactions.user_id)
+        )
+        .where(
+          and(
+            eq(schema.messages.id, input.messageId),
+            isNull(schema.messages.deleted_at),
+            isNull(schema.channels.deleted_at),
+            eq(schema.message_reaction_groups.reaction_id, input.reactionId),
+            cursor?.id
+              ? before(schema.message_reactions.id, cursor.id)
+              : undefined
+          )
+        )
+        .orderBy(desc(schema.message_reactions.id))
+        .limit(input.limit);
+
+      return {
+        items,
+      };
+    }),
 });

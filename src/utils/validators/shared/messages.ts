@@ -80,6 +80,17 @@ export const messagesGetRepliesSchemaForm = z.object({
     .default(messageRepliesPageMaxSize),
 });
 
+export const messagesGetReactionsSchemaForm = z.object({
+  messageId: numericIdSchema,
+  reactionId: numericIdSchema,
+  limit: z.int().min(1).max(50).default(50),
+  cursor: z
+    .object({
+      id: numericIdSchema.optional(),
+    })
+    .optional(),
+});
+
 export const createMessageAttachmentUploadUrlSchema = z.object({
   fileName: z
     .string()
