@@ -127,7 +127,6 @@ export type RenderedMessage = ServerRenderedMessage | OptimisticRenderedMessage;
 
 type Props = {
   message: RenderedMessage;
-  totalItems: number;
   shouldHighlight?: boolean;
   isIdleRef?: React.RefObject<boolean>;
   isIdleTrigger?: number;
@@ -146,7 +145,6 @@ type FormValues = z.input<ReturnType<typeof makeMessageUpdateSchemaForm>>;
 
 const Message = ({
   message,
-  totalItems,
   shouldHighlight,
   isIdleTrigger,
   isIdleRef,
@@ -338,7 +336,6 @@ const Message = ({
     message.edited_at,
     message.isFirstMessageOfTheDay,
     message.parentMessage,
-    totalItems,
   ]);
 
   const truncatedUsername = useMemo(() => {

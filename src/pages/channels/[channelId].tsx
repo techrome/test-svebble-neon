@@ -1,4 +1,5 @@
 import React, {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -17,7 +18,11 @@ import ViewListIcon from "@mui/icons-material/ViewList";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
-import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
+import {
+  Virtuoso,
+  type ItemContent,
+  type VirtuosoHandle,
+} from "react-virtuoso";
 import debounce from "lodash/debounce";
 import z from "@/utils/zod";
 import { getQueryKey, type TRPCClientErrorLike } from "@trpc/react-query";
@@ -100,6 +105,18 @@ import { hasPermissions } from "@/utils/hasPermissions";
 import { P } from "@/utils/permissions";
 import { setPendingReaction } from "@/redux/slices/messageReactionsUI";
 import { useAppDispatch } from "@/redux/hooks";
+
+const MemoizedMessageItem = memo(
+  ({
+    message,
+    renderMessage,
+  }: {
+    message: RenderedMessage;
+    renderMessage: (message: RenderedMessage) => React.ReactNode;
+  }) => {
+    return renderMessage(message);
+  }
+);
 
 type JSONIncompatibleMessageFields = Pick<
   MessageSerializable,
@@ -435,7 +452,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
-  const scrollerElRef = useRef<HTMLElement | null>(null);
   const visibleRangeRef = useRef<{
     visibleStartIndex: number;
     visibleEndIndex: number;
@@ -1204,6 +1220,22 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     meta: { keepDefaultErrorHandling: true },
   });
 
+  const deleteOptimisticMessage = (id: number) => {
+    setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
+  };
+
+  const setUrlMessageId = (id?: string) => {
+    let nextQuery = { ...router.query };
+    if (id) {
+      nextQuery.messageId = id;
+    } else {
+      delete nextQuery.messageId;
+    }
+    router.push({ pathname: router.pathname, query: nextQuery }, undefined, {
+      shallow: true,
+    });
+  };
+
   const isFormSubmitted = form.formState.isSubmitted;
   const dependencies = useRef({
     messagesQueryKey,
@@ -1222,6 +1254,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     setMessageReaction,
     form,
     isFormSubmitted,
+    onOwnMessageActionSuccess,
+    deleteOptimisticMessage,
+    urlMessageId,
+    setUrlMessageId,
   });
 
   dependencies.current = {
@@ -1241,6 +1277,10 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     setMessageReaction,
     form,
     isFormSubmitted,
+    onOwnMessageActionSuccess,
+    deleteOptimisticMessage,
+    urlMessageId,
+    setUrlMessageId,
   };
 
   const wsMessageCreateHandler = useCallback(
@@ -1419,10 +1459,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     []
   );
 
-  const deleteOptimisticMessage = (id: number) => {
-    setOptimisticMessages((prev) => prev.filter((m) => m.id !== id));
-  };
-
   // const messagesCreateSpamMutation = trpc.messages.createSpam.useMutation({
   //   onSuccess: () => {
   //     utils.messages.get.invalidate();
@@ -1443,18 +1479,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
 
   const onGuestClick = () => {
     guestLoginMutation.mutate();
-  };
-
-  const setUrlMessageId = (id?: string) => {
-    let nextQuery = { ...router.query };
-    if (id) {
-      nextQuery.messageId = id;
-    } else {
-      delete nextQuery.messageId;
-    }
-    router.push({ pathname: router.pathname, query: nextQuery }, undefined, {
-      shallow: true,
-    });
   };
 
   const onSubmit: SubmitHandler<MessageCreateFormValues> = (values) => {
@@ -1482,39 +1506,45 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   //   appliedMessagesVersion: appliedMessagesVersion.current,
   // });
 
-  const tryLoadOlder = async (bypassExistingError?: boolean) => {
-    if (!bypassExistingError && messages.isFetchPreviousPageError) {
-      return;
-    }
+  const tryLoadOlder = useCallback(
+    async (bypassExistingError?: boolean) => {
+      const { messages, utils, isPolling, messagesQueryKey } =
+        dependencies.current;
 
-    const res = await messages.fetchPreviousPage({ cancelRefetch: false });
-    if (res.isFetchPreviousPageError) return;
-
-    const newPage = res.data?.pages?.[0];
-    const prependedCount = newPage?.items.length || 0;
-    if (prependedCount) {
-      setFirstItemIndex((prev) =>
-        prev !== null ? prev - prependedCount : prev
-      );
-    }
-
-    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-      let data = queryData;
-      if (!data) return data;
-
-      const totalPages = data.pages.length;
-      if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
-        return data;
+      if (!bypassExistingError && messages.isFetchPreviousPageError) {
+        return;
       }
 
-      const cutoff = MAX_PAGES;
-      return {
-        ...data,
-        pageParams: data.pageParams.slice(0, cutoff),
-        pages: data.pages.slice(0, cutoff),
-      };
-    });
-  };
+      const res = await messages.fetchPreviousPage({ cancelRefetch: false });
+      if (res.isFetchPreviousPageError) return;
+
+      const newPage = res.data?.pages?.[0];
+      const prependedCount = newPage?.items.length || 0;
+      if (prependedCount) {
+        setFirstItemIndex((prev) =>
+          prev !== null ? prev - prependedCount : prev
+        );
+      }
+
+      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+        let data = queryData;
+        if (!data) return data;
+
+        const totalPages = data.pages.length;
+        if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
+          return data;
+        }
+
+        const cutoff = MAX_PAGES;
+        return {
+          ...data,
+          pageParams: data.pageParams.slice(0, cutoff),
+          pages: data.pages.slice(0, cutoff),
+        };
+      });
+    },
+    [dependencies]
+  );
 
   console.log(
     { ...messages },
@@ -1531,39 +1561,45 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     }
   );
 
-  const tryLoadNewer = async (bypassExistingError?: boolean) => {
-    if (!bypassExistingError && messages.isFetchNextPageError) {
-      return;
-    }
+  const tryLoadNewer = useCallback(
+    async (bypassExistingError?: boolean) => {
+      const { messages, utils, isPolling, messagesQueryKey } =
+        dependencies.current;
 
-    const res = await messages.fetchNextPage({ cancelRefetch: false });
-    if (res.isFetchNextPageError) return;
-
-    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-      let data = queryData;
-      if (!data) return data;
-
-      const totalPages = data.pages.length;
-      if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
-        return data;
+      if (!bypassExistingError && messages.isFetchNextPageError) {
+        return;
       }
 
-      const cutoff = totalPages - MAX_PAGES;
-      const pagesToRemove = data.pages.slice(0, cutoff);
-      const itemsCountToRemoveFromTop = pagesToRemove.reduce(
-        (total, curr) => total + curr.items.length,
-        0
-      );
-      setFirstItemIndex((prev) =>
-        prev !== null ? prev + itemsCountToRemoveFromTop : prev
-      );
-      return {
-        ...data,
-        pageParams: data.pageParams.slice(cutoff),
-        pages: data.pages.slice(cutoff),
-      };
-    });
-  };
+      const res = await messages.fetchNextPage({ cancelRefetch: false });
+      if (res.isFetchNextPageError) return;
+
+      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+        let data = queryData;
+        if (!data) return data;
+
+        const totalPages = data.pages.length;
+        if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
+          return data;
+        }
+
+        const cutoff = totalPages - MAX_PAGES;
+        const pagesToRemove = data.pages.slice(0, cutoff);
+        const itemsCountToRemoveFromTop = pagesToRemove.reduce(
+          (total, curr) => total + curr.items.length,
+          0
+        );
+        setFirstItemIndex((prev) =>
+          prev !== null ? prev + itemsCountToRemoveFromTop : prev
+        );
+        return {
+          ...data,
+          pageParams: data.pageParams.slice(cutoff),
+          pages: data.pages.slice(cutoff),
+        };
+      });
+    },
+    [dependencies]
+  );
 
   const repairEmptyPageParams = () => {
     utils.messages.get.setInfiniteData(messagesQueryKey, (data) => {
@@ -2136,7 +2172,9 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     // eslint-disable-next-line
   }, [router.events, router.asPath]);
 
-  const retryInvalidate = () => {
+  const retryInvalidate = useCallback(() => {
+    const { messages, urlMessageId, setUrlMessageId } = dependencies.current;
+    const { resetMessagesList } = sameRouteChangeDeps.current;
     if (!messages.isError || messages.isFetching) {
       return;
     }
@@ -2146,7 +2184,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     } else {
       resetMessagesList();
     }
-  };
+  }, [dependencies, sameRouteChangeDeps]);
 
   useEffect(() => {
     if (!router.isReady) return;
@@ -2310,16 +2348,40 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     );
   }, [attachments]);
 
-  const virtuosoContext = {
-    messages,
-    scrollerElRef,
-    retryInvalidate,
-    tryLoadOlder,
-    tryLoadNewer,
-    isIdleTrigger,
-    isWsSyncing,
-    channel,
-  };
+  const virtuosoContext = useMemo(
+    () => ({
+      messages: {
+        isFetchPreviousPageError: messages.isFetchPreviousPageError,
+        isFetchingPreviousPage: messages.isFetchingPreviousPage,
+        hasPreviousPage: messages.hasPreviousPage,
+        hasNextPage: messages.hasNextPage,
+        isError: messages.isError,
+        isFetchNextPageError: messages.isFetchNextPageError,
+        isFetchingNextPage: messages.isFetchingNextPage,
+      },
+      retryInvalidate,
+      tryLoadOlder,
+      tryLoadNewer,
+      isIdleTrigger,
+      isWsSyncing,
+      channel,
+    }),
+    [
+      messages.isFetchPreviousPageError,
+      messages.isFetchingPreviousPage,
+      messages.hasPreviousPage,
+      messages.hasNextPage,
+      messages.isError,
+      messages.isFetchNextPageError,
+      messages.isFetchingNextPage,
+      retryInvalidate,
+      tryLoadOlder,
+      tryLoadNewer,
+      isIdleTrigger,
+      isWsSyncing,
+      channel,
+    ]
+  );
 
   const MessagesHeader = useMemo(
     () =>
@@ -2436,6 +2498,109 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       return messages.data.items.concat(resultOptimisticMessages);
     } else return messages.data?.items;
   }, [messages.data?.items, optimisticMessages]);
+
+  const messageCreateMutationMutate = messageCreateMutation.mutate;
+
+  const renderMessage = useCallback(
+    (message: RenderedMessage) => (
+      <MessageComponent
+        message={message}
+        shouldHighlight={
+          !isMessageHighlightConsumed &&
+          isInitialScrollHandled &&
+          urlMessageId === message.id
+        }
+        isIdleTrigger={isIdleTrigger}
+        isIdleRef={isIdleRef}
+        onHighlightConsumed={() => {
+          setIsMessageHighlightConsumed(true);
+        }}
+        onUpdateSuccess={(data) => {
+          const deps = dependencies.current;
+          if (deps.handleNewMessagesVersion(data.messagesVersion)) {
+            deps.editMessage(data, appliedMessagesVersion.current);
+          }
+          deps.onOwnMessageActionSuccess();
+        }}
+        onDeleteSuccess={(data) => {
+          const deps = dependencies.current;
+          if (deps.handleNewMessagesVersion(data.messagesVersion)) {
+            deps.deleteMessage(data, appliedMessagesVersion.current);
+          }
+          deps.onOwnMessageActionSuccess();
+        }}
+        onAttachmentDeleteSuccess={(data) => {
+          const deps = dependencies.current;
+          if (deps.handleNewMessagesVersion(data.data.messagesVersion)) {
+            if (data.eventName === "messages:delete") {
+              deps.deleteMessage(data.data, appliedMessagesVersion.current);
+            } else {
+              deps.deleteMessageAttachment(
+                data.data,
+                appliedMessagesVersion.current
+              );
+            }
+          }
+          deps.onOwnMessageActionSuccess();
+        }}
+        onOptimisticFailedRetry={() => {
+          const deps = dependencies.current;
+          // will be always optimistic anyway but just for TS narrowing
+          if (message.isOptimistic) {
+            deps.deleteOptimisticMessage(message.id);
+            messageCreateMutationMutate({
+              channelId: message.channel_id,
+              content: message.content,
+              reply_to_message_id: message.reply_to_message_id,
+              attachmentIds: message.attachments,
+            });
+          }
+        }}
+        onOptimisticFailedDelete={() => {
+          const deps = dependencies.current;
+          deps.deleteOptimisticMessage(message.id);
+        }}
+        onReplyClick={() => {
+          setMessageToReply({
+            id: message.id,
+            author: { name: message.author.name },
+          });
+          form.setFocus("content");
+        }}
+        onReportClick={() => {
+          globalModal.openModal({
+            props: { title: "Report Message" },
+            content: (
+              <ReportMessageForm
+                message={message}
+                onCancel={globalModal.closeModal}
+                onConfirm={() => {}}
+              />
+            ),
+          });
+        }}
+        onReactionClick={toggleReactionMutation.mutate}
+      />
+    ),
+    [
+      dependencies,
+      isIdleTrigger,
+      urlMessageId,
+      isInitialScrollHandled,
+      isMessageHighlightConsumed,
+      form,
+      globalModal,
+      messageCreateMutationMutate, // annoying eslint
+      toggleReactionMutation.mutate,
+    ]
+  );
+
+  const renderMessageItem = useCallback<ItemContent<RenderedMessage, unknown>>(
+    (_, message) => (
+      <MemoizedMessageItem message={message} renderMessage={renderMessage} />
+    ),
+    [renderMessage]
+  );
 
   const shouldShowJumpToBottomButton = useMemo(() => {
     if (
@@ -2585,11 +2750,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                   isIdleRef.current = false;
                   debouncedMakeIdle();
                 }}
-                scrollerRef={(el) => {
-                  if (el instanceof HTMLElement) {
-                    scrollerElRef.current = el;
-                  }
-                }}
                 totalListHeightChanged={() => {
                   isIdleRef.current = false;
                   debouncedMakeIdle();
@@ -2598,89 +2758,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
                 data={renderedMessages}
                 computeItemKey={(_, item) => item.id}
                 heightEstimates={messages.data?.heightEstimates}
-                itemContent={(_, message) => {
-                  return (
-                    <MessageComponent
-                      message={message}
-                      totalItems={totalItems}
-                      shouldHighlight={
-                        !isMessageHighlightConsumed &&
-                        isInitialScrollHandled &&
-                        urlMessageId === message.id
-                      }
-                      isIdleTrigger={isIdleTrigger}
-                      isIdleRef={isIdleRef}
-                      onHighlightConsumed={() => {
-                        setIsMessageHighlightConsumed(true);
-                      }}
-                      onUpdateSuccess={(data) => {
-                        if (handleNewMessagesVersion(data.messagesVersion)) {
-                          editMessage(data, appliedMessagesVersion.current);
-                        }
-                        onOwnMessageActionSuccess();
-                      }}
-                      onDeleteSuccess={(data) => {
-                        if (handleNewMessagesVersion(data.messagesVersion)) {
-                          deleteMessage(data, appliedMessagesVersion.current);
-                        }
-                        onOwnMessageActionSuccess();
-                      }}
-                      onAttachmentDeleteSuccess={(data) => {
-                        if (
-                          handleNewMessagesVersion(data.data.messagesVersion)
-                        ) {
-                          if (data.eventName === "messages:delete") {
-                            deleteMessage(
-                              data.data,
-                              appliedMessagesVersion.current
-                            );
-                          } else {
-                            deleteMessageAttachment(
-                              data.data,
-                              appliedMessagesVersion.current
-                            );
-                          }
-                        }
-                        onOwnMessageActionSuccess();
-                      }}
-                      onOptimisticFailedRetry={() => {
-                        // will be always optimistic anyway but just for TS narrowing
-                        if (message.isOptimistic) {
-                          deleteOptimisticMessage(message.id);
-                          messageCreateMutation.mutate({
-                            channelId: message.channel_id,
-                            content: message.content,
-                            reply_to_message_id: message.reply_to_message_id,
-                            attachmentIds: message.attachments,
-                          });
-                        }
-                      }}
-                      onOptimisticFailedDelete={() => {
-                        deleteOptimisticMessage(message.id);
-                      }}
-                      onReplyClick={() => {
-                        setMessageToReply({
-                          id: message.id,
-                          author: { name: message.author.name },
-                        });
-                        form.setFocus("content");
-                      }}
-                      onReportClick={() => {
-                        globalModal.openModal({
-                          props: { title: "Report Message" },
-                          content: (
-                            <ReportMessageForm
-                              message={message}
-                              onCancel={globalModal.closeModal}
-                              onConfirm={() => {}}
-                            />
-                          ),
-                        });
-                      }}
-                      onReactionClick={toggleReactionMutation.mutate}
-                    />
-                  );
-                }}
+                itemContent={renderMessageItem}
                 context={virtuosoContext}
                 components={MessagesComponents}
               />
