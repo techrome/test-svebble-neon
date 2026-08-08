@@ -41,6 +41,7 @@ import AttachmentModal from "@/components/Chat/AttachmentModal";
 import Popconfirm from "@/components/Popover/Popconfirm";
 import { useUser } from "@/trpc/hooks/useUser";
 import { htmlToText } from "@/utils/htmlToText";
+import useMobileSlider from "@/utils/hooks/useMobileSlider";
 
 const isAbortError = (error: unknown, signal?: AbortSignal) => {
   if (signal?.aborted) return true;
@@ -531,11 +532,6 @@ export const MessageAttachmentDisplayList = ({
   onAttachmentDeleteSuccess,
 }: MessageAttachmentDisplayListProps) => {
   const isDesktop = useIsDesktop();
-  const [scrollState, setScrollState] = useState({
-    atStart: true,
-    atEnd: false,
-  });
-  const ref = useRef<HTMLDivElement>(null);
   const localBaseModal = useLocalBaseModal();
   const [deletingAttachmentIds, setDeletingAttachmentIds] = useState(
     new Set<string>()
@@ -570,25 +566,10 @@ export const MessageAttachmentDisplayList = ({
   const isLastAttachmentAndNoContent =
     message.attachments.length === 1 && !hasContent;
 
-  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    setScrollState(getHorizontalScrollState(event.currentTarget));
-  };
-
-  const scrollAttachments = (direction: "left" | "right") => {
-    const el = ref.current;
-    if (!el) return;
-
-    el.scrollBy({
-      left: direction === "left" ? -el.clientWidth * 0.7 : el.clientWidth * 0.7,
-      behavior: "smooth",
-    });
-  };
-
-  useEffect(() => {
-    if (ref.current) {
-      setScrollState(getHorizontalScrollState(ref.current));
-    }
-  }, [message.attachments]);
+  // destructuring because of https://github.com/react/react/issues/35575
+  const { parentRef: mobileSliderParentRef, ...mobileSlider } = useMobileSlider(
+    { updaterDependency: message.attachments }
+  );
 
   useEffect(() => {
     if (viewingAttachmentIndex > attachmentCount - 1) {
@@ -599,12 +580,12 @@ export const MessageAttachmentDisplayList = ({
   if (!message.attachments.length) return null;
 
   return (
-    <div className="relative ">
+    <div className="relative">
       <HorizontalStack
         addClassName="overflow-x-auto rounded"
         wrap={false}
-        onScroll={handleScroll}
-        ref={ref}
+        onScroll={mobileSlider.handleScroll}
+        ref={mobileSliderParentRef}
       >
         {message.isOptimistic
           ? message.attachments.map((x, i) => (
@@ -657,31 +638,8 @@ export const MessageAttachmentDisplayList = ({
           </localBaseModal.ReadyComponent>
         )}
       </HorizontalStack>
-      <button
-        type="button"
-        aria-label="Scroll attachments left"
-        onClick={() => scrollAttachments("left")}
-        className={clsx("left-0 rounded-l", mobileButtonArrowClassName)}
-        disabled={scrollState.atStart || isDesktop}
-      >
-        <ArrowForwardIosIcon
-          fontSize="inherit"
-          className="rotate-180 text-mui-background-default text-xs"
-        />
-      </button>
-
-      <button
-        type="button"
-        aria-label="Scroll attachments right"
-        onClick={() => scrollAttachments("right")}
-        className={clsx("right-0 rounded-r", mobileButtonArrowClassName)}
-        disabled={scrollState.atEnd || isDesktop}
-      >
-        <ArrowForwardIosIcon
-          fontSize="inherit"
-          className="text-mui-background-default text-xs"
-        />
-      </button>
+      {mobileSlider.buttons.left}
+      {mobileSlider.buttons.right}
     </div>
   );
 };

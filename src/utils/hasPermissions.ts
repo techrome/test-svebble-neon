@@ -30,7 +30,7 @@ const userPermissions = [
   P.messageAttachments.delete,
 ] as const satisfies RolePermissions;
 
-const toSet = <T extends string>(xs: readonly T[]) => new Set<T>(xs);
+const toSet = <T extends string>(array: readonly T[]) => new Set<T>(array);
 const permissionSets = {
   guest: toSet(guestPermissions),
   notVerifiedUser: toSet(notVerifiedUserPermissions),

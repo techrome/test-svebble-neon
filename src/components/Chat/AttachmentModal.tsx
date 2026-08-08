@@ -65,7 +65,7 @@ const AttachmentPreviewItem = ({
       ) : (
         <Paper
           className={clsx(
-            "flex justify-center items-center border border-mui-divider shadow-none w-full h-full"
+            "flex justify-center items-center border border-mui-divider shadow-none w-full h-full rounded-none"
           )}
           elevation={2}
         >

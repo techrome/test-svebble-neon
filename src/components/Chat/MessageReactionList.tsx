@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Typography } from "@mui/material";
 import clsx from "clsx";
 
@@ -20,8 +20,12 @@ import {
 } from "@/redux/slices/messageReactionsUI";
 import LoadingOverlay from "@/components/LoadingOverlay/LoadingOverlay";
 import { useDebouncedValue } from "@/utils/hooks/useDebouncedValue";
+import { useAuthModal } from "@/utils/hooks/useAuthModal";
+import { useUser } from "@/trpc/hooks/useUser";
+import { useLocalModal } from "@/utils/hooks/useOverlay";
+import MessageReactionUserList from "@/components/Chat/MessageReactionUserList";
 
-type EnrichedReaction = ServerRenderedMessage["reactions"][number] & {
+export type EnrichedReaction = ServerRenderedMessage["reactions"][number] & {
   definition: ReactionData;
   isPending?: boolean;
 };
@@ -34,7 +38,13 @@ const buttonHoverClassName =
 
 const skeletonClassName = "w-13 h-9 transform-none";
 
-const ReactionTooltip = ({ reaction }: { reaction: ReactionData }) => {
+const ReactionTooltip = ({
+  reaction,
+  onClick,
+}: {
+  reaction: ReactionData;
+  onClick: () => void;
+}) => {
   //   return (
   //     <div className="w-2xl max-w-full px-2">
   //       <Skeleton />
@@ -42,7 +52,10 @@ const ReactionTooltip = ({ reaction }: { reaction: ReactionData }) => {
   //   );
 
   return (
-    <ButtonBase className="flex items-center gap-1 p-2 rounded-md hover:bg-mui-action-focus transition">
+    <ButtonBase
+      className="flex items-center gap-1 p-2 rounded-md hover:bg-mui-action-focus transition"
+      onClick={onClick}
+    >
       <Typography variant="h3" component={"p"}>
         {reaction.emoji}
       </Typography>
@@ -56,9 +69,11 @@ const ReactionTooltip = ({ reaction }: { reaction: ReactionData }) => {
 const ReactionButton = ({
   reaction,
   onClick,
+  onReactionTooltipClick,
 }: {
   reaction: EnrichedReaction;
   onClick: () => void;
+  onReactionTooltipClick: () => void;
 }) => {
   const delayedIsReactionPending = useDebouncedValue(
     Boolean(reaction.isPending),
@@ -84,7 +99,12 @@ const ReactionButton = ({
             },
           },
         }}
-        title={<ReactionTooltip reaction={reaction.definition} />}
+        title={
+          <ReactionTooltip
+            reaction={reaction.definition}
+            onClick={onReactionTooltipClick}
+          />
+        }
       >
         <ButtonBase
           className={clsx(
@@ -119,7 +139,13 @@ const MessageReactionList = ({
   );
   const dispatch = useAppDispatch();
 
+  const authModal = useAuthModal();
+  const reactionListModal = useLocalModal();
+  const user = useUser();
   const reactions = useMessageReactions();
+  const [initialReactionListId, setInitialReactionListId] = useState<
+    number | null
+  >(null);
   const pendingMessageReactions = pendingReactions[message.id];
 
   const { enrichedReactions, hasActiveReaction } = useMemo(() => {
@@ -247,6 +273,10 @@ const MessageReactionList = ({
           key={reaction.definition.id}
           reaction={reaction}
           onClick={() => {
+            if (!user.data?.user) {
+              authModal.openModal("login");
+              return;
+            }
             if (
               pendingMessageReactions?.[getReactionKey(reaction.definition.id)]
             ) {
@@ -258,8 +288,21 @@ const MessageReactionList = ({
               shouldReact: !reaction.reacted_by_me,
             });
           }}
+          onReactionTooltipClick={() => {
+            setInitialReactionListId(reaction.reaction_id);
+            reactionListModal.openModal();
+          }}
         />
       ))}
+      <reactionListModal.ReadyComponent title="Reactions">
+        {!!initialReactionListId && (
+          <MessageReactionUserList
+            message={message}
+            initialReactionId={initialReactionListId}
+            reactions={enrichedReactions}
+          />
+        )}
+      </reactionListModal.ReadyComponent>
     </HorizontalStack>
   );
 };

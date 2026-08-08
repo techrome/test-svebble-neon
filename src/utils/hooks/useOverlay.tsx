@@ -1,4 +1,4 @@
-import React, { useCallback, useId, useRef, useState } from "react";
+import React, { useCallback, useId, useMemo, useRef, useState } from "react";
 import { ActionCreatorWithPayload } from "@reduxjs/toolkit";
 
 import Modal, { type ModalProps } from "@/components/Overlays/Modal";
@@ -86,14 +86,17 @@ export const useGlobalModal = () => {
     setModalState
   );
 
-  return {
-    isOpen: isOpen,
-    openModal: openOverlay,
-    updateModal: updateOverlay,
-    closeModal: closeOverlay,
-    clearModal: clearOverlay,
-    modalState: state,
-  };
+  return useMemo(
+    () => ({
+      isOpen: isOpen,
+      openModal: openOverlay,
+      updateModal: updateOverlay,
+      closeModal: closeOverlay,
+      clearModal: clearOverlay,
+      modalState: state,
+    }),
+    [isOpen, openOverlay, updateOverlay, closeOverlay, clearOverlay, state]
+  );
 };
 
 type ModalInitialProps = PartialFor<

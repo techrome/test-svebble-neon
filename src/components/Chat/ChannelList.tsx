@@ -176,15 +176,15 @@ const ChannelList = ({ isDrawer }: { isDrawer?: boolean }) => {
     [router.query.channelId]
   );
 
-  const canManageChannels = useMemo(() => {
-    if (!user.data?.user) return false;
-
-    return hasPermissions(user.data?.user, [
-      P.channels.create,
-      P.channels.delete,
-      P.channels.update,
-    ]);
-  }, [user.data?.user]);
+  const canManageChannels = useMemo(
+    () =>
+      hasPermissions(user.data?.user, [
+        P.channels.create,
+        P.channels.delete,
+        P.channels.update,
+      ]),
+    [user.data?.user]
+  );
 
   return (
     <VerticalStack addClassName="min-h-0">
@@ -253,7 +253,7 @@ const ChannelList = ({ isDrawer }: { isDrawer?: boolean }) => {
                     </ListItemIcon>
                     <ListItemText
                       primary={channel.name}
-                      className="text-left"
+                      className="text-left pr-10"
                     />
                   </ListItemButton>
                 </Link>

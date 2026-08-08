@@ -6,7 +6,12 @@ import {
 import { Breakpoints } from "@/utils/theme";
 
 type DividerProps = MuiDividerProps;
-type SwitchingDividerProps = { breakpoint?: Breakpoints } & MuiDividerProps;
+type SwitchingDividerProps = {
+  breakpoint?: Breakpoints;
+  belowBreakpointOrientation?: MuiDividerProps["orientation"];
+  belowBreakpointFlexItem?: boolean;
+  aboveBreakpointFlexItem?: boolean;
+} & MuiDividerProps;
 
 export const Divider = ({ ...props }: DividerProps) => {
   return <MuiDivider {...props} />;
@@ -14,13 +19,18 @@ export const Divider = ({ ...props }: DividerProps) => {
 
 export const SwitchingDivider = ({
   breakpoint = "md",
+  belowBreakpointOrientation = "vertical",
+  belowBreakpointFlexItem = true,
+  aboveBreakpointFlexItem,
   ...props
 }: SwitchingDividerProps) => {
   return (
     <>
       <MuiDivider
-        orientation="vertical"
-        flexItem
+        orientation={
+          belowBreakpointOrientation === "vertical" ? "horizontal" : "vertical"
+        }
+        flexItem={aboveBreakpointFlexItem}
         sx={(theme) => ({
           [theme.breakpoints.down(breakpoint)]: {
             display: "none",
@@ -29,6 +39,8 @@ export const SwitchingDivider = ({
         {...props}
       />
       <MuiDivider
+        orientation={belowBreakpointOrientation}
+        flexItem={belowBreakpointFlexItem}
         sx={(theme) => ({
           [theme.breakpoints.up(breakpoint)]: {
             display: "none",
