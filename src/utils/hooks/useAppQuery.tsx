@@ -21,39 +21,24 @@ const useAppQuery = <
   options: UseAppQueryOptions = {}
 ) => {
   const uniqueKey = useId();
-  const { setQueryKeys } = useContext(LoadingBoundaryContext);
-
-  const removeQueryKey = () => {
-    setQueryKeys((prev) => {
-      if (uniqueKey in prev) {
-        let updatedQueryKeys = { ...prev };
-        delete updatedQueryKeys[uniqueKey];
-        return updatedQueryKeys;
-      } else return prev;
-    });
-  };
+  const reportQueryLoading = useContext(LoadingBoundaryContext);
 
   useEffect(() => {
-    const hasAnything = Boolean(queryData.data || queryData.error);
-
-    if (options.disableLoadingBoundary) {
+    if (options.disableLoadingBoundary || !queryData.isRefetching) {
       return;
     }
 
-    if (queryData.isFetching && hasAnything) {
-      setQueryKeys((prev) => ({
-        ...prev,
-        [uniqueKey]: true,
-      }));
-    } else {
-      removeQueryKey();
-    }
+    reportQueryLoading(uniqueKey, true);
 
     return () => {
-      removeQueryKey();
+      reportQueryLoading(uniqueKey, false);
     };
-    // eslint-disable-next-line
-  }, [queryData.isFetching]);
+  }, [
+    options.disableLoadingBoundary,
+    queryData.isRefetching,
+    reportQueryLoading,
+    uniqueKey,
+  ]);
 
   return queryData;
 };
