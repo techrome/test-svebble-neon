@@ -2039,34 +2039,44 @@ export const messagesRouter = router({
             author: z.custom<MessageAuthor>(),
           })
         ),
+        messages_version: numericIdSchema,
       })
     )
     .query(async ({ input }) => {
       const rate = 0;
       const cursor = input.cursor;
 
-      const items = await db
+      const rows = await db
         .select({
           message_reaction_id: schema.message_reactions.id,
+          messages_version: schema.channels.messages_version,
           author: messageAuthorColumns,
         })
-        .from(schema.message_reactions)
-        .innerJoin(
-          schema.message_reaction_groups,
-          eq(
-            schema.message_reaction_groups.id,
-            schema.message_reactions.group_id
-          )
-        )
-        .innerJoin(
-          schema.messages,
-          eq(schema.messages.id, schema.message_reaction_groups.message_id)
-        )
+        .from(schema.messages)
         .innerJoin(
           schema.channels,
           eq(schema.channels.id, schema.messages.channel_id)
         )
-        .innerJoin(
+        .leftJoin(
+          schema.message_reaction_groups,
+          and(
+            eq(schema.message_reaction_groups.reaction_id, input.reactionId),
+            eq(schema.message_reaction_groups.message_id, schema.messages.id)
+          )
+        )
+        .leftJoin(
+          schema.message_reactions,
+          and(
+            cursor?.id
+              ? before(schema.message_reactions.id, cursor.id)
+              : undefined,
+            eq(
+              schema.message_reactions.group_id,
+              schema.message_reaction_groups.id
+            )
+          )
+        )
+        .leftJoin(
           schema.user,
           eq(schema.user.id, schema.message_reactions.user_id)
         )
@@ -2074,18 +2084,37 @@ export const messagesRouter = router({
           and(
             eq(schema.messages.id, input.messageId),
             isNull(schema.messages.deleted_at),
-            isNull(schema.channels.deleted_at),
-            eq(schema.message_reaction_groups.reaction_id, input.reactionId),
-            cursor?.id
-              ? before(schema.message_reactions.id, cursor.id)
-              : undefined
+            isNull(schema.channels.deleted_at)
           )
         )
         .orderBy(desc(schema.message_reactions.id))
         .limit(input.limit);
 
+      const firstRow = rows[0];
+
+      if (!firstRow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Message not found.",
+        });
+      }
+
+      const items = rows.flatMap(({ author, message_reaction_id }) => {
+        if (!author || !message_reaction_id) {
+          return [];
+        }
+
+        return [
+          {
+            author,
+            message_reaction_id,
+          },
+        ];
+      });
+
       return {
         items,
+        messages_version: firstRow.messages_version,
       };
     }),
 });
