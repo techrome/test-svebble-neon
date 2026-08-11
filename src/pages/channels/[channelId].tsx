@@ -1506,45 +1506,42 @@ const MessageListOrchestrator = ({ channel }: Props) => {
   //   appliedMessagesVersion: appliedMessagesVersion.current,
   // });
 
-  const tryLoadOlder = useCallback(
-    async (bypassExistingError?: boolean) => {
-      const { messages, utils, isPolling, messagesQueryKey } =
-        dependencies.current;
+  const tryLoadOlder = useCallback(async (bypassExistingError?: boolean) => {
+    const { messages, utils, isPolling, messagesQueryKey } =
+      dependencies.current;
 
-      if (!bypassExistingError && messages.isFetchPreviousPageError) {
-        return;
+    if (!bypassExistingError && messages.isFetchPreviousPageError) {
+      return;
+    }
+
+    const res = await messages.fetchPreviousPage({ cancelRefetch: false });
+    if (res.isFetchPreviousPageError) return;
+
+    const newPage = res.data?.pages?.[0];
+    const prependedCount = newPage?.items.length || 0;
+    if (prependedCount) {
+      setFirstItemIndex((prev) =>
+        prev !== null ? prev - prependedCount : prev
+      );
+    }
+
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      let data = queryData;
+      if (!data) return data;
+
+      const totalPages = data.pages.length;
+      if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
+        return data;
       }
 
-      const res = await messages.fetchPreviousPage({ cancelRefetch: false });
-      if (res.isFetchPreviousPageError) return;
-
-      const newPage = res.data?.pages?.[0];
-      const prependedCount = newPage?.items.length || 0;
-      if (prependedCount) {
-        setFirstItemIndex((prev) =>
-          prev !== null ? prev - prependedCount : prev
-        );
-      }
-
-      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-        let data = queryData;
-        if (!data) return data;
-
-        const totalPages = data.pages.length;
-        if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
-          return data;
-        }
-
-        const cutoff = MAX_PAGES;
-        return {
-          ...data,
-          pageParams: data.pageParams.slice(0, cutoff),
-          pages: data.pages.slice(0, cutoff),
-        };
-      });
-    },
-    [dependencies]
-  );
+      const cutoff = MAX_PAGES;
+      return {
+        ...data,
+        pageParams: data.pageParams.slice(0, cutoff),
+        pages: data.pages.slice(0, cutoff),
+      };
+    });
+  }, []);
 
   console.log(
     { ...messages },
@@ -1561,45 +1558,42 @@ const MessageListOrchestrator = ({ channel }: Props) => {
     }
   );
 
-  const tryLoadNewer = useCallback(
-    async (bypassExistingError?: boolean) => {
-      const { messages, utils, isPolling, messagesQueryKey } =
-        dependencies.current;
+  const tryLoadNewer = useCallback(async (bypassExistingError?: boolean) => {
+    const { messages, utils, isPolling, messagesQueryKey } =
+      dependencies.current;
 
-      if (!bypassExistingError && messages.isFetchNextPageError) {
-        return;
+    if (!bypassExistingError && messages.isFetchNextPageError) {
+      return;
+    }
+
+    const res = await messages.fetchNextPage({ cancelRefetch: false });
+    if (res.isFetchNextPageError) return;
+
+    utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
+      let data = queryData;
+      if (!data) return data;
+
+      const totalPages = data.pages.length;
+      if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
+        return data;
       }
 
-      const res = await messages.fetchNextPage({ cancelRefetch: false });
-      if (res.isFetchNextPageError) return;
-
-      utils.messages.get.setInfiniteData(messagesQueryKey, (queryData) => {
-        let data = queryData;
-        if (!data) return data;
-
-        const totalPages = data.pages.length;
-        if (!totalPages || totalPages <= MAX_PAGES || !isPolling) {
-          return data;
-        }
-
-        const cutoff = totalPages - MAX_PAGES;
-        const pagesToRemove = data.pages.slice(0, cutoff);
-        const itemsCountToRemoveFromTop = pagesToRemove.reduce(
-          (total, curr) => total + curr.items.length,
-          0
-        );
-        setFirstItemIndex((prev) =>
-          prev !== null ? prev + itemsCountToRemoveFromTop : prev
-        );
-        return {
-          ...data,
-          pageParams: data.pageParams.slice(cutoff),
-          pages: data.pages.slice(cutoff),
-        };
-      });
-    },
-    [dependencies]
-  );
+      const cutoff = totalPages - MAX_PAGES;
+      const pagesToRemove = data.pages.slice(0, cutoff);
+      const itemsCountToRemoveFromTop = pagesToRemove.reduce(
+        (total, curr) => total + curr.items.length,
+        0
+      );
+      setFirstItemIndex((prev) =>
+        prev !== null ? prev + itemsCountToRemoveFromTop : prev
+      );
+      return {
+        ...data,
+        pageParams: data.pageParams.slice(cutoff),
+        pages: data.pages.slice(cutoff),
+      };
+    });
+  }, []);
 
   const repairEmptyPageParams = () => {
     utils.messages.get.setInfiniteData(messagesQueryKey, (data) => {
@@ -2281,7 +2275,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       isIdleRef.current &&
       localVisibleStartIndex <= FETCH_MORE_THRESHOLD &&
       !isWsSyncing &&
-      messages.hasPreviousPage &&
       !messages.isFetching &&
       !messages.isError
     ) {
@@ -2291,11 +2284,12 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       }, 50);
     }
     return clearFetchMoreTimeout;
-    // eslint-disable-next-line
   }, [
     isIdleTrigger,
     isWsSyncing,
     totalItems,
+    firstItemIndex,
+    tryLoadOlder,
     messages.isFetching,
     messages.isError,
     messages.hasPreviousPage,
@@ -2319,7 +2313,6 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       isIdleRef.current &&
       localVisibleEndIndex >= totalItems - 1 - FETCH_MORE_THRESHOLD &&
       !isWsSyncing &&
-      messages.hasNextPage &&
       !messages.isFetching &&
       !messages.isError
     ) {
@@ -2329,11 +2322,12 @@ const MessageListOrchestrator = ({ channel }: Props) => {
       }, 50);
     }
     return clearFetchMoreTimeout;
-    // eslint-disable-next-line
   }, [
     isIdleTrigger,
     isWsSyncing,
     totalItems,
+    firstItemIndex,
+    tryLoadNewer,
     messages.isFetching,
     messages.isError,
     messages.hasNextPage,
