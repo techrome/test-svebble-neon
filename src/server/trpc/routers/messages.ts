@@ -2043,7 +2043,6 @@ export const messagesRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const rate = 0;
       const cursor = input.cursor;
 
       // needs limit right here to avoid exploding with row count
