@@ -57,22 +57,28 @@ export const MessagesSkeleton = ({
   scrollerEl,
   onIntersectionChange,
   fullHeight,
+  withPadding = true,
+  fixedRowCount,
 }: {
   scrollerEl?: HTMLElement | null;
   onIntersectionChange?: (isVisible: boolean) => void;
   fullHeight?: boolean;
+  withPadding?: boolean;
+  fixedRowCount?: number;
 }) => {
   const screenHeight = useScreenHeight();
 
   const rowCount = useMemo(() => {
-    const rawCount = Math.ceil(
-      screenHeight / (fullHeight ? 1 : 2) / SKELETON_CONFIG.AVG_ROW_HEIGHT_PX
-    );
+    const rawCount =
+      fixedRowCount ||
+      Math.ceil(
+        screenHeight / (fullHeight ? 1 : 2) / SKELETON_CONFIG.AVG_ROW_HEIGHT_PX
+      );
     return Math.min(
       SKELETON_CONFIG.MAX_ROWS,
       Math.max(SKELETON_CONFIG.MIN_ROWS, rawCount)
     );
-  }, [screenHeight, fullHeight]);
+  }, [screenHeight, fullHeight, fixedRowCount]);
 
   const onIntersectionChangeCallback = onIntersectionChange || emptyFunc;
   const ref = useOnIntersectionChange(onIntersectionChangeCallback, {
@@ -83,7 +89,7 @@ export const MessagesSkeleton = ({
   });
 
   return (
-    <div className="p-2" ref={ref}>
+    <div className={withPadding ? "p-2" : ""} ref={ref}>
       {Array.from({ length: rowCount }).map((_, i) => {
         const widthPercent =
           100 * SKELETON_CONFIG.WIDTHS[i % SKELETON_CONFIG.WIDTHS.length];

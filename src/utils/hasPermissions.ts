@@ -9,7 +9,9 @@ const guestPermissions = [
   P.messages.update,
   P.messages.delete,
   P.user.delete,
+  P.messages.report,
   P.messageReactions.toggle,
+  P.otherUsers.basicInfo.read,
 ] as const satisfies RolePermissions;
 
 const notVerifiedUserPermissions = [
@@ -29,7 +31,7 @@ const userPermissions = [
   P.messageAttachments.delete,
 ] as const satisfies RolePermissions;
 
-const toSet = <T extends string>(xs: readonly T[]) => new Set<T>(xs);
+const toSet = <T extends string>(array: readonly T[]) => new Set<T>(array);
 const permissionSets = {
   guest: toSet(guestPermissions),
   notVerifiedUser: toSet(notVerifiedUserPermissions),
@@ -47,7 +49,11 @@ const getPermissionSet = (user: User) => {
   return new Set<Permission>();
 };
 
-export const hasPermissions = (user: User, neededPerms: RolePermissions) => {
+export const hasPermissions = (
+  user: User | undefined,
+  neededPerms: RolePermissions
+) => {
+  if (!user) return false;
   if (user.role === "admin") return true;
 
   const effectivePerms = getPermissionSet(user);

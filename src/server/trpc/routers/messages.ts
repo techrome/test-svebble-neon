@@ -2029,4 +2029,99 @@ export const messagesRouter = router({
 
       return response;
     }),
+  getMessageReactions: publicProcedure()
+    .input(sharedMessagesValidations.messagesGetReactionsSchemaForm)
+    .output(
+      z.object({
+        items: z.array(
+          z.object({
+            message_reaction_id: numericIdSchema,
+            author: z.custom<MessageAuthor>(),
+          })
+        ),
+        messages_version: numericIdSchema,
+      })
+    )
+    .query(async ({ input }) => {
+      const cursor = input.cursor;
+
+      // needs limit right here to avoid exploding with row count
+      // when joining
+      const messageReactionsScan = db
+        .select({
+          id: schema.message_reactions.id,
+          user_id: schema.message_reactions.user_id,
+        })
+        .from(schema.message_reactions)
+        .where(
+          and(
+            cursor?.id
+              ? before(schema.message_reactions.id, cursor.id)
+              : undefined,
+            eq(
+              schema.message_reactions.group_id,
+              schema.message_reaction_groups.id
+            )
+          )
+        )
+        .orderBy(desc(schema.message_reactions.id))
+        .limit(input.limit)
+        .as("message_reactions_scan");
+
+      const rows = await db
+        .select({
+          message_reaction_id: messageReactionsScan.id,
+          messages_version: schema.channels.messages_version,
+          author: messageAuthorColumns,
+        })
+        .from(schema.messages)
+        .innerJoin(
+          schema.channels,
+          eq(schema.channels.id, schema.messages.channel_id)
+        )
+        .leftJoin(
+          schema.message_reaction_groups,
+          and(
+            eq(schema.message_reaction_groups.reaction_id, input.reactionId),
+            eq(schema.message_reaction_groups.message_id, schema.messages.id)
+          )
+        )
+        .leftJoinLateral(messageReactionsScan, sql`true`)
+        .leftJoin(schema.user, eq(schema.user.id, messageReactionsScan.user_id))
+        .where(
+          and(
+            eq(schema.messages.id, input.messageId),
+            isNull(schema.messages.deleted_at),
+            isNull(schema.channels.deleted_at)
+          )
+        )
+        .orderBy(desc(messageReactionsScan.id))
+        .limit(input.limit);
+      const firstRow = rows[0];
+
+      if (!firstRow) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Message not found.",
+        });
+      }
+
+      const items = rows.flatMap(({ author, message_reaction_id }) => {
+        if (!author || !message_reaction_id) {
+          return [];
+        }
+
+        return [
+          {
+            author,
+            message_reaction_id,
+          },
+        ];
+      });
+
+      return {
+        items,
+        messages_version: firstRow.messages_version,
+      };
+    }),
 });

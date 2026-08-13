@@ -98,6 +98,7 @@ const rateLimits = {
   auth_messagesWrite: { max: 30, window: "60s" },
   auth_messagesToggleReactions: { max: 60, window: "60s" },
   auth_messagesAttachments: { max: 30, window: "60s" },
+  auth_viewOtherUserBasicProfile: { max: 30, window: "60s" },
 } as const satisfies Record<string, WindowSpec>;
 
 type RateLimitMiddlewares = {

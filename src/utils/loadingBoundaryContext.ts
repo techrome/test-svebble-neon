@@ -1,12 +1,6 @@
 import React from "react";
 
 export type QueryKeys = Record<string, true>;
-type Type = {
-  queryKeys: QueryKeys;
-  setQueryKeys: React.Dispatch<React.SetStateAction<QueryKeys>>;
-};
+type Type = (queryKey: string, active: boolean) => void;
 
-export const LoadingBoundaryContext = React.createContext<Type>({
-  queryKeys: {},
-  setQueryKeys: () => {},
-});
+export const LoadingBoundaryContext = React.createContext<Type>(() => {});

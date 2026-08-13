@@ -43,6 +43,11 @@ const basePermissions = {
     },
     delete: true,
   },
+  otherUsers: {
+    basicInfo: {
+      read: true,
+    },
+  },
   account: {
     read: true,
   },
@@ -51,6 +56,7 @@ const basePermissions = {
     update: true,
     delete: true,
     createSpam: true,
+    report: true,
   },
   messageAttachments: {
     create: true,

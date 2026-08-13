@@ -21,7 +21,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import FlagIcon from "@mui/icons-material/Flag";
 import ReplyIcon from "@mui/icons-material/Reply";
 import LinkIcon from "@mui/icons-material/Link";
-import ReplayIcon from "@mui/icons-material/Replay";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
 
 import { trpc, type RouterOutput } from "@/trpc";
@@ -35,7 +35,7 @@ import {
 } from "@/components/Layout/Containers";
 import UserAvatar from "@/components/Avatar/UserAvatar";
 import { useUser } from "@/trpc/hooks/useUser";
-import { useLocalPopover } from "@/utils/hooks/useOverlay";
+import { useGlobalModal, useLocalPopover } from "@/utils/hooks/useOverlay";
 import IconButton from "@/components/Button/IconButton";
 import dayjs from "@/utils/dayjs";
 import {
@@ -69,6 +69,9 @@ import MessageReactionList from "@/components/Chat/MessageReactionList";
 import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 import { useAppDispatch } from "@/redux/hooks";
 import { deleteAllPendingMessageReactions } from "@/redux/slices/messageReactionsUI";
+import { hasPermissions } from "@/utils/hasPermissions";
+import { P } from "@/utils/permissions";
+import UserProfile from "@/components/Chat/UserProfile";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -125,7 +128,6 @@ export type RenderedMessage = ServerRenderedMessage | OptimisticRenderedMessage;
 
 type Props = {
   message: RenderedMessage;
-  totalItems: number;
   shouldHighlight?: boolean;
   isIdleRef?: React.RefObject<boolean>;
   isIdleTrigger?: number;
@@ -144,7 +146,6 @@ type FormValues = z.input<ReturnType<typeof makeMessageUpdateSchemaForm>>;
 
 const Message = ({
   message,
-  totalItems,
   shouldHighlight,
   isIdleTrigger,
   isIdleRef,
@@ -164,6 +165,7 @@ const Message = ({
   const userPopover = useLocalPopover();
   const reactionsPopover = useLocalPopover();
   const externalLinkConfirmationPopover = useLocalPopover({ useTarget: true });
+  const globalModal = useGlobalModal();
   const staticDependencies = useLatest({ externalLinkConfirmationPopover });
   const isDesktop = useIsDesktop();
   const ref = useRef<HTMLDivElement | null>(null);
@@ -276,6 +278,18 @@ const Message = ({
     setIsEdit(false);
   };
 
+  const { canToggleReaction, canCreateMessage, canReportMessage } =
+    useMemo(() => {
+      const userData = user.data?.user;
+      return {
+        canToggleReaction: hasPermissions(userData, [
+          P.messageReactions.toggle,
+        ]),
+        canCreateMessage: hasPermissions(userData, [P.messages.create]),
+        canReportMessage: hasPermissions(userData, [P.messages.report]),
+      };
+    }, [user.data?.user]);
+
   const {
     createdAtShort,
     createdAtFull,
@@ -317,14 +331,12 @@ const Message = ({
       parentMessageUpdatedAtFull,
       dayDisplay,
     };
-    // eslint-disable-next-line
   }, [
     message.created_at,
     message.isCompact,
     message.edited_at,
     message.isFirstMessageOfTheDay,
     message.parentMessage,
-    totalItems,
   ]);
 
   const truncatedUsername = useMemo(() => {
@@ -565,14 +577,16 @@ const Message = ({
                 )}
               >
                 <HorizontalStack addClassName="p-1" spacing="none">
-                  <Tooltip title="Add reaction">
-                    <IconButton
-                      size="small"
-                      onClick={reactionsPopover.openPopover}
-                    >
-                      <AddReactionIcon />
-                    </IconButton>
-                  </Tooltip>
+                  {canToggleReaction && (
+                    <Tooltip title="Add reaction">
+                      <IconButton
+                        size="small"
+                        onClick={reactionsPopover.openPopover}
+                      >
+                        <AddReactionIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   {isOwnMessage && (
                     <Tooltip title="Edit message">
                       <IconButton
@@ -585,11 +599,13 @@ const Message = ({
                       </IconButton>
                     </Tooltip>
                   )}
-                  <Tooltip title="Reply">
-                    <IconButton size="small" onClick={handleReplyClick}>
-                      <ReplyIcon />
-                    </IconButton>
-                  </Tooltip>
+                  {canCreateMessage && (
+                    <Tooltip title="Reply">
+                      <IconButton size="small" onClick={handleReplyClick}>
+                        <ReplyIcon />
+                      </IconButton>
+                    </Tooltip>
+                  )}
                   {MoreButton}
                 </HorizontalStack>
               </Paper>
@@ -615,7 +631,7 @@ const Message = ({
                 <Button
                   variant="contained"
                   color="primary"
-                  startIcon={<ReplayIcon />}
+                  startIcon={<RefreshIcon />}
                   onClick={onOptimisticFailedRetry}
                   className="w-fit"
                 >
@@ -630,18 +646,22 @@ const Message = ({
       <menuPopover.ReadyComponent>
         <Paper>
           <MenuList>
-            <MenuItem onClick={reactionsPopover.openPopover}>
-              <ListItemIcon>
-                <AddReactionIcon />
-              </ListItemIcon>
-              <ListItemText>Add Reaction</ListItemText>
-            </MenuItem>
-            <MenuItem onClick={handleReplyClick}>
-              <ListItemIcon>
-                <ReplyIcon />
-              </ListItemIcon>
-              <ListItemText>Reply</ListItemText>
-            </MenuItem>
+            {canToggleReaction && (
+              <MenuItem onClick={reactionsPopover.openPopover}>
+                <ListItemIcon>
+                  <AddReactionIcon />
+                </ListItemIcon>
+                <ListItemText>Add Reaction</ListItemText>
+              </MenuItem>
+            )}
+            {canCreateMessage && (
+              <MenuItem onClick={handleReplyClick}>
+                <ListItemIcon>
+                  <ReplyIcon />
+                </ListItemIcon>
+                <ListItemText>Reply</ListItemText>
+              </MenuItem>
+            )}
             <MenuItem
               onClick={async () => {
                 const copySuccess = await copyToClipboard(
@@ -663,57 +683,61 @@ const Message = ({
               </ListItemIcon>
               <ListItemText>Copy Message Link</ListItemText>
             </MenuItem>
-            <Divider />
-            {isOwnMessage ? (
-              [
-                <MenuItem
-                  key={1}
-                  onClick={() => {
-                    setIsEdit(true);
-                    menuPopover.closePopover();
-                  }}
-                >
-                  <ListItemIcon>
-                    <EditIcon />
-                  </ListItemIcon>
-                  <ListItemText>Edit Message</ListItemText>
-                </MenuItem>,
-                <Popconfirm
-                  key={2}
-                  title="Are you sure you want to delete this message?"
-                  onConfirm={() => {
-                    messagesDeleteMutation.mutate({ id: message.id });
-                  }}
-                >
+            {(isOwnMessage || canReportMessage) && <Divider />}
+            {isOwnMessage
+              ? [
                   <MenuItem
-                    sx={(theme) => ({ color: theme.vars?.palette.error.main })}
-                    disabled={messagesDeleteMutation.isPending}
+                    key={1}
+                    onClick={() => {
+                      setIsEdit(true);
+                      menuPopover.closePopover();
+                    }}
                   >
                     <ListItemIcon>
-                      {messagesDeleteMutation.isPending ? (
-                        <CircularProgress size={24} color="error" />
-                      ) : (
-                        <DeleteIcon color="error" />
-                      )}
+                      <EditIcon />
                     </ListItemIcon>
-                    <ListItemText>Delete Message</ListItemText>
+                    <ListItemText>Edit Message</ListItemText>
+                  </MenuItem>,
+                  <Popconfirm
+                    key={2}
+                    title="Are you sure you want to delete this message?"
+                    onConfirm={() => {
+                      messagesDeleteMutation.mutate({ id: message.id });
+                    }}
+                  >
+                    <MenuItem
+                      sx={(theme) => ({
+                        color: theme.vars?.palette.error.main,
+                      })}
+                      disabled={messagesDeleteMutation.isPending}
+                    >
+                      <ListItemIcon>
+                        {messagesDeleteMutation.isPending ? (
+                          <CircularProgress size={24} color="error" />
+                        ) : (
+                          <DeleteIcon color="error" />
+                        )}
+                      </ListItemIcon>
+                      <ListItemText>Delete Message</ListItemText>
+                    </MenuItem>
+                  </Popconfirm>,
+                ]
+              : canReportMessage && (
+                  <MenuItem
+                    sx={(theme) => ({
+                      color: theme.vars?.palette.warning.main,
+                    })}
+                    onClick={(e) => {
+                      onReportClick(e);
+                      menuPopover.closePopover();
+                    }}
+                  >
+                    <ListItemIcon>
+                      <FlagIcon color="warning" />
+                    </ListItemIcon>
+                    <ListItemText>Report Message</ListItemText>
                   </MenuItem>
-                </Popconfirm>,
-              ]
-            ) : (
-              <MenuItem
-                sx={(theme) => ({ color: theme.vars?.palette.warning.main })}
-                onClick={(e) => {
-                  onReportClick(e);
-                  menuPopover.closePopover();
-                }}
-              >
-                <ListItemIcon>
-                  <FlagIcon color="warning" />
-                </ListItemIcon>
-                <ListItemText>Report Message</ListItemText>
-              </MenuItem>
-            )}
+                )}
           </MenuList>
         </Paper>
       </menuPopover.ReadyComponent>
@@ -757,14 +781,38 @@ const Message = ({
       <userPopover.ReadyComponent placement="right">
         <Section fullWidth={false} addClassName="min-w-xs max-w-sm">
           <VerticalStack>
-            <Typography>{message.author.name}</Typography>
-            <Typography color="textSecondary">
-              {message.author.username}
-            </Typography>
+            <HorizontalStack addClassName="items-center">
+              <UserAvatar user={message.author} size="lg" />
+              <div>
+                <Typography>{message.author.name}</Typography>
+                <Typography color="textSecondary">
+                  {message.author.username}
+                </Typography>
+              </div>
+            </HorizontalStack>
+            <div className="flex justify-center">
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => {
+                  globalModal.openModal({
+                    props: { title: "User profile" },
+                    content: (
+                      <LoadingBoundary>
+                        <UserProfile userId={message.author.id} />
+                      </LoadingBoundary>
+                    ),
+                  });
+                  userPopover.closePopover();
+                }}
+              >
+                View full profile
+              </Button>
+            </div>
           </VerticalStack>
         </Section>
       </userPopover.ReadyComponent>
-      <reactionsPopover.ReadyComponent>
+      <reactionsPopover.ReadyComponent disablePortal>
         <LoadingBoundary>
           {!message.isOptimistic && (
             <MessageReactionPicker

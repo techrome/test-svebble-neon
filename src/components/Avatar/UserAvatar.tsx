@@ -11,7 +11,7 @@ type Props = {
     NonNullable<NonNullable<ReturnType<typeof useUser>["data"]>["user"]>,
     "displayUsername" | "id" | "image"
   >;
-  size?: "xs" | "sm" | "md" | "lg";
+  size?: "xs" | "sm" | "md" | "lg" | "xl";
 };
 
 export const sizesMap = {
@@ -19,6 +19,7 @@ export const sizesMap = {
   sm: "min-w-8 size-8",
   md: "min-w-10 size-10",
   lg: "min-w-16 size-16",
+  xl: "min-w-20 size-20",
 } as const satisfies Record<NonNullable<Props["size"]>, string>;
 
 const UserAvatar = ({ user, size = "sm" }: Props) => {

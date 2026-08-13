@@ -5,10 +5,9 @@ import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import NextImage from "next/image";
 import DescriptionIcon from "@mui/icons-material/Description";
 import ErrorIcon from "@mui/icons-material/Error";
-import ReplayIcon from "@mui/icons-material/Replay";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import CloseIcon from "@mui/icons-material/Close";
 import WarningIcon from "@mui/icons-material/Warning";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 
 import IconButton from "@/components/Button/IconButton";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
@@ -41,6 +40,7 @@ import AttachmentModal from "@/components/Chat/AttachmentModal";
 import Popconfirm from "@/components/Popover/Popconfirm";
 import { useUser } from "@/trpc/hooks/useUser";
 import { htmlToText } from "@/utils/htmlToText";
+import useMobileSlider from "@/utils/hooks/useMobileSlider";
 
 const isAbortError = (error: unknown, signal?: AbortSignal) => {
   if (signal?.aborted) return true;
@@ -306,7 +306,7 @@ const NewMessageAttachment = ({
                 startUpload();
               }}
             >
-              <ReplayIcon fontSize="small" />
+              <RefreshIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         )}
@@ -507,15 +507,6 @@ const MessageAttachmentItem = ({
   );
 };
 
-const getHorizontalScrollState = (el: HTMLElement) => {
-  const threshold = 1;
-
-  return {
-    atStart: el.scrollLeft <= threshold,
-    atEnd: el.scrollLeft + el.clientWidth >= el.scrollWidth - threshold,
-  };
-};
-
 type MessageAttachmentDisplayListProps = {
   message: RenderedMessage;
   onAttachmentDeleteSuccess: MessageAttachmentDeleteMutationOptions["onSuccess"];
@@ -524,18 +515,11 @@ type MessageAttachmentDisplayListProps = {
 const attachmentClassName =
   "rounded shrink-0 h-[75px] min-w-[75px] max-w-[150px] md:h-[150px] md:min-w-[150px] md:max-w-[300px]";
 
-const mobileButtonArrowClassName = `w-5 border-0 absolute inset-y-0 bg-[rgb(var(--mui-palette-text-primaryChannel)/0.5)] md:hidden flex justify-center items-center transition disabled:opacity-0 disabled:pointer-events-none`;
-
 export const MessageAttachmentDisplayList = ({
   message,
   onAttachmentDeleteSuccess,
 }: MessageAttachmentDisplayListProps) => {
   const isDesktop = useIsDesktop();
-  const [scrollState, setScrollState] = useState({
-    atStart: true,
-    atEnd: false,
-  });
-  const ref = useRef<HTMLDivElement>(null);
   const localBaseModal = useLocalBaseModal();
   const [deletingAttachmentIds, setDeletingAttachmentIds] = useState(
     new Set<string>()
@@ -570,25 +554,10 @@ export const MessageAttachmentDisplayList = ({
   const isLastAttachmentAndNoContent =
     message.attachments.length === 1 && !hasContent;
 
-  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    setScrollState(getHorizontalScrollState(event.currentTarget));
-  };
-
-  const scrollAttachments = (direction: "left" | "right") => {
-    const el = ref.current;
-    if (!el) return;
-
-    el.scrollBy({
-      left: direction === "left" ? -el.clientWidth * 0.7 : el.clientWidth * 0.7,
-      behavior: "smooth",
-    });
-  };
-
-  useEffect(() => {
-    if (ref.current) {
-      setScrollState(getHorizontalScrollState(ref.current));
-    }
-  }, [message.attachments]);
+  // destructuring because of https://github.com/react/react/issues/35575
+  const { parentRef: mobileSliderParentRef, ...mobileSlider } = useMobileSlider(
+    { updaterDependency: message.attachments }
+  );
 
   useEffect(() => {
     if (viewingAttachmentIndex > attachmentCount - 1) {
@@ -599,12 +568,12 @@ export const MessageAttachmentDisplayList = ({
   if (!message.attachments.length) return null;
 
   return (
-    <div className="relative ">
+    <div className="relative">
       <HorizontalStack
         addClassName="overflow-x-auto rounded"
         wrap={false}
-        onScroll={handleScroll}
-        ref={ref}
+        onScroll={mobileSlider.handleScroll}
+        ref={mobileSliderParentRef}
       >
         {message.isOptimistic
           ? message.attachments.map((x, i) => (
@@ -657,31 +626,8 @@ export const MessageAttachmentDisplayList = ({
           </localBaseModal.ReadyComponent>
         )}
       </HorizontalStack>
-      <button
-        type="button"
-        aria-label="Scroll attachments left"
-        onClick={() => scrollAttachments("left")}
-        className={clsx("left-0 rounded-l", mobileButtonArrowClassName)}
-        disabled={scrollState.atStart || isDesktop}
-      >
-        <ArrowForwardIosIcon
-          fontSize="inherit"
-          className="rotate-180 text-mui-background-default text-xs"
-        />
-      </button>
-
-      <button
-        type="button"
-        aria-label="Scroll attachments right"
-        onClick={() => scrollAttachments("right")}
-        className={clsx("right-0 rounded-r", mobileButtonArrowClassName)}
-        disabled={scrollState.atEnd || isDesktop}
-      >
-        <ArrowForwardIosIcon
-          fontSize="inherit"
-          className="text-mui-background-default text-xs"
-        />
-      </button>
+      {mobileSlider.buttons.left}
+      {mobileSlider.buttons.right}
     </div>
   );
 };

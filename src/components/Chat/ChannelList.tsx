@@ -13,7 +13,7 @@ import { useRouter } from "next/router";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import TagIcon from "@mui/icons-material/Tag";
 import SettingsIcon from "@mui/icons-material/Settings";
-import ReplayIcon from "@mui/icons-material/Replay";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 import IconButton from "@/components/Button/IconButton";
 import {
@@ -176,15 +176,15 @@ const ChannelList = ({ isDrawer }: { isDrawer?: boolean }) => {
     [router.query.channelId]
   );
 
-  const canManageChannels = useMemo(() => {
-    if (!user.data?.user) return false;
-
-    return hasPermissions(user.data?.user, [
-      P.channels.create,
-      P.channels.delete,
-      P.channels.update,
-    ]);
-  }, [user.data?.user]);
+  const canManageChannels = useMemo(
+    () =>
+      hasPermissions(user.data?.user, [
+        P.channels.create,
+        P.channels.delete,
+        P.channels.update,
+      ]),
+    [user.data?.user]
+  );
 
   return (
     <VerticalStack addClassName="min-h-0">
@@ -201,7 +201,7 @@ const ChannelList = ({ isDrawer }: { isDrawer?: boolean }) => {
             <Button
               variant="contained"
               color="inherit"
-              startIcon={<ReplayIcon />}
+              startIcon={<RefreshIcon />}
               onClick={() => {
                 utils.channels.get.invalidate();
               }}
@@ -253,7 +253,7 @@ const ChannelList = ({ isDrawer }: { isDrawer?: boolean }) => {
                     </ListItemIcon>
                     <ListItemText
                       primary={channel.name}
-                      className="text-left"
+                      className="text-left pr-10"
                     />
                   </ListItemButton>
                 </Link>
