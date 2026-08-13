@@ -43,6 +43,11 @@ const basePermissions = {
     },
     delete: true,
   },
+  otherUsers: {
+    basicInfo: {
+      read: true,
+    },
+  },
   account: {
     read: true,
   },

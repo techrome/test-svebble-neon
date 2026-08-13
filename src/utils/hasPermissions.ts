@@ -11,6 +11,7 @@ const guestPermissions = [
   P.user.delete,
   P.messages.report,
   P.messageReactions.toggle,
+  P.otherUsers.basicInfo.read,
 ] as const satisfies RolePermissions;
 
 const notVerifiedUserPermissions = [

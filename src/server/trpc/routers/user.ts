@@ -31,7 +31,7 @@ import { env as clientEnv } from "@/utils/env";
 import { minutes } from "@/utils/cacheTime";
 import { db, schema } from "../../db";
 import { FILE_PURPOSE, FILE_STATUS } from "../../db/helpers/enums";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { moderateImage } from "../helpers/openai";
 import { PLACEHOLDER_EMAIL_DOMAIN } from "@/trpc/helpers/email";
 import { isDev } from "@/utils/isDev";
@@ -45,6 +45,9 @@ import {
 import { allowedAvatarExtensionsMap } from "@/utils/validators/sharedValues/user";
 import { cacheControl } from "../../storage/vars";
 import { Text } from "@/utils/validators/helpers/text";
+import { uuidSchema } from "@/utils/validators/helpers/custom";
+import dayjs from "@/utils/dayjs";
+import { dateFormatDisplay } from "@/utils/dateFormats";
 
 const avatarProbeSchema = avatarUploadUrlSchemaServer.pick({
   imageWidth: true,
@@ -462,4 +465,40 @@ export const userRouter = router({
 
     return logoutRes;
   }),
+  viewOtherUserProfile: privateProcedure(
+    [P.otherUsers.basicInfo.read],
+    rateLimitMiddlewares.auth_viewOtherUserBasicProfile
+  )
+    .input(
+      z.object({
+        userId: uuidSchema,
+      })
+    )
+    .query(async ({ input }) => {
+      const userToFindId = input.userId;
+
+      const [row] = await db
+        .select({
+          id: schema.user.id,
+          username: schema.user.username,
+          displayUsername: schema.user.displayUsername,
+          name: schema.user.name,
+          image: schema.user.image,
+          role: schema.user.role,
+          createdAtDisplay: schema.user.createdAt,
+        })
+        .from(schema.user)
+        .where(
+          and(eq(schema.user.id, userToFindId), isNull(schema.user.deletedAt))
+        );
+
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "User not found." });
+      }
+
+      return {
+        ...row,
+        createdAtDisplay: dayjs(row.createdAtDisplay).format(dateFormatDisplay),
+      };
+    }),
 });
