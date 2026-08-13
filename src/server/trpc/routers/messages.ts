@@ -2046,9 +2046,32 @@ export const messagesRouter = router({
       const rate = 0;
       const cursor = input.cursor;
 
+      // needs limit right here to avoid exploding with row count
+      // when joining
+      const messageReactionsScan = db
+        .select({
+          id: schema.message_reactions.id,
+          user_id: schema.message_reactions.user_id,
+        })
+        .from(schema.message_reactions)
+        .where(
+          and(
+            cursor?.id
+              ? before(schema.message_reactions.id, cursor.id)
+              : undefined,
+            eq(
+              schema.message_reactions.group_id,
+              schema.message_reaction_groups.id
+            )
+          )
+        )
+        .orderBy(desc(schema.message_reactions.id))
+        .limit(input.limit)
+        .as("message_reactions_scan");
+
       const rows = await db
         .select({
-          message_reaction_id: schema.message_reactions.id,
+          message_reaction_id: messageReactionsScan.id,
           messages_version: schema.channels.messages_version,
           author: messageAuthorColumns,
         })
@@ -2064,22 +2087,8 @@ export const messagesRouter = router({
             eq(schema.message_reaction_groups.message_id, schema.messages.id)
           )
         )
-        .leftJoin(
-          schema.message_reactions,
-          and(
-            cursor?.id
-              ? before(schema.message_reactions.id, cursor.id)
-              : undefined,
-            eq(
-              schema.message_reactions.group_id,
-              schema.message_reaction_groups.id
-            )
-          )
-        )
-        .leftJoin(
-          schema.user,
-          eq(schema.user.id, schema.message_reactions.user_id)
-        )
+        .leftJoinLateral(messageReactionsScan, sql`true`)
+        .leftJoin(schema.user, eq(schema.user.id, messageReactionsScan.user_id))
         .where(
           and(
             eq(schema.messages.id, input.messageId),
@@ -2087,9 +2096,8 @@ export const messagesRouter = router({
             isNull(schema.channels.deleted_at)
           )
         )
-        .orderBy(desc(schema.message_reactions.id))
+        .orderBy(desc(messageReactionsScan.id))
         .limit(input.limit);
-
       const firstRow = rows[0];
 
       if (!firstRow) {
