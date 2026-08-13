@@ -331,7 +331,6 @@ const Message = ({
       parentMessageUpdatedAtFull,
       dayDisplay,
     };
-    // eslint-disable-next-line
   }, [
     message.created_at,
     message.isCompact,

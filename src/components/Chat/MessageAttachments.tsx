@@ -507,15 +507,6 @@ const MessageAttachmentItem = ({
   );
 };
 
-const getHorizontalScrollState = (el: HTMLElement) => {
-  const threshold = 1;
-
-  return {
-    atStart: el.scrollLeft <= threshold,
-    atEnd: el.scrollLeft + el.clientWidth >= el.scrollWidth - threshold,
-  };
-};
-
 type MessageAttachmentDisplayListProps = {
   message: RenderedMessage;
   onAttachmentDeleteSuccess: MessageAttachmentDeleteMutationOptions["onSuccess"];
@@ -523,8 +514,6 @@ type MessageAttachmentDisplayListProps = {
 
 const attachmentClassName =
   "rounded shrink-0 h-[75px] min-w-[75px] max-w-[150px] md:h-[150px] md:min-w-[150px] md:max-w-[300px]";
-
-const mobileButtonArrowClassName = `w-5 border-0 absolute inset-y-0 bg-[rgb(var(--mui-palette-text-primaryChannel)/0.5)] md:hidden flex justify-center items-center transition disabled:opacity-0 disabled:pointer-events-none`;
 
 export const MessageAttachmentDisplayList = ({
   message,
