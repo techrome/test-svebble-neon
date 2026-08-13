@@ -35,7 +35,7 @@ import {
 } from "@/components/Layout/Containers";
 import UserAvatar from "@/components/Avatar/UserAvatar";
 import { useUser } from "@/trpc/hooks/useUser";
-import { useLocalPopover } from "@/utils/hooks/useOverlay";
+import { useGlobalModal, useLocalPopover } from "@/utils/hooks/useOverlay";
 import IconButton from "@/components/Button/IconButton";
 import dayjs from "@/utils/dayjs";
 import {
@@ -71,6 +71,7 @@ import { useAppDispatch } from "@/redux/hooks";
 import { deleteAllPendingMessageReactions } from "@/redux/slices/messageReactionsUI";
 import { hasPermissions } from "@/utils/hasPermissions";
 import { P } from "@/utils/permissions";
+import UserProfile from "@/components/Chat/UserProfile";
 
 const closestWithin = <T extends HTMLElement>(
   start: EventTarget | null,
@@ -164,6 +165,7 @@ const Message = ({
   const userPopover = useLocalPopover();
   const reactionsPopover = useLocalPopover();
   const externalLinkConfirmationPopover = useLocalPopover({ useTarget: true });
+  const globalModal = useGlobalModal();
   const staticDependencies = useLatest({ externalLinkConfirmationPopover });
   const isDesktop = useIsDesktop();
   const ref = useRef<HTMLDivElement | null>(null);
@@ -780,10 +782,34 @@ const Message = ({
       <userPopover.ReadyComponent placement="right">
         <Section fullWidth={false} addClassName="min-w-xs max-w-sm">
           <VerticalStack>
-            <Typography>{message.author.name}</Typography>
-            <Typography color="textSecondary">
-              {message.author.username}
-            </Typography>
+            <HorizontalStack addClassName="items-center">
+              <UserAvatar user={message.author} size="lg" />
+              <div>
+                <Typography>{message.author.name}</Typography>
+                <Typography color="textSecondary">
+                  {message.author.username}
+                </Typography>
+              </div>
+            </HorizontalStack>
+            <div className="flex justify-center">
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={() => {
+                  globalModal.openModal({
+                    props: { title: "User profile" },
+                    content: (
+                      <LoadingBoundary>
+                        <UserProfile userId={message.author.id} />
+                      </LoadingBoundary>
+                    ),
+                  });
+                  userPopover.closePopover();
+                }}
+              >
+                View full profile
+              </Button>
+            </div>
           </VerticalStack>
         </Section>
       </userPopover.ReadyComponent>
