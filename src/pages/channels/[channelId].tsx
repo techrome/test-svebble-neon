@@ -11,7 +11,7 @@ import Button from "@/components/Button/Button";
 import clsx from "clsx";
 import PersonIcon from "@mui/icons-material/Person";
 import { Paper, Typography } from "@mui/material";
-import ReplayIcon from "@mui/icons-material/Replay";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import ReplyIcon from "@mui/icons-material/Reply";
 import ClearIcon from "@mui/icons-material/Clear";
 import ViewListIcon from "@mui/icons-material/ViewList";
@@ -2391,7 +2391,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
               <Button
                 variant="contained"
                 color="inherit"
-                startIcon={<ReplayIcon />}
+                startIcon={<RefreshIcon />}
                 onClick={() => tryLoadOlder(true)}
                 isLoading={messages.isFetchingPreviousPage}
                 size="large"
@@ -2422,7 +2422,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
               <Button
                 variant="contained"
                 color="inherit"
-                startIcon={<ReplayIcon />}
+                startIcon={<RefreshIcon />}
                 onClick={() => tryLoadNewer(true)}
                 isLoading={messages.isFetchingNextPage}
                 size="large"
@@ -2446,7 +2446,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
               <Button
                 variant="contained"
                 color="inherit"
-                startIcon={<ReplayIcon />}
+                startIcon={<RefreshIcon />}
                 onClick={retryInvalidate}
                 size="large"
                 className="w-fit"
@@ -2784,7 +2784,7 @@ const MessageListOrchestrator = ({ channel }: Props) => {
               <Button
                 variant="contained"
                 color="inherit"
-                startIcon={<ReplayIcon />}
+                startIcon={<RefreshIcon />}
                 onClick={retryInvalidate}
                 size="large"
                 className="w-fit"

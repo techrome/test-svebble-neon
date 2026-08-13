@@ -13,7 +13,7 @@ import { useRouter } from "next/router";
 import { type SubmitHandler, useForm } from "react-hook-form";
 import TagIcon from "@mui/icons-material/Tag";
 import SettingsIcon from "@mui/icons-material/Settings";
-import ReplayIcon from "@mui/icons-material/Replay";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 import IconButton from "@/components/Button/IconButton";
 import {
@@ -201,7 +201,7 @@ const ChannelList = ({ isDrawer }: { isDrawer?: boolean }) => {
             <Button
               variant="contained"
               color="inherit"
-              startIcon={<ReplayIcon />}
+              startIcon={<RefreshIcon />}
               onClick={() => {
                 utils.channels.get.invalidate();
               }}

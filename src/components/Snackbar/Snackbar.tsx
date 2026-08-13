@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { CustomContentProps, useSnackbar } from "notistack";
-import { Alert, Collapse, Typography } from "@mui/material";
+import { Alert, Typography } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -20,6 +20,7 @@ import dayjs from "@/utils/dayjs";
 import { dateTimeFormatFullDisplay } from "@/utils/dateFormats";
 import { useRerenderOnInterval } from "@/utils/hooks/useRerenderOnInterval";
 import { seconds } from "@/utils/cacheTime";
+import Collapse from "@/components/Collapse/Collapse";
 
 type SnackbarProps = {
   isSystemNotification?: false | undefined;
@@ -137,7 +138,7 @@ const Snackbar = React.forwardRef<HTMLDivElement, Props>((props, ref) => {
         </HorizontalStack>
       </HorizontalStack>
       {hasDetails && (
-        <Collapse in={expanded} unmountOnExit>
+        <Collapse in={expanded}>
           <div className="mt-2 pr-3 max-w-full max-h-[250px] overflow-y-auto">
             <Typography variant="body2" component="div">
               {props.details}

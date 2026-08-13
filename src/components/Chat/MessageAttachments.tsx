@@ -5,10 +5,9 @@ import DeleteSweepIcon from "@mui/icons-material/DeleteSweep";
 import NextImage from "next/image";
 import DescriptionIcon from "@mui/icons-material/Description";
 import ErrorIcon from "@mui/icons-material/Error";
-import ReplayIcon from "@mui/icons-material/Replay";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import CloseIcon from "@mui/icons-material/Close";
 import WarningIcon from "@mui/icons-material/Warning";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 
 import IconButton from "@/components/Button/IconButton";
 import { HorizontalStack, VerticalStack } from "@/components/Layout/Containers";
@@ -307,7 +306,7 @@ const NewMessageAttachment = ({
                 startUpload();
               }}
             >
-              <ReplayIcon fontSize="small" />
+              <RefreshIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         )}

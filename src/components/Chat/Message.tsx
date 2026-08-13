@@ -21,7 +21,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import FlagIcon from "@mui/icons-material/Flag";
 import ReplyIcon from "@mui/icons-material/Reply";
 import LinkIcon from "@mui/icons-material/Link";
-import ReplayIcon from "@mui/icons-material/Replay";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import ArrowOutwardIcon from "@mui/icons-material/ArrowOutward";
 
 import { trpc, type RouterOutput } from "@/trpc";
@@ -630,7 +630,7 @@ const Message = ({
                 <Button
                   variant="contained"
                   color="primary"
-                  startIcon={<ReplayIcon />}
+                  startIcon={<RefreshIcon />}
                   onClick={onOptimisticFailedRetry}
                   className="w-fit"
                 >

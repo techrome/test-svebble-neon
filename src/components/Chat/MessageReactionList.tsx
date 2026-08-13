@@ -24,6 +24,7 @@ import { useAuthModal } from "@/utils/hooks/useAuthModal";
 import { useUser } from "@/trpc/hooks/useUser";
 import { useLocalModal } from "@/utils/hooks/useOverlay";
 import MessageReactionUserList from "@/components/Chat/MessageReactionUserList";
+import LoadingBoundary from "@/components/LoadingBoundary/LoadingBoundary";
 
 export type EnrichedReaction = ServerRenderedMessage["reactions"][number] & {
   definition: ReactionData;
@@ -296,11 +297,13 @@ const MessageReactionList = ({
       ))}
       <reactionListModal.ReadyComponent title="Reactions">
         {!!initialReactionListId && (
-          <MessageReactionUserList
-            message={message}
-            initialReactionId={initialReactionListId}
-            reactions={enrichedReactions}
-          />
+          <LoadingBoundary>
+            <MessageReactionUserList
+              message={message}
+              initialReactionId={initialReactionListId}
+              reactions={enrichedReactions}
+            />
+          </LoadingBoundary>
         )}
       </reactionListModal.ReadyComponent>
     </HorizontalStack>

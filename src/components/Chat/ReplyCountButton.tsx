@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Paper, Typography } from "@mui/material";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import ReplayIcon from "@mui/icons-material/Replay";
+import RefreshIcon from "@mui/icons-material/Refresh";
 import clsx from "clsx";
 
 import { type RenderedMessage } from "@/components/Chat/Message";
@@ -199,7 +199,7 @@ const ReplyList = ({ message, onReplyClick }: ReplyListProps) => {
                 <Button
                   variant="contained"
                   color="inherit"
-                  startIcon={<ReplayIcon />}
+                  startIcon={<RefreshIcon />}
                   onClick={() => {
                     utils.messages.getReplies.invalidate();
                   }}
